@@ -119,3 +119,39 @@ A task is not complete until:
 - `docs/` — architecture and project knowledge
 - `.claude/agents/` — Claude Code specialist agents
 - `.github/` — GitHub workflows/templates
+
+## Branch Naming Convention
+
+All development branches must follow:
+
+<type>/<issue-number>-<short-description>
+
+Allowed types:
+
+- feature/
+- fix/
+- refactor/
+- test/
+- docs/
+- chore/
+- hardware/
+
+Rules:
+
+- Use lowercase.
+- Use kebab-case.
+- Do not use spaces.
+- Do not use Turkish characters.
+- Keep branch names concise.
+- Include the GitHub issue number whenever the work is associated with an issue.
+
+Examples:
+
+- feature/12-usb-hid
+- feature/15-audio-enumeration
+- fix/23-hid-reconnect
+- refactor/31-protocol-parser
+- test/18-protocol-tests
+- docs/8-hardware-setup
+- chore/5-github-actions
+- hardware/20-display-bringup
