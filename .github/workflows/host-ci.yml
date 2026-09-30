@@ -1,0 +1,20 @@
+name: Host CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  host:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Placeholder
+        shell: pwsh
+        run: |
+          Write-Host "Host CI scaffold."
+          Write-Host "C++ build/test pipeline will be enabled when the host project exists."

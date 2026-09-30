@@ -1,0 +1,48 @@
+# IDE / OS
+.vscode/
+.idea/
+*.user
+*.suo
+.DS_Store
+Thumbs.db
+
+# Build output
+build/
+out/
+bin/
+obj/
+Debug/
+Release/
+
+# C/C++
+*.o
+*.obj
+*.a
+*.lib
+*.dll
+*.exe
+*.elf
+*.hex
+*.bin
+*.map
+
+# STM32 / CubeIDE generated build output
+Debug/
+Release/
+
+# CMake
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+
+# Test output
+test-results/
+coverage/
+
+# Local Claude/session data if generated
+.claude/local/
+
+# Secrets/local configuration
+.env
+*.local

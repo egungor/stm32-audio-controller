@@ -1,0 +1,19 @@
+name: Protocol CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  protocol:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Placeholder
+        run: |
+          echo "Protocol CI scaffold."
+          echo "Build/test steps will be enabled when the protocol test project exists."
