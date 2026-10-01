@@ -11,3 +11,12 @@ Before modifying files:
 7. List tests and hardware validation required.
 
 Do not implement until the plan is approved when the task is non-trivial.
+
+## Git Planning
+
+Before implementation:
+
+1. Identify the GitHub Issue associated with the task.
+2. Propose a branch name following the project's branch naming convention.
+3. Do not create or modify `main` directly.
+4. Keep the branch focused on the planned change.
