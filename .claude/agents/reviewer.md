@@ -35,3 +35,14 @@ At the end provide:
 - Non-blocking suggestions
 - Tests actually run
 - Hardware validation still required
+
+## Git and PR Review
+
+Verify that:
+
+- The PR targets `main`.
+- The branch follows the project's branch naming convention.
+- The PR is associated with the appropriate GitHub Issue when applicable.
+- The change is focused and does not contain unrelated modifications.
+- No direct modification of `main` is assumed.
+- Commit history does not contain unnecessary generated or unrelated files.
