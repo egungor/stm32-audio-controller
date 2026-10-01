@@ -34,3 +34,14 @@ If a change affects both firmware and host:
 - silently change protocol packet formats.
 - make broad refactors unrelated to the task.
 - overwrite user work without inspecting it first.
+
+## Git Workflow
+
+- Never commit directly to `main`.
+- All development work must be performed on a dedicated branch.
+- Follow the branch naming convention defined in `CLAUDE.md`.
+- Prefer one GitHub Issue per focused change.
+- Open a Pull Request before merging into `main`.
+- Do not bypass branch protection rules.
+- Keep commits focused and related to the current task.
+- Do not rewrite shared branch history.
