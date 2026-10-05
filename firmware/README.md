@@ -1,6 +1,7 @@
 # STM32 Firmware
 
-This directory will contain the STM32F756NGH6 firmware.
+This directory will contain the firmware for the STM32F746G-DISCO board
+(MCU: STM32F746NGH6). See `docs/hardware.md`.
 
 Planned components:
 
@@ -11,5 +12,7 @@ Planned components:
 - USB HID transport
 - shared protocol adapter
 
-The exact CubeMX project should be created only after the exact Discovery
-board model and its peripherals have been verified.
+The board model has been verified (see `docs/hardware.md`). The CubeMX
+project should use the STM32F746G-DISCO board configuration, with GPIO and
+peripheral assignments taken from the official ST documentation and
+STM32CubeF7 BSP rather than guessed.

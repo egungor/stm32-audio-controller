@@ -12,7 +12,7 @@ Status: **IN PROGRESS**
 - [x] Protocol document
 - [x] GitHub issue/PR templates
 - [x] CI skeleton
-- [ ] Verify exact STM32 board model
+- [x] Verify exact STM32 board model (STM32F746G-DISCO / MB1191, STM32F746NGH6)
 
 ## M1 — Hardware Bring-up
 
