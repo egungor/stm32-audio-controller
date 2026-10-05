@@ -20,14 +20,17 @@ explicitly asks for it.
 
 ## Target hardware
 
-- MCU: STM32F756NGH6
-- Board: STM32 F7 Discovery board
-- Exact board part number: TO BE VERIFIED
+- Board: STM32F746G-DISCO (32F746GDISCOVERY), board reference MB1191
+- MCU: STM32F746NGH6
+- LCD: 4.3" 480x272 capacitive touchscreen, ROCKTECH RK043FN48H-CT672B
+- Touch controller: FT5336
 - GUI: LVGL is the planned GUI framework
 - USB: USB HID is the planned host communication transport
 
-Do not assume the exact LCD/touch controller until the physical board model
-has been verified and documented in `docs/hardware.md`.
+The board identity above has been verified on the physical board. See
+`docs/hardware.md` for details. Do not invent GPIO or peripheral mappings;
+take them from the official STM32F746G-DISCO documentation (UM1907, MB1191
+schematic) and the STM32CubeF7 BSP.
 
 ## Host
 
