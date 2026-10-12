@@ -136,6 +136,36 @@ Flow:
 
 6. Build outputs are not committed.
 
+### Linux build (secondary)
+
+`tools/build-firmware-linux.sh` builds the same CMake project on Linux.
+It exists so that Claude's Linux sandbox (which cannot run the Windows ST
+tools) can compile changes; any Linux developer can use it too. It is
+**not** the reference build: it uses the Arm official GNU toolchain
+14.3.Rel1, which is the upstream base of the ST "GNU Tools for STM32
+14.3.1" bundle but without ST's patches. A result from this build must
+be reported as such; the Windows ST build stays authoritative.
+
+Required archives, placed in `<repo>/.toolchain/` (gitignored):
+
+| Archive | Source |
+|---|---|
+| `arm-gnu-toolchain-<ver>-x86_64-arm-none-eabi.tar.xz` | Arm GNU Toolchain downloads (developer.arm.com), x86_64 Linux host, AArch32 bare-metal target. Prefer 14.3.Rel1; if Arm does not offer it, use the closest 14.x release and record which one |
+| `cmake-<ver>-linux-x86_64.tar.gz` | Kitware CMake release; prefer v3.26.3 |
+| `ninja-linux.zip` | ninja-build release; prefer v1.13.2 |
+
+Exactly one archive of each kind must be present. The script prints the
+tool versions it actually used at the start of every build.
+
+```text
+tools/build-firmware-linux.sh          # Debug
+tools/build-firmware-linux.sh Release
+```
+
+The script extracts the archives once to `~/.cache/stm32-tools` and
+builds into `firmware/STM32AudioController/build/linux-<type>/`, separate
+from the Windows preset build directories.
+
 ## 5. Firmware flashing flow
 
 **Planned, not yet performed.**
