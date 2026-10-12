@@ -150,7 +150,7 @@ Required archives, placed in `<repo>/.toolchain/` (gitignored):
 
 | Archive | Source |
 |---|---|
-| `arm-gnu-toolchain-<ver>-x86_64-arm-none-eabi.tar.xz` | Arm GNU Toolchain downloads (developer.arm.com), x86_64 Linux host, AArch32 bare-metal target. Prefer 14.3.Rel1; if Arm does not offer it, use the closest 14.x release and record which one |
+| `arm-gnu-toolchain-<ver>-x86_64-arm-none-eabi.tar.xz` | Arm GNU Toolchain downloads (developer.arm.com), x86_64 Linux host, AArch32 bare-metal target. Use 14.3.Rel1: `https://developer.arm.com/-/media/Files/downloads/gnu/14.3.rel1/binrel/arm-gnu-toolchain-14.3.rel1-x86_64-arm-none-eabi.tar.xz` (the downloads page lists newer releases first) |
 | `cmake-<ver>-linux-x86_64.tar.gz` | Kitware CMake release; prefer v3.26.3 |
 | `ninja-linux.zip` | ninja-build release; prefer v1.13.2 |
 
