@@ -7,8 +7,10 @@ development host) from **future decisions** (not yet made). Anything not
 listed as verified must not be assumed.
 
 > Status: the toolchain has been installed and its versions verified.
-> **No firmware project exists yet. No firmware has been built, flashed,
-> debugged or tested.** No STM32CubeMX project has been created.
+> An STM32CubeMX project exists in `firmware/STM32AudioController/`
+> (CMake project type). A Debug build output has been produced on the
+> developer host. **No firmware has been flashed, debugged or tested on
+> hardware** (`REQUIRES HARDWARE`). There is no firmware CI build yet.
 
 ## Target
 
@@ -99,26 +101,39 @@ Notes:
 
 ## 4. Firmware build flow
 
-**Planned, not yet implemented.** No CubeMX project or `CMakeLists.txt`
-exists in the repository.
+The CubeMX project lives in `firmware/STM32AudioController/`:
+
+| Item | Value |
+|---|---|
+| `.ioc` file | `firmware/STM32AudioController/STM32AudioController.ioc` |
+| Generated with | STM32CubeMX 6.18.1, STM32Cube FW_F7 V1.17.4 (as recorded in the `.ioc`) |
+| Board selector | STM32F746G-DISCO (`board=STM32F746G-DISCO` in the `.ioc`) |
+| Project type | CMake |
+| Toolchain file | `cmake/gcc-arm-none-eabi.cmake` (generated) |
+| `cmake_minimum_required` | 3.22 (generated value) |
+| Configure/build presets | `Debug`, `Release` (`CMakePresets.json`, generator Ninja) |
+| Build directory | `firmware/STM32AudioController/build/<preset>/` (not committed) |
+| Main output | `build/<preset>/STM32AudioController.elf` |
+
+Flow:
 
 1. Configure the MCU, clocks and peripherals in STM32CubeMX and save
-   the `.ioc` file under `firmware/`.
+   the `.ioc` file.
 2. Generate code with the **CMake** project type.
 3. Commit the `.ioc` file together with the generated code so that every
    regeneration is reviewable in a PR.
-4. Keep application code in `firmware/App/`; keep edits to generated
-   code inside CubeMX `USER CODE` sections.
-5. Configure and build with CMake and Ninja, for example:
+4. Keep edits to generated code inside CubeMX `USER CODE` sections.
+   Where application code lives (and how it is added to `CMakeLists.txt`)
+   is an open decision; `CMakeLists.txt` currently adds no user sources.
+5. Configure and build with CMake and Ninja from
+   `firmware/STM32AudioController/`:
 
    ```text
-   cmake --preset <preset>
-   cmake --build --preset <preset>
+   cmake --preset Debug
+   cmake --build --preset Debug
    ```
 
-   Preset names are a future decision.
-6. Expected outputs: `.elf`, plus `.bin`/`.hex` and a `.map` file.
-   Build outputs are not committed.
+6. Build outputs are not committed.
 
 ## 5. Firmware flashing flow
 
@@ -180,8 +195,19 @@ version, or a container image) are future decisions.
   declared in `CMakeLists.txt` is a future decision.
 - Do not commit installed tools, the full STM32CubeF7 package, build
   output, or personal IDE settings.
-- Line-ending policy (`.gitattributes`) is a future decision; the
-  repository currently shows line-ending-only differences on Windows.
+- Line endings: see "Line endings" below.
+
+### Line endings
+
+`.gitattributes` sets `* text=auto` plus explicit `text` rules for
+source, build and CubeMX files. Text files are stored with **LF** in the
+repository; the working tree uses the platform's native line endings
+(CRLF on Windows). As a result, STM32CubeMX regenerations on Windows do
+not produce whole-file line-ending diffs.
+
+Some CubeMX-generated files contain stray CR characters (for example
+`cmake/stm32cubemx/CMakeLists.txt`); they are forced to `text` so Git
+does not treat them as binary.
 
 ## 9. Hardware validation limitations
 

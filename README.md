@@ -11,9 +11,11 @@ The project consists of:
 
 ## Project status
 
-**Milestone M0 — AI Development Environment**
+**Milestone M0 — AI Development Environment** (moving into M1 — Hardware Bring-up)
 
-Repository structure and development rules are established. Hardware bring-up has not started yet.
+Repository structure and development rules are established. An STM32CubeMX
+firmware skeleton exists in `firmware/STM32AudioController/`. Nothing has
+been tested on hardware yet.
 
 ## Target architecture
 
@@ -89,12 +91,10 @@ stm32-audio-controller/
 │   ├── architecture.md
 │   ├── hardware.md
 │   ├── roadmap.md
+│   ├── toolchain.md
 │   └── development-workflow.md
 ├── firmware/
-│   ├── App/
-│   ├── Core/
-│   ├── Drivers/
-│   ├── Middlewares/
+│   ├── STM32AudioController/   # STM32CubeMX project (CMake)
 │   └── README.md
 ├── host/
 │   ├── Audio/
@@ -109,6 +109,7 @@ stm32-audio-controller/
 │   └── protocol.md
 ├── tests/
 ├── tools/
+├── .gitattributes
 ├── AGENTS.md
 ├── CLAUDE.md
 └── README.md

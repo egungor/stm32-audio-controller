@@ -16,8 +16,9 @@ Status: **IN PROGRESS**
 
 ## M1 — Hardware Bring-up
 
-- [ ] Create STM32CubeIDE/CubeMX project
-- [ ] Verify clocks
+- [x] Create STM32CubeMX project (CMake, `firmware/STM32AudioController/`)
+- [ ] Review enabled peripherals (board preset enables more than the product needs)
+- [ ] Verify clocks (SYSCLK currently configured at 200 MHz)
 - [ ] Initialize LCD
 - [ ] Initialize touch
 - [ ] Display a static test screen

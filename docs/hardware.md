@@ -64,6 +64,8 @@ mapping is tracked as an M1 task in `docs/roadmap.md`.
 - [ ] Confirm ST-LINK connection
 - [ ] Confirm external SDRAM operation
 - [ ] Confirm clock configuration
+- [ ] Confirm which USART is routed to the ST-LINK virtual COM port
+  (UM1907) and align the CubeMX configuration with it
 - [ ] Capture board photos in `docs/images/`
 
 ## Planned firmware peripherals
