@@ -154,8 +154,15 @@ Required archives, placed in `<repo>/.toolchain/` (gitignored):
 | `cmake-<ver>-linux-x86_64.tar.gz` | Kitware CMake release; prefer v3.26.3 |
 | `ninja-linux.zip` | ninja-build release; prefer v1.13.2 |
 
-Exactly one archive of each kind must be present. The script prints the
-tool versions it actually used at the start of every build.
+Exactly one archive of each kind must be present at the top level of
+`.toolchain/` (subfolders such as `.toolchain/unused/` are ignored). The
+script prints the tool versions it actually used at the start of every
+build, and re-extracts the compiler (with a clean build directory) when
+the compiler archive changes.
+
+Verified: the Debug build completes with Arm GNU Toolchain 14.3.Rel1
+(GCC 14.3.1 20250623, the same GCC release date as the ST bundle above),
+CMake 3.26.3 and Ninja 1.13.2, with no compiler warnings.
 
 ```text
 tools/build-firmware-linux.sh          # Debug

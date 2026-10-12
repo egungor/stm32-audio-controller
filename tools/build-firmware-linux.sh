@@ -9,7 +9,8 @@
 #   arm-gnu-toolchain-<ver>-x86_64-arm-none-eabi.tar.xz  (prefer 14.3.rel1)
 #   cmake-<ver>-linux-x86_64.tar.gz                      (prefer 3.26.3)
 #   ninja-linux.zip
-# Exactly one archive of each kind must be present. The versions actually
+# Exactly one archive of each kind must be present at the top level of
+# .toolchain/ (subfolders are ignored, e.g. .toolchain/unused/). The versions actually
 # used are printed at the start of every build.
 #
 # Archives are extracted once into $TOOLS_DIR (default ~/.cache/stm32-tools),
@@ -40,11 +41,18 @@ find_one() {
 
 mkdir -p "$TOOLS_DIR"
 
-if [[ ! -x "$TOOLS_DIR/gcc/bin/arm-none-eabi-gcc" ]]; then
-    GCC_ARCHIVE="$(find_one 'arm-gnu-toolchain-*-x86_64-arm-none-eabi.tar.xz')"
+# Re-extract the compiler whenever the archive in .toolchain/ changes, and
+# drop the old build directory so nothing built by the previous compiler
+# is reused.
+GCC_ARCHIVE="$(find_one 'arm-gnu-toolchain-*-x86_64-arm-none-eabi.tar.xz')"
+GCC_STAMP="$TOOLS_DIR/gcc/.archive"
+if [[ ! -x "$TOOLS_DIR/gcc/bin/arm-none-eabi-gcc" ]] \
+   || [[ "$(cat "$GCC_STAMP" 2>/dev/null)" != "$GCC_ARCHIVE" ]]; then
     echo "Extracting $GCC_ARCHIVE ..."
     rm -rf "$TOOLS_DIR/gcc" && mkdir -p "$TOOLS_DIR/gcc"
     tar -xJf "$ARCHIVES/$GCC_ARCHIVE" -C "$TOOLS_DIR/gcc" --strip-components=1
+    echo "$GCC_ARCHIVE" > "$GCC_STAMP"
+    rm -rf "$BUILD_DIR"
 fi
 
 if [[ ! -x "$TOOLS_DIR/cmake/bin/cmake" ]]; then
