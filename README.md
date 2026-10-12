@@ -95,6 +95,7 @@ stm32-audio-controller/
 │   └── development-workflow.md
 ├── firmware/
 │   ├── STM32AudioController/   # STM32CubeMX project (CMake)
+│   │   └── App/                # hand-written application code
 │   └── README.md
 ├── host/
 │   ├── Audio/

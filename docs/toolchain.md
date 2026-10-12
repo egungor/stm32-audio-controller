@@ -123,8 +123,9 @@ Flow:
 3. Commit the `.ioc` file together with the generated code so that every
    regeneration is reviewable in a PR.
 4. Keep edits to generated code inside CubeMX `USER CODE` sections.
-   Where application code lives (and how it is added to `CMakeLists.txt`)
-   is an open decision; `CMakeLists.txt` currently adds no user sources.
+   Hand-written application code lives in
+   `firmware/STM32AudioController/App/` and each source file is listed
+   explicitly in `CMakeLists.txt` (see `firmware/README.md`).
 5. Configure and build with CMake and Ninja from
    `firmware/STM32AudioController/`:
 
