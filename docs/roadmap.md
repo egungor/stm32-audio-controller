@@ -17,7 +17,7 @@ Status: **IN PROGRESS**
 ## M1 — Hardware Bring-up
 
 - [x] Create STM32CubeMX project (CMake, `firmware/STM32AudioController/`)
-- [ ] Review enabled peripherals (board preset enables more than the product needs) — proposal in `docs/decisions/ADR-001-firmware-peripheral-set.md`
+- [x] Review enabled peripherals — `docs/decisions/ADR-001-firmware-peripheral-set.md`
 - [ ] Verify clocks (SYSCLK currently configured at 200 MHz)
 - [ ] Initialize LCD
 - [ ] Initialize touch

@@ -19,20 +19,10 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "cmsis_os.h"
-#include "adc.h"
 #include "crc.h"
 #include "dma2d.h"
-#include "eth.h"
-#include "fatfs.h"
 #include "i2c.h"
 #include "ltdc.h"
-#include "quadspi.h"
-#include "rtc.h"
-#include "sai.h"
-#include "sdmmc.h"
-#include "spdifrx.h"
-#include "spi.h"
-#include "tim.h"
 #include "usart.h"
 #include "usb_device.h"
 #include "gpio.h"
@@ -113,28 +103,12 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_ADC3_Init();
   MX_CRC_Init();
   MX_DMA2D_Init();
-  MX_ETH_Init();
   MX_FMC_Init();
-  MX_I2C1_Init();
   MX_I2C3_Init();
   MX_LTDC_Init();
-  MX_QUADSPI_Init();
-  MX_RTC_Init();
-  MX_SAI2_Init();
-  MX_SDMMC1_SD_Init();
-  MX_SPDIFRX_Init();
-  MX_SPI2_Init();
-  MX_TIM1_Init();
-  MX_TIM2_Init();
-  MX_TIM3_Init();
-  MX_TIM5_Init();
-  MX_TIM8_Init();
-  MX_TIM12_Init();
-  MX_USART6_UART_Init();
-  MX_FATFS_Init();
+  MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
 
   /* USER CODE END 2 */
@@ -179,9 +153,8 @@ void SystemClock_Config(void)
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_LSI|RCC_OSCILLATORTYPE_HSE;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
-  RCC_OscInitStruct.LSIState = RCC_LSI_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
   RCC_OscInitStruct.PLL.PLLM = 25;
@@ -225,17 +198,14 @@ void PeriphCommonClock_Config(void)
 
   /** Initializes the peripherals clock
   */
-  PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_LTDC|RCC_PERIPHCLK_SAI2
-                              |RCC_PERIPHCLK_SDMMC1|RCC_PERIPHCLK_CLK48;
+  PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_LTDC|RCC_PERIPHCLK_CLK48;
   PeriphClkInitStruct.PLLSAI.PLLSAIN = 384;
   PeriphClkInitStruct.PLLSAI.PLLSAIR = 5;
   PeriphClkInitStruct.PLLSAI.PLLSAIQ = 2;
   PeriphClkInitStruct.PLLSAI.PLLSAIP = RCC_PLLSAIP_DIV8;
   PeriphClkInitStruct.PLLSAIDivQ = 1;
   PeriphClkInitStruct.PLLSAIDivR = RCC_PLLSAIDIVR_8;
-  PeriphClkInitStruct.Sai2ClockSelection = RCC_SAI2CLKSOURCE_PLLSAI;
   PeriphClkInitStruct.Clk48ClockSelection = RCC_CLK48SOURCE_PLLSAIP;
-  PeriphClkInitStruct.Sdmmc1ClockSelection = RCC_SDMMC1CLKSOURCE_CLK48;
   if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK)
   {
     Error_Handler();
@@ -250,28 +220,28 @@ void PeriphCommonClock_Config(void)
 
 void MPU_Config(void)
 {
-//  MPU_Region_InitTypeDef MPU_InitStruct = {0};
+  MPU_Region_InitTypeDef MPU_InitStruct = {0};
 
   /* Disables the MPU */
   HAL_MPU_Disable();
 
-//  /** Initializes and configures the Region and the memory to be protected
-//  */
-//  MPU_InitStruct.Enable = MPU_REGION_ENABLE;
-//  MPU_InitStruct.Number = MPU_REGION_NUMBER0;
-//  MPU_InitStruct.BaseAddress = 0x0;
-//  MPU_InitStruct.Size = MPU_REGION_SIZE_4GB;
-//  MPU_InitStruct.SubRegionDisable = 0x87;
-//  MPU_InitStruct.TypeExtField = MPU_TEX_LEVEL0;
-//  MPU_InitStruct.AccessPermission = MPU_REGION_NO_ACCESS;
-//  MPU_InitStruct.DisableExec = MPU_INSTRUCTION_ACCESS_DISABLE;
-//  MPU_InitStruct.IsShareable = MPU_ACCESS_SHAREABLE;
-//  MPU_InitStruct.IsCacheable = MPU_ACCESS_NOT_CACHEABLE;
-//  MPU_InitStruct.IsBufferable = MPU_ACCESS_NOT_BUFFERABLE;
-//
-//  HAL_MPU_ConfigRegion(&MPU_InitStruct);
-//  /* Enables the MPU */
-//  HAL_MPU_Enable(MPU_PRIVILEGED_DEFAULT);
+  /** Initializes and configures the Region and the memory to be protected
+  */
+  MPU_InitStruct.Enable = MPU_REGION_ENABLE;
+  MPU_InitStruct.Number = MPU_REGION_NUMBER0;
+  MPU_InitStruct.BaseAddress = 0x0;
+  MPU_InitStruct.Size = MPU_REGION_SIZE_4GB;
+  MPU_InitStruct.SubRegionDisable = 0x87;
+  MPU_InitStruct.TypeExtField = MPU_TEX_LEVEL0;
+  MPU_InitStruct.AccessPermission = MPU_REGION_NO_ACCESS;
+  MPU_InitStruct.DisableExec = MPU_INSTRUCTION_ACCESS_DISABLE;
+  MPU_InitStruct.IsShareable = MPU_ACCESS_SHAREABLE;
+  MPU_InitStruct.IsCacheable = MPU_ACCESS_NOT_CACHEABLE;
+  MPU_InitStruct.IsBufferable = MPU_ACCESS_NOT_BUFFERABLE;
+
+  HAL_MPU_ConfigRegion(&MPU_InitStruct);
+  /* Enables the MPU */
+  HAL_MPU_Enable(MPU_PRIVILEGED_DEFAULT);
 
 }
 

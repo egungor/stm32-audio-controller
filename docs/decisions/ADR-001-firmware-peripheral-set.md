@@ -2,8 +2,22 @@
 
 ## Status
 
-Proposed — awaiting developer approval. Nothing in the `.ioc` has been
-changed yet.
+Accepted — applied in STM32CubeMX 6.18.1 and regenerated.
+
+### Result
+
+- Enabled IPs: CORTEX_M7, CRC, DMA2D, FMC, FREERTOS, I2C3, LTDC, NVIC,
+  RCC, SYS, USART1, USB_DEVICE, USB_OTG_FS (was 29, now 13).
+- `main.c` initializes only GPIO, CRC, DMA2D, FMC, I2C3, LTDC and
+  USART1 (115200 baud, TX `PA9`, RX `PB7`); USB device starts in the
+  default task.
+- Remaining configured GPIO: `PD4`, `PD5`, `PI12`, `PI13`, `PJ12`, `PK3`.
+- Generated sources for removed peripherals (`adc`, `eth`, `quadspi`,
+  `rtc`, `sai`, `sdmmc`, `spdifrx`, `spi`, `tim`, `FATFS/`), which
+  CubeMX leaves behind, were deleted; they were not compiled.
+- Linux build (Arm GNU Toolchain 14.3.Rel1): 0 warnings; flash
+  76.6 KB → 47.7 KB, RAM 41.5 KB → 39.6 KB.
+- Windows ST build: NOT VERIFIED. Hardware: NOT TESTED.
 
 ## Context
 
