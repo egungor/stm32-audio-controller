@@ -38,22 +38,28 @@ public:
     void onFrame(const Frame& frame);
 
     // Windows reported a change. Each sends only what differs from what
-    // the STM32 was last told, and nothing before the STM32 has asked for
-    // the device list since the last connect (it always starts with
-    // GET_DEVICE_LIST, which is answered in full).
+    // the STM32 was last told, and nothing before the full list has been
+    // sent since the last connect (onConnected or GET_DEVICE_LIST).
     void onDevicesChanged();  // endpoints added, removed or renamed
     void onDefaultChanged();
     void onVolumeChanged();   // volume or mute of the default endpoint
 
-    // The HID device was (re)connected: forget what was sent, so the next
-    // GET_DEVICE_LIST or change is sent in full.
+    // The HID device was opened: forget what was sent and send the full
+    // list, default, volume and mute without waiting for GET_DEVICE_LIST
+    // (protocol.md, "Exchanges"), so a board that stayed plugged in while
+    // the host restarted drops the previous session's list.
     void onConnected();
+
+    // The HID device went away: forget what was sent; nothing is sent
+    // until the next onConnected() or GET_DEVICE_LIST.
+    void onDisconnected();
 
     const DeviceRegistry& registry() const { return registry_; }
     const Stats& stats() const { return stats_; }
 
 private:
     bool synced() const { return sentGeneration_.has_value(); }
+    void forgetSent();
     void handleGetDeviceList();
     void handleSelectDevice(const ProtoMessage& msg);
     void handleSetVolume(const ProtoMessage& msg);

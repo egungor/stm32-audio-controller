@@ -202,14 +202,8 @@ int cmdWatch(win::WinAudioSystem& audio, EventQueue& events)
 
     installCtrlHandler(&events);
 
-    // Act as if the STM32 had just connected and asked for the list.
+    // Act as if the STM32 had just been opened: the full list goes out.
     controller.onConnected();
-    ProtoMessage request{};
-    Frame frame{};
-    request.command = PROTO_CMD_GET_DEVICE_LIST;
-    (void)Proto_Encode(&request, frame.data());
-    std::printf("<- %s (simulated)\n", describeMessage(request).c_str());
-    controller.onFrame(frame);
     std::printf("Watching Windows audio changes. Change the default device or the volume; Ctrl+C stops.\n");
     std::fflush(stdout);
 
@@ -261,8 +255,7 @@ int cmdRun(win::WinAudioSystem& audio, EventQueue& events)
         case HostEvent::HidDisconnected:
             std::printf("Controller disconnected.\n");
             std::fflush(stdout);
-            // Nothing is sent until the STM32 asks for the list again.
-            controller.onConnected();
+            controller.onDisconnected();
             break;
         case HostEvent::Quit: {
             link.stop();
