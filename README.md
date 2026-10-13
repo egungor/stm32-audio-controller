@@ -26,7 +26,7 @@ and Windows tests", and [`docs/roadmap.md`](docs/roadmap.md)).
 | Windows host: Core Audio, default device switching, HID transport | Builds and unit tests in CI; REQUIRES WINDOWS |
 | Firmware ↔ host together | Loopback integration test in CI; end to end REQUIRES HARDWARE + WINDOWS |
 | Volume and mute on the touchscreen (M6) | Simulator and tests in CI; REQUIRES HARDWARE + WINDOWS |
-| Polish (M7) | Not started |
+| Polish (M7) | Not started; display flip (180°) coded (#42), REQUIRES HARDWARE |
 
 ## Architecture
 

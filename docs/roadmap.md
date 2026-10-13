@@ -96,7 +96,7 @@ Status: **CODE DONE** — REQUIRES HARDWARE + WINDOWS
 
 ## M7 — Polish
 
-Status: **NOT STARTED** (two items partly exist)
+Status: **NOT STARTED** (display flip coded, #42; two items partly exist)
 
 - [ ] Friendly names
 - [ ] Favorites
@@ -105,6 +105,7 @@ Status: **NOT STARTED** (two items partly exist)
 - [ ] Windows startup option
 - [ ] Error UI — waiting screen, error screen and notices for a refused or unanswered selection exist (#22, #30)
 - [ ] Performance/memory review
+- [ ] Display flip (180°) — button and port coded (#42), simulator; on the LCD REQUIRES HARDWARE
 
 ## v1.0
 
