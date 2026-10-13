@@ -2,16 +2,23 @@
 
 ## Status
 
-Draft — Protocol v0.
+**Protocol version 1.** Frame format, message set and validation rules are
+fixed. Firmware and host integration follow in M3/M4.
 
 This document is the source of truth for communication between the STM32
-firmware and the Windows host application.
+firmware and the Windows host application. The reference implementation
+is `include/protocol.h` + `src/protocol.c` (portable C99, used by both
+sides); `tests/test_protocol.c` checks it against this document.
 
 ## Transport
 
-Planned transport: USB HID.
+USB HID, Full Speed. Each message is exactly one 64-byte frame, carried in
+one HID report in each direction (device → host: input report,
+host → device: output report). The HID report descriptor and whether a
+report ID byte precedes the frame are part of the M3 HID descriptor task;
+the frame below is the report payload either way.
 
-The protocol must remain independent of the specific HID API implementation.
+The protocol does not depend on a specific HID API.
 
 ## Goals
 
@@ -22,41 +29,125 @@ The protocol must remain independent of the specific HID API implementation.
 - Robust against malformed packets
 - Suitable for small control messages
 
-## Initial message set
+## Frame
 
-| Command | Direction | Purpose |
-|---|---|---|
-| `GET_DEVICE_LIST` | STM32 → Host | Request current audio devices |
-| `DEVICE_LIST` | Host → STM32 | Send device list |
-| `SELECT_DEVICE` | STM32 → Host | Select an audio endpoint |
-| `DEVICE_CHANGED` | Host → STM32 | Notify current default endpoint |
-| `SET_VOLUME` | STM32 → Host | Change volume |
-| `VOLUME_CHANGED` | Host → STM32 | Report volume |
-| `SET_MUTE` | STM32 → Host | Change mute state |
-| `MUTE_CHANGED` | Host → STM32 | Report mute state |
-| `ERROR` | Either | Report protocol/application error |
+All frames are 64 bytes. Multi-byte fields are little endian.
 
-## Packet format
+| Offset | Size | Field | Value |
+|---|---|---|---|
+| 0 | 1 | magic | `0xA5` |
+| 1 | 1 | version | `1` |
+| 2 | 1 | command | see message set |
+| 3 | 1 | sequence | sender's counter, incremented per frame sent, wraps 255 → 0 |
+| 4 | 1 | length | payload bytes, 0–57 |
+| 5 | length | payload | per command |
+| 5 + length | … | padding | zero |
+| 62 | 2 | crc | CRC-16 of bytes 0–61 |
 
-Initial proposal:
+CRC: CRC-16/CCITT-FALSE: polynomial `0x1021`, initial value `0xFFFF`,
+no input/output reflection, no final XOR. Check value: `"123456789"` →
+`0x29B1`. Stored low byte first at offset 62.
+
+Senders must zero the padding. Receivers do not check it beyond the CRC.
+
+### Example
+
+`SELECT_DEVICE` with sequence `0x2A`, `device_index` = 2:
 
 ```text
-+--------+--------+--------+----------------+----------+
-| MAGIC  | VERSION| CMD    | LENGTH         | PAYLOAD  |
-+--------+--------+--------+----------------+----------+
-| 1 byte | 1 byte | 1 byte | 2 bytes LE     | N bytes  |
-+--------+--------+--------+----------------+----------+
+offset 0..5:   A5 01 03 2A 01 02
+offset 6..61:  00 (56 bytes)
+offset 62..63: 87 2B            (CRC 0x2B87)
 ```
 
-The final packet size and integrity mechanism will be defined before M3.
+## Message set
+
+| Code | Command | Direction | Payload |
+|---|---|---|---|
+| `0x01` | `GET_DEVICE_LIST` | STM32 → Host | none |
+| `0x02` | `DEVICE_LIST` | Host → STM32 | one device entry (below) |
+| `0x03` | `SELECT_DEVICE` | STM32 → Host | `device_index` (0–254) |
+| `0x04` | `DEVICE_CHANGED` | Host → STM32 | `device_index` of the current default (0–254), or `0xFF` = none |
+| `0x05` | `SET_VOLUME` | STM32 → Host | `volume` (0–100, percent) |
+| `0x06` | `VOLUME_CHANGED` | Host → STM32 | `volume` (0–100) |
+| `0x07` | `SET_MUTE` | STM32 → Host | `muted` (0 or 1) |
+| `0x08` | `MUTE_CHANGED` | Host → STM32 | `muted` (0 or 1) |
+| `0x7F` | `ERROR` | Either | `code`, `ref_command`, `ref_sequence` (1 byte each) |
+
+Volume and mute refer to the current default playback device.
+
+### Device list
+
+A device list is sent as `total` `DEVICE_LIST` frames, one device each, in
+display order. Payload (7 + `name_len` bytes):
+
+| Byte | Field | Value |
+|---|---|---|
+| 0 | `generation` | same in every frame of one list; the host changes it for each new list |
+| 1 | `total` | number of devices, 0–32 |
+| 2 | `position` | 0 … `total` − 1 |
+| 3 | `device_index` | 0–254, assigned by the host |
+| 4 | `flags` | bit 0: current default device; other bits 0 |
+| 5 | `icon` | 0 generic, 1 speakers, 2 headphones, 3 headset, 4 display, 5 digital output |
+| 6 | `name_len` | 0–48 |
+| 7 … | `name` | `name_len` bytes of UTF-8, no NUL bytes, no terminator |
+
+- An empty list is one frame with `total` = 0, `position` = 0,
+  `device_index` = `0xFF`, `flags` = 0, `icon` = 0, `name_len` = 0.
+- The host truncates names to 48 bytes at a UTF-8 character boundary.
+- The firmware assembles the list by `position` and replaces its list
+  only when all `total` entries of one `generation` have arrived. A frame
+  with a different `generation` discards a partially received list.
+- The host sends a list in reply to `GET_DEVICE_LIST` and whenever the set
+  of playback devices or their names change.
 
 ## Device identity
 
-Windows endpoint IDs are opaque strings and must not be interpreted by
-firmware.
+Windows endpoint IDs are opaque strings and never leave the host.
 
-The host should assign a session-local numeric `device_index` for the
-STM32 UI. The host remains the owner of the actual Windows endpoint ID.
+The host assigns each device a session-local `device_index` (0–254) and
+keeps the mapping to the Windows endpoint ID. An index is valid until the
+next device list; the firmware only echoes indices it received.
+
+## Exchanges
+
+| Trigger | Frames |
+|---|---|
+| Firmware starts or USB (re)connects | STM32 → `GET_DEVICE_LIST`; Host → `DEVICE_LIST` × total, then `DEVICE_CHANGED`, `VOLUME_CHANGED`, `MUTE_CHANGED` |
+| User selects a device | STM32 → `SELECT_DEVICE`; Host → `DEVICE_CHANGED` after Windows switched, or `ERROR` |
+| Default device, volume or mute changed in Windows | Host → `DEVICE_CHANGED` / `VOLUME_CHANGED` / `MUTE_CHANGED` |
+| Devices added, removed or renamed | Host → new `DEVICE_LIST` (new `generation`), then `DEVICE_CHANGED` |
+
+The firmware shows the state reported by the host. It does not mark a
+device as active after `SELECT_DEVICE` until `DEVICE_CHANGED` arrives.
+
+Timeouts and retries are defined with the HID transport (M3).
+
+## Errors and validation
+
+A receiver checks, in this order, and stops at the first failure:
+
+1. magic is `0xA5`;
+2. version is `1`;
+3. CRC matches;
+4. length ≤ 57;
+5. command is known;
+6. payload length and every field value match the rules above.
+
+A rejected frame is dropped. The receiver may answer with `ERROR`:
+
+| Code | Name | Meaning |
+|---|---|---|
+| `0x01` | `BAD_FRAME` | magic, CRC or length wrong |
+| `0x02` | `UNSUPPORTED_VERSION` | version is not 1 |
+| `0x03` | `UNKNOWN_COMMAND` | command code not in the message set |
+| `0x04` | `BAD_PAYLOAD` | payload length or a field value invalid |
+| `0x05` | `UNKNOWN_DEVICE` | `device_index` not in the current list |
+| `0x06` | `OPERATION_FAILED` | valid request, but it could not be carried out (e.g. Windows refused) |
+| `0x07` | `BUSY` | request cannot be handled now |
+
+`ref_command` and `ref_sequence` name the frame being answered (0 when
+none). A receiver never answers an `ERROR` frame with another `ERROR`.
 
 ## Compatibility
 
@@ -66,3 +157,12 @@ Any incompatible protocol change requires:
 2. protocol documentation update;
 3. protocol tests;
 4. firmware and host implementation updates.
+
+A receiver rejects frames of any other version (`UNSUPPORTED_VERSION`).
+
+## History
+
+| Version | Change |
+|---|---|
+| 0 | Draft: message list and a header proposal (magic, version, command, 16-bit length). |
+| 1 | Fixed 64-byte frame with sequence byte, 8-bit length and CRC-16; payloads, device list format, error codes and validation rules defined. |
