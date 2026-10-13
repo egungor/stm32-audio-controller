@@ -13,10 +13,11 @@ The system has three major parts:
 
 ## Current milestone
 
-M0 — AI Development Environment.
+M1 — Hardware Bring-up (M0 is done). See `docs/roadmap.md` for the
+remaining M1 items.
 
-Do not start implementation of the product features unless the current task
-explicitly asks for it.
+Do not start implementation of the product features (UI, USB HID protocol,
+Windows audio) unless the current task explicitly asks for it.
 
 ## Target hardware
 

@@ -11,11 +11,15 @@ The project consists of:
 
 ## Project status
 
-**Milestone M0 — AI Development Environment** (moving into M1 — Hardware Bring-up)
+**Milestone M1 — Hardware Bring-up** (M0 — AI Development Environment is done)
 
-Repository structure and development rules are established. An STM32CubeMX
-firmware skeleton exists in `firmware/STM32AudioController/`. Nothing has
-been tested on hardware yet.
+Repository structure and development rules are established. The STM32CubeMX
+firmware project in `firmware/STM32AudioController/` has been brought up on
+the physical board: boot, USB enumeration, the ST-LINK VCP log, the SDRAM
+self-test and an LCD test pattern are verified. Touch, the UI, the USB HID
+protocol and the Windows host application are not implemented yet. See
+[`docs/hardware.md`](docs/hardware.md) for the hardware test log and
+[`docs/roadmap.md`](docs/roadmap.md) for milestone status.
 
 ## Target architecture
 

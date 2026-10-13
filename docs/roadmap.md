@@ -2,7 +2,7 @@
 
 ## M0 — AI Development Environment
 
-Status: **IN PROGRESS**
+Status: **DONE**
 
 - [x] Repository structure
 - [x] Claude Code project instructions
@@ -15,6 +15,8 @@ Status: **IN PROGRESS**
 - [x] Verify exact STM32 board model (STM32F746G-DISCO / MB1191, STM32F746NGH6)
 
 ## M1 — Hardware Bring-up
+
+Status: **IN PROGRESS**
 
 - [x] Create STM32CubeMX project (CMake, `firmware/STM32AudioController/`)
 - [x] Review enabled peripherals — `docs/decisions/ADR-001-firmware-peripheral-set.md`
