@@ -153,6 +153,7 @@ the firmware commit.
 | Board enumerates as `1209:0001`, vendor HID, 64-byte reports | #30, ADR-003 | REQUIRES HARDWARE + WINDOWS |
 | `stm32-audio-host list`, `set-default`, `volume`, `mute`, `watch` match Settings → Sound | #28, `host/README.md` | REQUIRES WINDOWS |
 | End to end with `stm32-audio-host run` (list, select on the LCD, Windows changes, unplug/replug, host restart) | `host/README.md`, "Manual check with the board" | REQUIRES HARDWARE + WINDOWS |
+| Volume and mute: drag the slider and tap mute on the LCD → Windows follows; change them in Windows → the LCD follows | #40, `host/README.md` | REQUIRES HARDWARE + WINDOWS |
 | Boot after a power cycle (SDRAM from cold) | bring-up log above | NOT TESTED |
 | LCD screenshots of the final UI in `docs/images/` | `docs/images/README.md` | after the UI check |
 

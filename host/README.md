@@ -131,6 +131,10 @@ Manual check with the board (REQUIRES HARDWARE + WINDOWS; firmware from
 7. Restart `run` with the board plugged in, after changing the default
    in Windows while it was closed: the LCD shows the current list and
    default right after `Controller connected`, without a tap.
+8. Drag the volume slider on the LCD: a few `<- SET_VOLUME` lines (not
+   one per pixel), the Windows volume follows and the knob does not jump
+   back. Tap mute: `<- SET_MUTE`, `-> MUTE_CHANGED`, the icon changes.
+   Change volume and mute in Windows: the LCD follows.
 
 ### Device registry
 
