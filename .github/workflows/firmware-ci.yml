@@ -1,0 +1,62 @@
+name: Firmware CI
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'firmware/**'
+      - 'tools/build-firmware-linux.sh'
+      - '.github/workflows/firmware-ci.yml'
+  pull_request:
+    paths:
+      - 'firmware/**'
+      - 'tools/build-firmware-linux.sh'
+      - '.github/workflows/firmware-ci.yml'
+
+# Toolchain versions follow docs/toolchain.md ("Linux build (secondary)").
+env:
+  GCC_ARCHIVE: arm-gnu-toolchain-14.3.rel1-x86_64-arm-none-eabi.tar.xz
+  GCC_URL: https://developer.arm.com/-/media/Files/downloads/gnu/14.3.rel1/binrel/arm-gnu-toolchain-14.3.rel1-x86_64-arm-none-eabi.tar.xz
+  CMAKE_ARCHIVE: cmake-3.26.3-linux-x86_64.tar.gz
+  CMAKE_URL: https://github.com/Kitware/CMake/releases/download/v3.26.3/cmake-3.26.3-linux-x86_64.tar.gz
+  NINJA_URL: https://github.com/ninja-build/ninja/releases/download/v1.13.2/ninja-linux.zip
+
+jobs:
+  firmware:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        build_type: [ Debug, Release ]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Cache toolchain archives
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: .toolchain
+          key: toolchain-${{ env.GCC_ARCHIVE }}-${{ env.CMAKE_ARCHIVE }}-ninja-1.13.2
+
+      - name: Download toolchain archives
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p .toolchain
+          curl -fsSL --retry 3 -o ".toolchain/$GCC_ARCHIVE" "$GCC_URL"
+          curl -fsSL --retry 3 -o ".toolchain/$CMAKE_ARCHIVE" "$CMAKE_URL"
+          curl -fsSL --retry 3 -o .toolchain/ninja-linux.zip "$NINJA_URL"
+
+      - name: Build
+        run: tools/build-firmware-linux.sh ${{ matrix.build_type }}
+
+      - name: Upload firmware
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-${{ matrix.build_type }}
+          path: |
+            firmware/STM32AudioController/build/linux-${{ matrix.build_type }}/STM32AudioController.elf
+            firmware/STM32AudioController/build/linux-${{ matrix.build_type }}/STM32AudioController.map
+          if-no-files-found: error
