@@ -64,6 +64,8 @@ public:
     std::vector<std::string> setDefaultCalls;
     unsigned volume = 40;
     bool mute = false;
+    unsigned setVolumeCalls = 0;
+    bool volumeNotificationDue = false;  // Windows echoes changes made through the API
 
     std::vector<AudioEndpoint> renderEndpoints() override { return endpoints; }
     std::string defaultEndpointId() override { return defaultId; }
@@ -76,16 +78,32 @@ public:
         defaultId = id;
         return true;
     }
-    std::optional<unsigned> volumePercent() override { return volume; }
+    // Like Core Audio: no volume or mute without a default device.
+    std::optional<unsigned> volumePercent() override
+    {
+        return defaultId.empty() ? std::nullopt : std::optional<unsigned>(volume);
+    }
     bool setVolumePercent(unsigned percent) override
     {
+        if (defaultId.empty()) {
+            return false;
+        }
+        ++setVolumeCalls;
         volume = percent;
+        volumeNotificationDue = true;
         return true;
     }
-    std::optional<bool> muted() override { return mute; }
+    std::optional<bool> muted() override
+    {
+        return defaultId.empty() ? std::nullopt : std::optional<bool>(mute);
+    }
     bool setMuted(bool m) override
     {
+        if (defaultId.empty()) {
+            return false;
+        }
         mute = m;
+        volumeNotificationDue = true;
         return true;
     }
 };
@@ -109,6 +127,9 @@ struct FirmwareScreen {
     std::uint8_t pending = UI_NO_DEVICE;
     int listsShown = 0;
     int notices[2] = {0, 0};
+    std::uint8_t volume = UI_VOLUME_UNKNOWN;
+    std::uint8_t muted = UI_VOLUME_UNKNOWN;
+    std::vector<std::uint8_t> volumeShown;  // every value the slider was set to
 };
 
 struct WireStats {
@@ -142,7 +163,8 @@ public:
         : now(start), hostOpenAt_(start), firmwareNextRun_(start), firmwareBusyUntil_(start)
     {
         static const LinkCallbacks callbacks = {
-            &Rig::fwSend, &Rig::fwWaiting, &Rig::fwDevices, &Rig::fwActive, &Rig::fwPending, &Rig::fwNotice, nullptr,
+            &Rig::fwSend, &Rig::fwWaiting, &Rig::fwDevices, &Rig::fwActive, &Rig::fwPending, &Rig::fwNotice,
+            &Rig::fwVolume, &Rig::fwMuted, nullptr,
         };
         LinkCallbacks cb = callbacks;
         cb.ctx = this;
@@ -240,9 +262,24 @@ public:
         }
     }
 
+    void windowsMute(bool m)
+    {
+        audio.mute = m;
+        if (host) {
+            host->onVolumeChanged();
+        }
+    }
+
     // ---- the user
 
     void tap(std::uint8_t deviceId) { Link_Select(&link, deviceId, now); }
+    // The finger moves the knob itself; the link is told the new value.
+    void slide(std::uint8_t volume)
+    {
+        screen.volume = volume;
+        Link_SetVolume(&link, volume, now);
+    }
+    void tapMute(bool m) { Link_SetMute(&link, m); }
 
     std::optional<std::uint8_t> shownIdOf(const std::string& name) const
     {
@@ -338,6 +375,13 @@ private:
     }
     static void fwPending(std::uint8_t id, void* ctx) { self(ctx).screen.pending = id; }
     static void fwNotice(LinkNotice n, void* ctx) { ++self(ctx).screen.notices[n]; }
+    static void fwVolume(std::uint8_t v, void* ctx)
+    {
+        FirmwareScreen& s = self(ctx).screen;
+        s.volume = v;
+        s.volumeShown.push_back(v);
+    }
+    static void fwMuted(std::uint8_t m, void* ctx) { self(ctx).screen.muted = m; }
 
     static bool reached(std::uint32_t now, std::uint32_t at)
     {
@@ -365,6 +409,13 @@ private:
         if (cable_ && hostRunning_ && !hostOpen_ && reached(now, hostOpenAt_)) {
             hostOpen_ = true;
             host->onConnected();
+        }
+
+        // Core Audio's notification for a change made through the API
+        // reaches the host a few milliseconds later.
+        if (audio.volumeNotificationDue && now % 5 == 0 && host) {
+            audio.volumeNotificationDue = false;
+            host->onVolumeChanged();
         }
 
         // USB, one report per direction per interval.
@@ -796,6 +847,103 @@ void testVolumeFramesIgnoredByBoard()
     CHECK(r.inSync());
 }
 
+void testVolumeFromWindows()
+{
+    g_scenario = "volume from Windows";
+    Rig r;
+    addHomeSetup(r.audio);
+    r.startHost();
+    r.plugIn();
+    r.run(100);
+    CHECK(r.screen.volume == UI_VOLUME_UNKNOWN && r.screen.muted == UI_VOLUME_UNKNOWN);
+    r.run(3000);
+    CHECK(r.screen.volume == 40 && r.screen.muted == 0);
+
+    r.windowsVolume(70);
+    r.run(50);
+    CHECK(r.screen.volume == 70);
+    r.windowsMute(true);
+    r.run(50);
+    CHECK(r.screen.muted == 1);
+    CHECK(r.wire.errorCodesToHost.empty() && r.wire.errorCodesToDevice.empty());
+}
+
+// The user drags the slider from 40 to 90 over half a second.
+void testVolumeDragOnBoard()
+{
+    g_scenario = "volume drag on the board";
+    Rig r;
+    addHomeSetup(r.audio);
+    connect(r);
+    const std::size_t shownBefore = r.screen.volumeShown.size();
+
+    for (unsigned v = 41; v <= 90; ++v) {
+        r.slide(static_cast<std::uint8_t>(v));
+        r.run(10);
+    }
+    // The host's echoes of intermediate values never move the knob back.
+    CHECK(r.screen.volumeShown.size() == shownBefore);
+    r.run(1000);
+    CHECK(r.audio.volume == 90);
+    CHECK(r.screen.volume == 90);
+    CHECK(r.screen.volumeShown.size() == shownBefore);  // nothing to correct
+    // Throttled: about one SET_VOLUME per 100 ms of dragging, not 50.
+    const unsigned sets = r.wire.count(r.wire.toHost, PROTO_CMD_SET_VOLUME);
+    CHECK(sets >= 5 && sets <= 7);
+    CHECK(r.audio.setVolumeCalls == sets);
+    CHECK(r.wire.errorCodesToHost.empty() && r.wire.errorCodesToDevice.empty());
+
+    // Afterwards Windows changes show again.
+    r.windowsVolume(25);
+    r.run(50);
+    CHECK(r.screen.volume == 25);
+}
+
+void testMuteFromBoard()
+{
+    g_scenario = "mute from the board";
+    Rig r;
+    addHomeSetup(r.audio);
+    connect(r);
+
+    r.tapMute(true);
+    CHECK(r.screen.muted == 0);  // shown only when the host confirms
+    r.run(50);
+    CHECK(r.audio.mute);
+    CHECK(r.screen.muted == 1);
+    r.tapMute(false);
+    r.run(50);
+    CHECK(!r.audio.mute && r.screen.muted == 0);
+}
+
+// Without a default device there is nothing to control; when one comes
+// back, volume and mute are shown again even if their values did not
+// change.
+void testVolumeWithoutDefaultDevice()
+{
+    g_scenario = "volume without a default device";
+    Rig r;
+    addHomeSetup(r.audio);
+    connect(r);
+
+    r.windowsRemove("{spk}");
+    r.windowsRemove("{hdmi}");
+    r.windowsRemove("{hp}");
+    r.run(200);
+    CHECK(r.screen.volume == UI_VOLUME_UNKNOWN && r.screen.muted == UI_VOLUME_UNKNOWN);
+    r.slide(80);
+    r.tapMute(true);
+    r.run(200);
+    CHECK(r.wire.count(r.wire.toHost, PROTO_CMD_SET_VOLUME) == 0);
+    CHECK(r.wire.count(r.wire.toHost, PROTO_CMD_SET_MUTE) == 0);
+
+    r.windowsAdd(endpoint("{spk}", "Hoparl\xC3\xB6r", FormFactor::Speakers));
+    r.windowsSetDefault("{spk}");
+    r.run(200);
+    CHECK(r.inSync());
+    CHECK(r.screen.volume == 40 && r.screen.muted == 0);
+}
+
 // The STM32 UI loop is held up (LVGL redraw) while a long list arrives.
 void testBoardBusyDuringLongList()
 {
@@ -856,6 +1004,10 @@ int main()
     testManyDevicesAndLongNames();
     testVolumeFramesIgnoredByBoard();
     testBoardBusyDuringLongList();
+    testVolumeFromWindows();
+    testVolumeDragOnBoard();
+    testMuteFromBoard();
+    testVolumeWithoutDefaultDevice();
 
     std::printf("%d checks, %d failures\n", g_checks, g_failures);
     return g_failures == 0 ? 0 : 1;
