@@ -132,8 +132,8 @@ selection: `decisions/ADR-001-firmware-peripheral-set.md`.
 
 | Peripheral | Use |
 |---|---|
-| LTDC | LCD, RGB565, two framebuffers in SDRAM |
-| FMC | SDRAM bank 1 (8 MB): the two framebuffers |
+| LTDC | LCD, RGB565, scans out one of the SDRAM framebuffers |
+| FMC | SDRAM bank 1 (8 MB): four framebuffers — FB0/FB1 (`0xC0000000`, `0xC0040000`) where LVGL draws, FB2/FB3 (`0xC0080000`, `0xC00C0000`) for the 180° copy while the display is flipped (#42) |
 | I²C3 | FT5336 touch controller, polled |
 | USB OTG FS | Vendor HID device `1209:0001` (ADR-003) |
 | USART1 | Log on the ST-LINK virtual COM port |
