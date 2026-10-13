@@ -31,12 +31,15 @@ argument):
 | `09-muted.png` | Mute tapped and confirmed by the host |
 | `10-no-volume.png` | No default device: volume and mute disabled |
 | `11-empty.png` | Host reports no playback devices |
+| `12-flip-armed.png` | Flip button held for 1 s (icon orange, not yet released) |
+| `13-flipped.png` | After release, as the panel shows it with the board upside down |
 
 The script also checks behaviour: a tap calls the selection callback with
 the right device, a tap on the active device does nothing, the page
 button changes the page, dragging the slider reports values and one
-release, the mute button asks for the opposite state, and the disabled
-mute button does nothing. The simulator exits non-zero if a check fails.
+release, the mute button asks for the opposite state, the disabled
+mute button does nothing, and the flip button asks to flip only after a
+long press, on release, on both screens. The simulator exits non-zero if a check fails.
 
 ## How it works
 

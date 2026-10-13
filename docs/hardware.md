@@ -154,6 +154,7 @@ the firmware commit.
 | `stm32-audio-host list`, `set-default`, `volume`, `mute`, `watch` match Settings → Sound | #28, `host/README.md` | REQUIRES WINDOWS |
 | End to end with `stm32-audio-host run` (list, select on the LCD, Windows changes, unplug/replug, host restart) | `host/README.md`, "Manual check with the board" | REQUIRES HARDWARE + WINDOWS |
 | Volume and mute: drag the slider and tap mute on the LCD → Windows follows; change them in Windows → the LCD follows | #40, `host/README.md` | REQUIRES HARDWARE + WINDOWS |
+| Flip button (hold 1 s, top right): image and touch upright in both orientations, no tearing; `UI FLIP off copy_max_ms=<n>` small (a few ms expected) after dragging the slider while flipped | #42 | REQUIRES HARDWARE |
 | Boot after a power cycle (SDRAM from cold) | bring-up log above | NOT TESTED |
 | LCD screenshots of the final UI in `docs/images/` | `docs/images/README.md` | after the UI check |
 

@@ -18,7 +18,8 @@ physical board and on Windows (clocks, touch, UI on the LCD, USB HID,
 Windows audio, end to end). The list of open hardware/Windows checks is
 in `docs/hardware.md`, "Pending hardware and Windows tests"; milestone
 status is in `docs/roadmap.md`. M6 (volume and mute on the touchscreen) is
-coded too. M7 (polish) has not started.
+coded too. M7 (polish) has not started, except the display flip button
+(#42, coded).
 
 Do not start new product features (M7) unless the current task
 explicitly asks for it.

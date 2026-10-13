@@ -1,7 +1,7 @@
 /*******************************************************************************
  * Size: 16 px
  * Bpp: 4
- * Opts: --bpp 4 --size 16 --no-compress --format lvgl --lv-include lvgl.h --font firmware/STM32AudioController/Middlewares/Third_Party/lvgl/scripts/built_in_font/Montserrat-Medium.ttf -r 0x20-0x7E,0xA0-0x17F --font firmware/STM32AudioController/Middlewares/Third_Party/lvgl/scripts/built_in_font/FontAwesome5-Solid+Brands+Regular.woff -r 0xF00C,0xF071,0xF053,0xF054,0xF1E6,0xF254,0xF028,0xF6A9 -o firmware/ui/fonts/ui_font_16.c
+ * Opts: --bpp 4 --size 16 --no-compress --format lvgl --lv-include lvgl.h --font firmware/STM32AudioController/Middlewares/Third_Party/lvgl/scripts/built_in_font/Montserrat-Medium.ttf -r 0x20-0x7E,0xA0-0x17F --font firmware/STM32AudioController/Middlewares/Third_Party/lvgl/scripts/built_in_font/FontAwesome5-Solid+Brands+Regular.woff -r 0xF00C,0xF071,0xF053,0xF054,0xF1E6,0xF254,0xF028,0xF6A9,0xF2F1 -o firmware/ui/fonts/ui_font_16.c
  ******************************************************************************/
 
 #ifdef LV_LVGL_H_INCLUDE_SIMPLE
@@ -3235,6 +3235,24 @@ static LV_ATTRIBUTE_LARGE_CONST const uint8_t glyph_bitmap[] = {
     0xff, 0xff, 0xff, 0xf3, 0xdf, 0xff, 0xff, 0xff,
     0xff, 0xfd, 0xdf, 0xff, 0xff, 0xff, 0xff, 0xfd,
 
+    /* U+F2F1 "" */
+    0x0, 0x0, 0x3, 0x79, 0x97, 0x30, 0x0, 0x0,
+    0x0, 0x3, 0xcf, 0xff, 0xff, 0xfc, 0x30, 0x97,
+    0x0, 0x5f, 0xff, 0xfe, 0xef, 0xff, 0xfb, 0xfc,
+    0x3, 0xff, 0xf8, 0x10, 0x1, 0x8f, 0xff, 0xfc,
+    0xd, 0xff, 0x40, 0x0, 0x0, 0xb, 0xff, 0xfc,
+    0x4f, 0xf7, 0x0, 0x0, 0x0, 0x9f, 0xff, 0xfc,
+    0x8f, 0xf1, 0x0, 0x0, 0x0, 0xad, 0xdd, 0xd7,
+    0x1, 0x10, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+    0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+    0x5a, 0xaa, 0xa7, 0x0, 0x0, 0x0, 0xd, 0xe7,
+    0xbf, 0xff, 0xfb, 0x0, 0x0, 0x0, 0x5f, 0xf5,
+    0xcf, 0xff, 0xc1, 0x0, 0x0, 0x2, 0xef, 0xe0,
+    0xcf, 0xff, 0xe4, 0x0, 0x0, 0x5e, 0xff, 0x50,
+    0xcf, 0xef, 0xff, 0xda, 0xbe, 0xff, 0xf8, 0x0,
+    0xac, 0x16, 0xef, 0xff, 0xff, 0xff, 0x60, 0x0,
+    0x0, 0x0, 0x16, 0xbd, 0xdb, 0x61, 0x0, 0x0,
+
     /* U+F6A9 "" */
     0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
     0x0, 0x0, 0x0, 0x8, 0xd0, 0x0, 0x0, 0x0,
@@ -3586,7 +3604,8 @@ static const lv_font_fmt_txt_glyph_dsc_t glyph_dsc[] = {
     {.bitmap_index = 19006, .adv_w = 288, .box_w = 20, .box_h = 16, .ofs_x = -1, .ofs_y = -2},
     {.bitmap_index = 19166, .adv_w = 192, .box_w = 12, .box_h = 16, .ofs_x = 0, .ofs_y = -2},
     {.bitmap_index = 19262, .adv_w = 192, .box_w = 12, .box_h = 16, .ofs_x = 0, .ofs_y = -2},
-    {.bitmap_index = 19358, .adv_w = 256, .box_w = 17, .box_h = 14, .ofs_x = 0, .ofs_y = -1}
+    {.bitmap_index = 19358, .adv_w = 256, .box_w = 16, .box_h = 16, .ofs_x = 0, .ofs_y = -2},
+    {.bitmap_index = 19486, .adv_w = 256, .box_w = 17, .box_h = 14, .ofs_x = 0, .ofs_y = -1}
 };
 
 /*---------------------
@@ -3594,7 +3613,8 @@ static const lv_font_fmt_txt_glyph_dsc_t glyph_dsc[] = {
  *--------------------*/
 
 static const uint16_t unicode_list_2[] = {
-    0x0, 0x1c, 0x47, 0x48, 0x65, 0x1da, 0x248, 0x69d
+    0x0, 0x1c, 0x47, 0x48, 0x65, 0x1da, 0x248, 0x2e5,
+    0x69d
 };
 
 /*Collect the unicode lists and glyph_id offsets*/
@@ -3610,7 +3630,7 @@ static const lv_font_fmt_txt_cmap_t cmaps[] =
     },
     {
         .range_start = 61452, .range_length = 1694, .glyph_id_start = 320,
-        .unicode_list = unicode_list_2, .glyph_id_ofs_list = NULL, .list_length = 8, .type = LV_FONT_FMT_TXT_CMAP_SPARSE_TINY
+        .unicode_list = unicode_list_2, .glyph_id_ofs_list = NULL, .list_length = 9, .type = LV_FONT_FMT_TXT_CMAP_SPARSE_TINY
     }
 };
 
@@ -3662,7 +3682,8 @@ static const uint8_t kern_left_class_mapping[] =
     30, 51, 30, 51, 30, 51, 30, 51,
     30, 51, 30, 77, 37, 58, 39, 58,
     39, 40, 60, 40, 60, 40, 60, 0,
-    0, 0, 0, 0, 0, 0, 0, 0
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0
 };
 
 /*Map glyph_ids to kern right classes*/
@@ -3708,7 +3729,8 @@ static const uint8_t kern_right_class_mapping[] =
     28, 45, 28, 45, 28, 45, 28, 45,
     28, 45, 28, 45, 29, 46, 31, 46,
     31, 32, 48, 32, 48, 32, 48, 0,
-    0, 0, 0, 0, 0, 0, 0, 0
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0
 };
 
 /*Kern values between classes*/

@@ -13,6 +13,7 @@
 #define BOTTOM_H     40
 #define PAD          8
 #define BTN_RADIUS   12
+#define FLIP_W       44
 
 /* Colours, matching the project presentation. */
 #define COLOR_BG      0x0E171F
@@ -34,6 +35,7 @@
 #define SYM_HOURGLASS  "\xEF\x89\x94"
 #define SYM_VOLUME     "\xEF\x80\xA8" /* volume-up */
 #define SYM_MUTED      "\xEF\x9A\xA9" /* volume-mute */
+#define SYM_FLIP       "\xEF\x8B\xB1" /* sync-alt */
 
 /* UI text (Turkish). */
 #define TXT_TITLE        "SES \xC3\x87IKI\xC5\x9EI"               /* SES ÇIKIŞI */
@@ -67,6 +69,10 @@ static struct
     UiVolumeCallback on_volume;
     UiMuteCallback   on_mute;
     void            *audio_user;
+    UiFlipCallback   on_flip;
+    void            *flip_user;
+    uint32_t         flip_pressed_at;  /* lv_tick_get() at press */
+    bool             flip_armed;       /* held long enough; flip on release */
     uint8_t          volume;  /* 0-100 or UI_VOLUME_UNKNOWN */
     uint8_t          muted;   /* 0, 1 or UI_VOLUME_UNKNOWN */
 
@@ -88,6 +94,7 @@ static struct
     lv_obj_t    *volume_label;
     lv_obj_t    *prev_btn;
     lv_obj_t    *next_btn;
+    lv_obj_t    *flip_icons[2];  /* waiting screen, main screen */
     lv_obj_t    *notice;
     lv_obj_t    *notice_label;
     lv_timer_t  *notice_timer;
@@ -301,7 +308,71 @@ static void on_notice_timer(lv_timer_t *timer)
     lv_obj_add_flag(s_ui.notice, LV_OBJ_FLAG_HIDDEN);
 }
 
+static void set_flip_armed(bool armed)
+{
+    s_ui.flip_armed = armed;
+    for (uint32_t i = 0U; i < 2U; i++)
+    {
+        lv_obj_set_style_text_color(s_ui.flip_icons[i],
+                                    lv_color_hex(armed ? COLOR_ACCENT : COLOR_MUTED), 0);
+    }
+}
+
+/* A long press arms the flip (the icon turns orange); it happens when the
+ * finger lifts, so the rest of the press is not read in the new
+ * orientation. Sliding off the button cancels. */
+static void on_flip_event(lv_event_t *e)
+{
+    const lv_event_code_t code = lv_event_get_code(e);
+
+    if (code == LV_EVENT_PRESSED)
+    {
+        s_ui.flip_pressed_at = lv_tick_get();
+    }
+    else if (code == LV_EVENT_PRESSING)
+    {
+        if (!s_ui.flip_armed && (lv_tick_elaps(s_ui.flip_pressed_at) >= UI_FLIP_HOLD_MS))
+        {
+            set_flip_armed(true);
+        }
+    }
+    else if (code == LV_EVENT_RELEASED)
+    {
+        const bool armed = s_ui.flip_armed;
+
+        set_flip_armed(false);
+        if (armed && (s_ui.on_flip != NULL))
+        {
+            s_ui.on_flip(s_ui.flip_user);
+        }
+    }
+    else if (code == LV_EVENT_PRESS_LOST)
+    {
+        set_flip_armed(false);
+    }
+    else
+    {
+        /* other events: nothing to do */
+    }
+}
+
 /* ----------------------------------------------------------------- build */
+
+/* Flip button in the top right corner of a screen, over the status bar
+ * area; the touch area stops above the device buttons. */
+static void build_flip_button(lv_obj_t *scr, uint32_t index)
+{
+    lv_obj_t *btn = lv_obj_create(scr);
+
+    lv_obj_remove_style_all(btn);
+    lv_obj_set_size(btn, FLIP_W, BAR_H);
+    lv_obj_align(btn, LV_ALIGN_TOP_RIGHT, 0, 0);
+    lv_obj_add_flag(btn, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_remove_flag(btn, LV_OBJ_FLAG_SCROLLABLE);
+    s_ui.flip_icons[index] = make_label(btn, &ui_font_16, COLOR_MUTED, SYM_FLIP);
+    lv_obj_center(s_ui.flip_icons[index]);
+    lv_obj_add_event_cb(btn, on_flip_event, LV_EVENT_ALL, NULL);
+}
 
 static void build_waiting_screen(void)
 {
@@ -319,6 +390,7 @@ static void build_waiting_screen(void)
     (void)make_label(box, &ui_icons_40, COLOR_LINK, SYM_HOURGLASS);
     (void)make_label(box, &ui_font_22, COLOR_TEXT, TXT_WAITING);
     (void)make_label(box, &ui_font_16, COLOR_MUTED, TXT_WAITING_HINT);
+    build_flip_button(s_ui.waiting_screen, 0U);
 }
 
 static void build_status_bar(lv_obj_t *scr)
@@ -338,7 +410,8 @@ static void build_status_bar(lv_obj_t *scr)
     lv_obj_align(title, LV_ALIGN_LEFT_MID, 0, 0);
 
     status = make_label(bar, &ui_font_16, COLOR_LINK, SYM_PLUG "  " TXT_CONNECTED);
-    lv_obj_align(status, LV_ALIGN_RIGHT_MID, 0, 0);
+    /* Room for the flip button on the right. */
+    lv_obj_align(status, LV_ALIGN_RIGHT_MID, -(FLIP_W - 12), 0);
 }
 
 static void build_device_button(lv_obj_t *grid, uint32_t slot)
@@ -450,6 +523,7 @@ static void build_main_screen(void)
 
     s_ui.main_screen = make_screen();
     build_status_bar(s_ui.main_screen);
+    build_flip_button(s_ui.main_screen, 1U);
 
     grid = lv_obj_create(s_ui.main_screen);
     lv_obj_remove_style_all(grid);
@@ -589,6 +663,12 @@ void Ui_SetMuted(uint8_t muted)
 {
     s_ui.muted = (muted > 1U) ? UI_VOLUME_UNKNOWN : muted;
     render_audio();
+}
+
+void Ui_SetFlipHandler(UiFlipCallback on_flip, void *user)
+{
+    s_ui.on_flip = on_flip;
+    s_ui.flip_user = user;
 }
 
 uint32_t Ui_CurrentPage(void)
