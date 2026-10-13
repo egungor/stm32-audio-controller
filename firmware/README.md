@@ -15,7 +15,13 @@ cmake --preset Debug
 cmake --build --preset Debug
 ```
 
-Nothing has been flashed or tested on hardware yet (`REQUIRES HARDWARE`).
+Use the STM32Cube bundle CMake 4.4.0 (PATH setup, flashing, VCP log and
+framebuffer dump: `docs/toolchain.md`). Hardware status: see the
+bring-up log in `docs/hardware.md`.
+
+At boot `App_Main()` initialises the SDRAM, runs a self-test and draws
+an LCD test pattern (`App/Src/sdram.c`, `App/Src/lcd_test.c`), logging
+each step on the ST-LINK VCP (`docs/firmware-log.md`).
 
 ## Layout
 

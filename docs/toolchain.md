@@ -8,9 +8,10 @@ listed as verified must not be assumed.
 
 > Status: the toolchain has been installed and its versions verified.
 > An STM32CubeMX project exists in `firmware/STM32AudioController/`
-> (CMake project type). A Debug build output has been produced on the
-> developer host. **No firmware has been flashed, debugged or tested on
-> hardware** (`REQUIRES HARDWARE`). There is no firmware CI build yet.
+> (CMake project type). The command-line build, flash, VCP log and
+> framebuffer-dump loop in sections 4–6 was run end to end on the
+> developer host on 2026-10-13 (M1, issue #7). There is no firmware CI
+> build yet.
 
 ## Target
 
@@ -45,7 +46,8 @@ Verified by the developer on the Windows development host.
 | STM32CubeF7 | 1.17.4 |
 | GNU Tools for STM32 (ARM GCC bundle) | 14.3.1+st.2 |
 | GNU GDB for STM32 (ARM GDB bundle) | 14.3.1+st.2 |
-| CMake | 3.26.3 (selected project CMake version) |
+| CMake | 4.4.0 (STM32Cube bundle `4.4.0+st.1`, project CMake) |
+| CMake (system install) | 3.26.3 (not used for the Windows build; Linux script only, see section 4) |
 | Ninja | 1.13.2 |
 | STM32CubeProgrammer | 2.23.0 |
 | Git | 2.56.0.windows.1 |
@@ -83,7 +85,9 @@ be assumed.
 | STM32CubeProgrammer | `%LOCALAPPDATA%\stm32cube\bundles\programmer\2.23.0\` | Folder observed |
 | ST-LINK GDB server | `%LOCALAPPDATA%\stm32cube\bundles\stlink-gdbserver\7.14.0+st.2\` | Folder observed (version not separately verified) |
 | GNU Tools for STM32 (GCC) | `%LOCALAPPDATA%\stm32cube\bundles\gnu-tools-for-stm32\14.3.1+st.2\` | Verified |
-| CMake | `C:\Program Files\CMake\` | Folder observed |
+| CMake (project) | `%LOCALAPPDATA%\stm32cube\bundles\cmake\4.4.0+st.1\bin\cmake.exe` | Verified (used for the build) |
+| CMake 3.26.3 (system) | `C:\Program Files\CMake\` | Folder observed; on the system PATH, so a bare `cmake` resolves to it |
+| `STM32_Programmer_CLI` | `%LOCALAPPDATA%\stm32cube\bundles\programmer\2.23.0\bin\STM32_Programmer_CLI.exe` | Verified (used for flashing) |
 | Git | `C:\Program Files\Git\` | Folder observed |
 | STM32CubeMX | Not recorded | TO BE RECORDED |
 | STM32CubeF7 package repository | Not recorded (STM32CubeMX repository folder) | TO BE RECORDED |
@@ -92,10 +96,11 @@ Notes:
 
 - STM32Cube bundles are **not added to the system PATH** by design. The
   STM32Cube for VS Code extension selects them per project.
-- CMake **3.26.3** is the selected CMake version for this project. The
-  STM32Cube bundle CMake 4.4.0+st.1
-  (`%LOCALAPPDATA%\stm32cube\bundles\cmake\4.4.0+st.1\`) is also
-  installed but is **not used for this project at this time**.
+- The project CMake is the STM32Cube bundle **4.4.0+st.1** (decided
+  2026-10-13, issue #7), the version the STM32Cube for VS Code extension
+  selects in `.settings/bundles.store.json`. The system CMake 3.26.3 is
+  still installed and is first on the PATH, so command-line builds must
+  put the bundle first (see section 4).
 - Which tools must be reachable from a plain PowerShell PATH is a
   future decision.
 
@@ -136,6 +141,28 @@ Flow:
 
 6. Build outputs are not committed.
 
+### Command-line build on Windows (PowerShell)
+
+The STM32Cube bundles are not on the PATH and the system CMake 3.26.3
+is, so put the bundles first for the session. Verified 2026-10-13
+(CMake 4.4.0, Ninja 1.13.2, GCC 14.3.1+st.2, 0 warnings):
+
+```powershell
+$b = "$env:LOCALAPPDATA\stm32cube\bundles"
+$env:PATH = "$b\cmake\4.4.0+st.1\bin;$b\ninja\1.13.2+st.1\bin;" +
+            "$b\gnu-tools-for-stm32\14.3.1+st.2\bin;$b\programmer\2.23.0\bin;$env:PATH"
+cd firmware\STM32AudioController
+cmake --version            # must print 4.4.0
+cmake --preset Debug
+cmake --build --preset Debug
+```
+
+From Git Bash, convert the path first:
+`B="$(cygpath -u "$LOCALAPPDATA")/stm32cube/bundles"` and prepend
+`$B/cmake/4.4.0+st.1/bin:$B/ninja/1.13.2+st.1/bin:$B/gnu-tools-for-stm32/14.3.1+st.2/bin`.
+A Windows-style `$LOCALAPPDATA` entry in the Bash PATH is silently
+ignored and the system CMake 3.26.3 is used instead.
+
 ### STM32Cube for VS Code project files
 
 Setting up the project with the STM32Cube VS Code extension ("Set Up
@@ -150,9 +177,8 @@ workspace-folder root) created these committed files:
   STM32Cube bundle versions for the project.
 - `.clangd`, `.gitignore` (extension defaults).
 
-Discrepancy to resolve: the extension selected the CMake bundle
-**4.4.0+st.1**, while this document lists CMake 3.26.3 as the project
-CMake. The GCC (14.3.1+st.2) and Ninja (1.13.2+st.1) bundles match.
+The bundle versions selected there (CMake 4.4.0+st.1, Ninja 1.13.2+st.1,
+GCC 14.3.1+st.2) match this document.
 
 ### Linux build (secondary)
 
@@ -195,15 +221,64 @@ from the Windows preset build directories.
 
 **First performed 2026-10-13** from STM32Cube for VS Code (debug launch
 `STM32F746G-DISCO: Debug`, `stlinkgdbtarget`), with
-`firmware/STM32AudioController` opened as the VS Code folder. A
-standalone `STM32_Programmer_CLI` command line is still to be recorded.
+`firmware/STM32AudioController` opened as the VS Code folder.
+
+Command line (verified 2026-10-13, PATH set as in section 4, run from
+`firmware/STM32AudioController`):
+
+```powershell
+STM32_Programmer_CLI -c port=SWD -w build/Debug/STM32AudioController.elf -v -rst
+```
+
+`-v` verifies the flash after writing, `-rst` performs a software reset
+so the new firmware starts. Expected output ends with
+`Download verified successfully` and `Software reset is performed`.
+
+| Item | Observed value |
+|---|---|
+| ST-LINK firmware | `V2J48M35` |
+| Board reported | `32F746GDISCOVERY` |
+| SWD frequency | 4000 kHz (default) |
+| Device name | `STM32F74x/STM32F75x` |
 
 - Flashing requires the **physical STM32F746G-DISCO connected by USB to
   the Windows development host** (ST-LINK/V2-1 USB connector).
-- Tool: STM32CubeProgrammer (GUI or `STM32_Programmer_CLI`) over SWD
-  through the on-board ST-LINK.
-- The exact command line, connection options and ST-LINK firmware
-  version are to be recorded when flashing is first performed.
+- Close any VS Code debug session first; it holds the ST-LINK.
+
+### VCP log
+
+The firmware logs on USART1 through the ST-LINK virtual COM port
+(format: `docs/firmware-log.md`). On the developer host the port is
+**`COM4`** ("STMicroelectronics STLink Virtual COM Port"). The number is
+assigned by Windows and can differ on another PC; check with
+`Get-CimInstance Win32_SerialPort`.
+
+```powershell
+# opens COM4, resets the board, prints the boot log, exit 0 on APP READY
+powershell -ExecutionPolicy Bypass -File ..\..\tools\read-vcp.ps1 `
+    -Port COM4 -Reset -Until '^(APP READY|.*FAIL)'
+```
+
+`-ExecutionPolicy Bypass` is needed because script execution is disabled
+by default on this host. The port must be opened **before** the reset,
+otherwise the first lines are lost; `-Reset` does that in the right
+order. Only one program can hold the COM port at a time.
+
+### Framebuffer dump
+
+Reads the LTDC layer 0 framebuffer (480 × 272 × 2 B = `0x3FC00` bytes at
+`0xC0000000`) over SWD without halting the core, converts it to PNG and
+compares it with the expected M1 pattern:
+
+```powershell
+STM32_Programmer_CLI -c port=SWD mode=HOTPLUG -u 0xC0000000 0x3FC00 $env:TEMP\fb.bin
+python ..\..\tools\fb2png.py $env:TEMP\fb.bin $env:TEMP\fb.png --expected
+```
+
+The printed `sum=` must equal `sum=` in the `LCD PATTERN DRAWN` log line.
+`STM32_Programmer_CLI -r32 <addr> <size>` prints SDRAM words directly,
+which is useful when the SDRAM self-test fails. Note: `-w32` to SDRAM
+accepts only **one** word per option.
 
 ## 6. Debugging flow
 
@@ -216,8 +291,7 @@ fault-handler inspection work.
   VS Code (STM32Cube for VS Code extension) or the command line.
 - Register view requires the STM32F746 SVD file (provided by the ST
   tooling; location not recorded).
-- Logging over the ST-LINK virtual COM port is planned; the UART used
-  must be taken from UM1907, not assumed.
+- Logging over the ST-LINK virtual COM port: see "VCP log" in section 5.
 - Debug configuration files (for example `.vscode/launch.json`) are not
   yet in the repository. Whether shared debug configuration is
   committed is a future decision.
@@ -251,9 +325,10 @@ version, or a container image) are future decisions.
   that updates this file.
 - The STM32CubeF7 version (1.17.4) must match the version recorded in
   the `.ioc` file once the project exists.
-- The project uses CMake 3.26.3. The STM32Cube bundle CMake 4.4.0+st.1
-  is not used for this project at this time. The minimum CMake version
-  declared in `CMakeLists.txt` is a future decision.
+- The project uses the STM32Cube bundle CMake 4.4.0+st.1. The Linux
+  script still uses CMake 3.26.3; both satisfy the generated
+  `cmake_minimum_required(VERSION 3.22)`. Raising that minimum is a
+  future decision.
 - Do not commit installed tools, the full STM32CubeF7 package, build
   output, or personal IDE settings.
 - Line endings: see "Line endings" below.
