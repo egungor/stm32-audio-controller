@@ -12,11 +12,29 @@ sides); `tests/test_protocol.c` checks it against this document.
 
 ## Transport
 
-USB HID, Full Speed. Each message is exactly one 64-byte frame, carried in
-one HID report in each direction (device → host: input report,
-host → device: output report). The HID report descriptor and whether a
-report ID byte precedes the frame are part of the M3 HID descriptor task;
-the frame below is the report payload either way.
+USB HID, Full Speed (design: `docs/decisions/ADR-003-usb-hid-interface.md`).
+
+| Item | Value |
+|---|---|
+| VID / PID | `0x1209` / `0x0001` (pid.codes test range, development only) |
+| Interface | HID class, no boot subclass; vendor usage page `0xFF00`, usage `0x01` |
+| Device → host | 64-byte input report on interrupt IN endpoint `0x81`, 5 ms interval |
+| Host → device | 64-byte output report on interrupt OUT endpoint `0x01`, 5 ms interval |
+| Report ID | none — the report is exactly one frame |
+
+On Windows, `ReadFile` / `WriteFile` on the HID handle use 65-byte
+buffers: byte 0 is the report ID (always 0), bytes 1–64 are the frame.
+
+Timing, applied by the STM32:
+
+| Rule | Value |
+|---|---|
+| `GET_DEVICE_LIST` repeated until a complete list has arrived | every 1000 ms |
+| No `DEVICE_CHANGED` or `ERROR` after `SELECT_DEVICE` | 2000 ms → host not responding: notice, waiting screen, request the list again |
+
+The host does not time out; it answers requests and reports changes.
+These values do not change the frame format, so they are not a protocol
+version change.
 
 The protocol does not depend on a specific HID API.
 
@@ -121,7 +139,7 @@ next device list; the firmware only echoes indices it received.
 The firmware shows the state reported by the host. It does not mark a
 device as active after `SELECT_DEVICE` until `DEVICE_CHANGED` arrives.
 
-Timeouts and retries are defined with the HID transport (M3).
+Retries and timeouts: see "Transport".
 
 ## Errors and validation
 

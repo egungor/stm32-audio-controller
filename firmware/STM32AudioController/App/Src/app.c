@@ -12,6 +12,7 @@
 #include "sdram.h"
 #include "touch.h"
 #include "touch_log.h"
+#include "link_port.h"
 #include "ui_demo.h"
 #include "ui_port.h"
 
@@ -19,6 +20,12 @@
  * Set with cmake -DAPP_TEST_SCREEN=ON (see firmware/README.md). */
 #ifndef APP_TEST_SCREEN
 #define APP_TEST_SCREEN 0
+#endif
+
+/* 1: drive the UI with demo data instead of the USB host link.
+ * Set with cmake -DAPP_UI_DEMO=ON. */
+#ifndef APP_UI_DEMO
+#define APP_UI_DEMO 0
 #endif
 
 #define TOUCH_POLL_MS  20U
@@ -162,7 +169,7 @@ static void run_test_screen(bool sdram_ok, bool touch_ok)
 
 #else /* !APP_TEST_SCREEN */
 
-/* LVGL UI. Until USB HID exists (M3) the demo stands in for the host. */
+/* LVGL UI, fed by the USB host link (or by demo data with APP_UI_DEMO). */
 static void run_ui(bool sdram_ok, bool touch_ok)
 {
     const bool ui_ok = sdram_ok && UiPort_Init(touch_ok);
@@ -173,7 +180,11 @@ static void run_ui(bool sdram_ok, bool touch_ok)
     }
     else
     {
+#if APP_UI_DEMO
         UiDemo_Start();
+#else
+        LinkPort_Init();
+#endif
         UiPort_Start();
         Log_Line("UI INIT OK fb0=0x%08lX fb1=0x%08lX", (unsigned long)UI_PORT_FB0_ADDR,
                  (unsigned long)UI_PORT_FB1_ADDR);
@@ -182,7 +193,15 @@ static void run_ui(bool sdram_ok, bool touch_ok)
 
     for (;;)
     {
-        uint32_t wait = ui_ok ? UiPort_Run() : UI_MAX_WAIT_MS;
+        uint32_t wait = UI_MAX_WAIT_MS;
+
+        if (ui_ok)
+        {
+#if !APP_UI_DEMO
+            LinkPort_Run();
+#endif
+            wait = UiPort_Run();
+        }
 
         wait = (wait < UI_MIN_WAIT_MS) ? UI_MIN_WAIT_MS : wait;
         wait = (wait > UI_MAX_WAIT_MS) ? UI_MAX_WAIT_MS : wait;

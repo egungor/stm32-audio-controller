@@ -53,6 +53,11 @@ endif()
 file(GLOB_RECURSE LVGL_SOURCES CONFIGURE_DEPENDS ${LVGL_DIR}/src/*.c)
 
 option(APP_TEST_SCREEN "Show the M1 test pattern and touch targets instead of the UI" OFF)
+option(APP_UI_DEMO "Feed the UI with demo data instead of the USB host link" OFF)
+
+# Shared protocol codec and the portable STM32 protocol client.
+set(PROTOCOL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../protocol)
+set(LINK_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../link)
 
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
@@ -60,12 +65,16 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     App/Src/app.c
     App/Src/clock_check.c
     App/Src/lcd_test.c
+    App/Src/link_port.c
     App/Src/log.c
     App/Src/sdram.c
     App/Src/touch.c
     App/Src/touch_log.c
     App/Src/ui_demo.c
     App/Src/ui_port.c
+    App/Src/usb_link.c
+    ${LINK_DIR}/link_client.c
+    ${PROTOCOL_DIR}/src/protocol.c
     ${UI_DIR}/ui.c
     ${UI_DIR}/fonts/ui_font_16.c
     ${UI_DIR}/fonts/ui_font_22.c
@@ -79,6 +88,8 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     App/Inc
     ${UI_DIR}
     ${LVGL_DIR}
+    ${LINK_DIR}
+    ${PROTOCOL_DIR}/include
 )
 
 # Add project symbols (macros)
@@ -86,6 +97,7 @@ target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined symbols
     LV_CONF_INCLUDE_SIMPLE
     APP_TEST_SCREEN=$<BOOL:${APP_TEST_SCREEN}>
+    APP_UI_DEMO=$<BOOL:${APP_UI_DEMO}>
 )
 
 # Remove wrong libob.a library dependency when using cpp files

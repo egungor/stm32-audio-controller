@@ -50,13 +50,30 @@ printed.
 
 | Line | Meaning |
 |---|---|
-| `UI DEMO START` | UI built; demo data stands in for the host (no USB HID yet, M3) |
 | `UI INIT OK fb0=0x<addr> fb1=0x<addr>` | LVGL running on the two SDRAM framebuffers; LTDC enabled |
 | `UI INIT FAIL reason=<sdram\|lcd_format>` | No UI: SDRAM failed, or LTDC layer 0 is not RGB565 480×272 |
 | `APP READY` | Main loop running |
+
+Then, as the USB host link works (`App/Src/link_port.c`, `protocol.md`):
+
+| Line | Meaning |
+|---|---|
+| `USB CONFIGURED` | The PC configured the HID interface; `GET_DEVICE_LIST` is sent (and repeated every 1 s) |
+| `USB DISCONNECTED` | Unplugged, reset or suspended; waiting screen |
+| `LINK LIST OK n=<n> gen=<g>` | A complete device list arrived and is shown |
+| `LINK ACTIVE id=<id>` | The host reported a new default device (`DEVICE_CHANGED`) |
+| `UI SELECT id=<id>` | User tapped a device that is not active; `SELECT_DEVICE` sent |
+| `LINK SELECT FAIL reason=host_error` | The host answered the selection with `ERROR` |
+| `LINK SELECT FAIL reason=timeout` | No answer within 2 s; waiting screen, list requested again |
+
+With `-DAPP_UI_DEMO=ON` demo data replaces the host link (no USB lines):
+
+| Line | Meaning |
+|---|---|
+| `UI DEMO START` | UI built with demo data |
 | `UI DEMO DEVICES n=<n> active=<id>` | About 1.5 s later: demo device list shown |
-| `UI SELECT id=<id>` | User tapped a device that is not active (`SELECT_DEVICE` once M3 exists) |
-| `UI DEMO ACTIVE id=<id>` | 0.4 s later the demo confirms the selection (`DEVICE_CHANGED` once M3 exists) |
+| `UI SELECT id=<id>` | User tapped a device that is not active |
+| `UI DEMO ACTIVE id=<id>` | 0.4 s later the demo confirms the selection |
 
 ### Test screen build (`-DAPP_TEST_SCREEN=ON`)
 

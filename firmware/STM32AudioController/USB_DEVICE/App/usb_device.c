@@ -26,7 +26,7 @@
 #include "usbd_hid.h"
 
 /* USER CODE BEGIN Includes */
-
+#include "usb_link.h"
 /* USER CODE END Includes */
 
 /* USER CODE BEGIN PV */
@@ -63,7 +63,11 @@ USBD_HandleTypeDef hUsbDeviceFS;
 void MX_USB_DEVICE_Init(void)
 {
   /* USER CODE BEGIN USB_DEVICE_Init_PreTreatment */
-
+  /* The project's vendor HID interface (App/Src/usb_link.c) replaces the
+   * CubeMX demo HID class; the generated registration below is skipped.
+   * See docs/decisions/ADR-003-usb-hid-interface.md. */
+  UsbLink_DeviceInit(&hUsbDeviceFS);
+  return;
   /* USER CODE END USB_DEVICE_Init_PreTreatment */
 
   /* Init Device Library, add supported class and start the library. */
