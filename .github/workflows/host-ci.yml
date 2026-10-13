@@ -7,14 +7,21 @@ on:
 
 jobs:
   host:
-    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ windows-latest, ubuntu-latest ]
+    runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Placeholder
-        shell: pwsh
-        run: |
-          Write-Host "Host CI scaffold."
-          Write-Host "C++ build/test pipeline will be enabled when the host project exists."
+      - name: Configure
+        run: cmake -S host -B build/host
+
+      - name: Build
+        run: cmake --build build/host --config Debug
+
+      - name: Test
+        run: ctest --test-dir build/host --build-config Debug --output-on-failure
