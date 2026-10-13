@@ -24,8 +24,11 @@
 extern "C" {
 #endif
 
-/** Frames buffered between the USB interrupt and the task. */
-#define USB_LINK_RX_DEPTH 8U
+/** Frames buffered between the USB interrupt and the task. Holds a full
+ *  answer to GET_DEVICE_LIST (32 entries + DEVICE_CHANGED, VOLUME_CHANGED,
+ *  MUTE_CHANGED), so a list survives the UI task being busy for a while
+ *  (tests/integration). 40 x 64 bytes of static RAM. */
+#define USB_LINK_RX_DEPTH 40U
 
 typedef struct
 {
