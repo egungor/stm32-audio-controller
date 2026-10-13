@@ -75,7 +75,7 @@ static int is_valid_device(const ProtoDeviceEntry *d)
                (d->flags == 0U) && (d->icon == 0U) && (d->name_len == 0U);
     }
     return (d->position < d->total) && (d->device_index != PROTO_NO_DEVICE) &&
-           ((d->flags & (uint8_t)~PROTO_DEVICE_FLAGS_MASK) == 0U) &&
+           (((unsigned)d->flags & ~PROTO_DEVICE_FLAGS_MASK) == 0U) &&
            (d->icon < PROTO_ICON_COUNT);
 }
 
