@@ -13,11 +13,15 @@ The system has three major parts:
 
 ## Current milestone
 
-M1 — Hardware Bring-up (M0 is done). See `docs/roadmap.md` for the
-remaining M1 items.
+M0 is done. M1–M5 are coded; what remains of them is verification on the
+physical board and on Windows (clocks, touch, UI on the LCD, USB HID,
+Windows audio, end to end). The list of open hardware/Windows checks is
+in `docs/hardware.md`, "Pending hardware and Windows tests"; milestone
+status is in `docs/roadmap.md`. M6 (volume and mute UI) and M7 (polish)
+have not started.
 
-Do not start implementation of the product features (UI, USB HID protocol,
-Windows audio) unless the current task explicitly asks for it.
+Do not start new product features (M6, M7) unless the current task
+explicitly asks for it.
 
 ## Target hardware
 
@@ -25,8 +29,8 @@ Windows audio) unless the current task explicitly asks for it.
 - MCU: STM32F746NGH6
 - LCD: 4.3" 480x272 capacitive touchscreen, ROCKTECH RK043FN48H-CT672B
 - Touch controller: FT5336
-- GUI: LVGL is the planned GUI framework
-- USB: USB HID is the planned host communication transport
+- GUI: LVGL v9.5.0 (`firmware/ui`, git submodule)
+- USB: vendor USB HID, VID:PID `1209:0001` (ADR-003)
 
 The board identity above has been verified on the physical board. See
 `docs/hardware.md` for details. Do not invent GPIO or peripheral mappings;

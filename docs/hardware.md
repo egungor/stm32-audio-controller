@@ -125,13 +125,36 @@ open. Fix: `App_Main` disables the LTDC until SDRAM is initialised and
 the pattern is drawn. Disabling the LTDC only during the self-test did
 not help; it must be off during the init sequence.
 
-## Planned firmware peripherals
+## Firmware peripherals in use
 
-- LCD (LTDC)
-- Touch controller (FT5336 over I²C)
-- USB Device / HID
-- GPIO
-- DMA where appropriate
+Pins and verification status: [`pin-mapping.md`](pin-mapping.md);
+selection: `decisions/ADR-001-firmware-peripheral-set.md`.
+
+| Peripheral | Use |
+|---|---|
+| LTDC | LCD, RGB565, two framebuffers in SDRAM |
+| FMC | SDRAM bank 1 (8 MB): the two framebuffers |
+| I²C3 | FT5336 touch controller, polled |
+| USB OTG FS | Vendor HID device `1209:0001` (ADR-003) |
+| USART1 | Log on the ST-LINK virtual COM port |
+| TIM5 | Clock measurement against the LSE at boot, released afterwards |
+
+## Pending hardware and Windows tests
+
+Everything below is written and passes CI, but has not run on the board
+or on Windows. Results go into the bring-up log above, with the date and
+the firmware commit.
+
+| Check | Where | Status |
+|---|---|---|
+| `CLOCK MEASURE PASS`, error of a few tens of ppm or less | #16, `docs/firmware-log.md` | REQUIRES HARDWARE |
+| `TOUCH INIT OK id=0x51`; the five targets log their coordinates; the dot follows the finger | #18 | REQUIRES HARDWARE |
+| UI on the LCD as in the simulator; taps work; no tearing | #24 | REQUIRES HARDWARE |
+| Board enumerates as `1209:0001`, vendor HID, 64-byte reports | #30, ADR-003 | REQUIRES HARDWARE + WINDOWS |
+| `stm32-audio-host list`, `set-default`, `volume`, `mute`, `watch` match Settings → Sound | #28, `host/README.md` | REQUIRES WINDOWS |
+| End to end with `stm32-audio-host run` (list, select on the LCD, Windows changes, unplug/replug, host restart) | `host/README.md`, "Manual check with the board" | REQUIRES HARDWARE + WINDOWS |
+| Boot after a power cycle (SDRAM from cold) | bring-up log above | NOT TESTED |
+| LCD screenshots of the final UI in `docs/images/` | `docs/images/README.md` | after the UI check |
 
 ## Reference sources
 
