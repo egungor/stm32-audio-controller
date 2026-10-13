@@ -43,11 +43,11 @@ Status: **IN PROGRESS**
 
 ## M3 — USB HID
 
-- [ ] Configure USB Device
-- [ ] Define HID descriptor
-- [ ] Implement HID transport
-- [ ] Test host ↔ STM32 packets
-- [ ] Handle disconnect/reconnect
+- [ ] Configure USB Device — vendor HID class, `1209:0001` (#30, ADR-003), REQUIRES HARDWARE
+- [x] Define HID descriptor — ADR-003, `protocol.md` "Transport" (#30)
+- [ ] Implement HID transport — firmware side and protocol client in #30; Windows side pending
+- [ ] Test host ↔ STM32 packets — REQUIRES HARDWARE + WINDOWS
+- [ ] Handle disconnect/reconnect — firmware: waiting screen and list re-request (#30); host side pending
 
 ## M4 — Windows Audio
 

@@ -34,14 +34,18 @@ firmware build stops with "LVGL not found".
 On the board (`App/Src/ui_port.c`) LVGL draws into two framebuffers in
 SDRAM (`0xC0000000`, `0xC0040000`) and the LTDC switches between them
 during vertical blanking; the FT5336 is the LVGL pointer input. Until
-USB HID exists (M3), `App/Src/ui_demo.c` stands in for the host with a
-fixed device list (logged as `UI DEMO`).
+The UI is fed by the PC over USB: `App/Src/usb_link.c` is the vendor HID
+interface (ADR-003) and `App/Src/link_port.c` connects it, through the
+portable protocol client in `firmware/link/`, to the UI. Without a PC the
+UI shows the waiting screen. `App/Src/ui_demo.c` (option `APP_UI_DEMO`)
+feeds a fixed device list instead, to try the UI without a PC.
 
 Build options (CMake cache variables):
 
 | Option | Default | Effect |
 |---|---|---|
 | `APP_TEST_SCREEN` | `OFF` | `ON`: show the M1 test pattern and touch targets instead of the UI (needed for the framebuffer `--expected` check in `docs/toolchain.md`) |
+| `APP_UI_DEMO` | `OFF` | `ON`: demo device list instead of the USB host link |
 
 ```text
 cmake --preset Debug -DAPP_TEST_SCREEN=ON
@@ -52,6 +56,7 @@ cmake --preset Debug -DAPP_TEST_SCREEN=ON
 ```text
 firmware/
 ├── ui/                   # LVGL UI, hardware independent (+ lv_conf.h, fonts)
+├── link/                 # protocol client (STM32 side), hardware independent, tests
 ├── simulator/            # headless Linux build of ui/ for screenshots
 firmware/STM32AudioController/
 ├── App/                  # hand-written application code (never generated)
