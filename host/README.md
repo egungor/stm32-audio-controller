@@ -13,9 +13,10 @@ Target language: C++17.
 
 ## Current state
 
-The platform-independent core and the Windows Core Audio layer exist.
-USB HID does not (M3): the Windows program is a test console that prints
-the frames it would send to the STM32.
+The platform-independent core, the Windows Core Audio layer and the USB
+HID transport exist. The Windows program is a console application:
+`run` serves the controller over USB HID; the other commands test the
+audio layer on their own.
 
 ```text
 host/
@@ -24,13 +25,15 @@ host/
 │   ├── AudioMapping.*      # Windows form factor -> icon, volume scalar <-> percent
 │   └── DeviceRegistry.*    # endpoints -> device_index, DEVICE_LIST entries
 ├── Hid/
-│   └── IFrameSink.h        # outgoing 64-byte protocol frames
+│   ├── IFrameSink.h        # outgoing 64-byte protocol frames
+│   └── HidMatch.h          # which HID interface is the controller (ADR-003)
 ├── App/
 │   ├── HostController.*    # protocol v1 exchanges (protocol/protocol.md)
-│   ├── EventQueue.h        # serialises Core Audio notifications into the controller
+│   ├── EventQueue.h        # serialises Core Audio and HID events into the controller
 │   └── FrameText.*         # readable one-line form of a protocol message
 ├── Platform/Windows/       # Windows only
 │   ├── WinAudioSystem.*    # IAudioSystem on Core Audio / MMDevice
+│   ├── WinHidLink.*        # HID discovery, reader thread, IFrameSink
 │   ├── PolicyConfig.h      # undocumented IPolicyConfig (ADR-002)
 │   ├── WinStrings.*        # UTF-16 <-> UTF-8
 │   └── main.cpp            # stm32-audio-host console program
@@ -48,12 +51,37 @@ host/
   `eConsole` and `eMultimedia` roles. This interface is undocumented; see
   `docs/decisions/ADR-002-default-device-switching.md`.
 - `IMMNotificationClient` and `IAudioEndpointVolumeCallback` only push
-  events into `EventQueue`; repeated events of one kind collapse into
-  one. The main thread pops them and calls `HostController`.
+  events into `EventQueue`; repeated audio events of one kind collapse
+  into one. The main thread pops them and calls `HostController`.
 
-## Test console (`stm32-audio-host.exe`)
+## HID transport
+
+Details of the USB interface: `docs/decisions/ADR-003-usb-hid-interface.md`.
+
+- Discovery: every second, while not connected, the HID interfaces
+  present (`SetupDiGetClassDevs`) are checked with `HidD_GetAttributes`
+  and `HidP_GetCaps`. The controller is VID:PID `1209:0001`, usage page
+  `0xFF00`, usage `1`, 65-byte input and output reports (report ID 0 +
+  one 64-byte frame). The rule is `isController()` in `Hid/HidMatch.h`
+  and is unit tested.
+- Reading: a worker thread reads input reports (overlapped I/O) and
+  queues each frame (`EventQueue::pushFrame`). Frames are not validated
+  there; `HostController` decodes them. At most 64 received frames wait
+  in the queue; more are dropped and counted.
+- Writing: `sendFrame()` writes one output report from the consumer
+  thread and gives up after 1 s if the STM32 does not take it.
+- Connect / disconnect are queued as `HidConnected` / `HidDisconnected`.
+  Both reset the controller (`onConnected()`), so nothing is sent until
+  the STM32 asks for the list (it repeats `GET_DEVICE_LIST` every second
+  until answered).
+- Only the consumer thread touches `HostController` and the audio
+  system; the HID thread and the Core Audio threads only push events.
+
+## Console program (`stm32-audio-host.exe`)
 
 ```text
+stm32-audio-host run               serve the controller over USB HID; log every
+                                   frame in both directions (Ctrl+C stops)
 stm32-audio-host list              playback devices (* = default), volume, mute
 stm32-audio-host set-default <n>   make device <n> from "list" the default
 stm32-audio-host volume <0-100>    volume of the default device
@@ -62,11 +90,17 @@ stm32-audio-host watch             run HostController; print the frames it
                                    would send to the STM32 (Ctrl+C stops)
 ```
 
-`watch` starts with a simulated `GET_DEVICE_LIST`, then prints
+`run` prints `Controller connected: <product> <device path>` and
+`Controller disconnected.`, then one line per frame: `<-` received from the
+STM32, `->` sent to it (`[send failed]` if the write failed). Ctrl+C prints
+counters (sent, send failures, rejected, ignored, errors received,
+dropped).
+
+`watch` needs no board: it starts with a simulated `GET_DEVICE_LIST`, then prints
 `DEVICE_LIST` / `DEVICE_CHANGED` / `VOLUME_CHANGED` / `MUTE_CHANGED` lines
 as you change devices or volume in Windows.
 
-Manual check on Windows (REQUIRES WINDOWS):
+Manual check of the audio layer on Windows (REQUIRES WINDOWS):
 
 1. `list` shows the same devices and default as Settings → Sound.
 2. `set-default <n>` switches the default; Settings → Sound follows.
@@ -75,6 +109,22 @@ Manual check on Windows (REQUIRES WINDOWS):
 4. Plug in or remove a device (e.g. headphones, HDMI): a new
    `DEVICE_LIST` with a new `gen=` and existing devices keeping their
    `index=`.
+
+Manual check with the board (REQUIRES HARDWARE + WINDOWS; firmware from
+#31, built without `APP_UI_DEMO`):
+
+1. Start `run` before plugging in the board: `Controller connected`,
+   then `<- GET_DEVICE_LIST`, `-> DEVICE_LIST …` for every device,
+   `-> DEVICE_CHANGED`, `-> VOLUME_CHANGED`, `-> MUTE_CHANGED`. The LCD
+   shows the same devices with the default marked.
+2. Touch another device on the LCD: `<- SELECT_DEVICE index=…`,
+   `-> DEVICE_CHANGED index=…`; Settings → Sound follows.
+3. Change the default in Windows: one `-> DEVICE_CHANGED`; the LCD
+   follows.
+4. Unplug the board: `Controller disconnected.`; plug it back in: it
+   reconnects within about 2 s and the list is sent again.
+5. Start `run` with the board already plugged in: same as 1.
+6. Ctrl+C: `send_failures=0 rejected=0 dropped=0` in a normal session.
 
 ### Device registry
 
@@ -122,11 +172,10 @@ CI runs this with MSVC on Windows and GCC on Linux
 (`.github/workflows/host-ci.yml`).
 
 The Windows program also cross-compiles with MinGW-w64; the sandbox used
-that, and Wine, to check that it builds and starts (see the PR for what
-Wine can and cannot show).
+that, and Wine, to check that it builds and starts (see the PRs for what
+Wine can and cannot show). Link libraries: `ole32`, `setupapi`, `hid`.
 
 ## Still to do
 
-- HID transport (device discovery, read thread, `IFrameSink`) and
-  replacing the print sink in `watch` with it (M3).
+- Hardware + Windows test of `run` with the board (list above).
 - Running without a console (tray icon, start with Windows: M7).

@@ -1,8 +1,9 @@
 // stm32-audio-host: Windows console program.
 //
-// Until USB HID exists (M3) this is a test console for the Windows audio
-// layer and the protocol controller:
+// Console front end of the host application:
 //
+//   stm32-audio-host run               connect to the controller over USB HID
+//                                      and serve it; log every frame (Ctrl+C)
 //   stm32-audio-host list              playback devices, default, volume
 //   stm32-audio-host set-default <n>   make device <n> (from "list") the default
 //   stm32-audio-host volume <0-100>    volume of the default device
@@ -21,8 +22,10 @@
 #include "DeviceRegistry.h"
 #include "EventQueue.h"
 #include "FrameText.h"
+#include "HidMatch.h"
 #include "HostController.h"
 #include "WinAudioSystem.h"
+#include "WinHidLink.h"
 
 using namespace stm32_audio::host;
 
@@ -73,6 +76,63 @@ public:
         return true;
     }
 };
+
+// Logs every frame, then hands it to the real transport.
+class LoggingSink : public IFrameSink {
+public:
+    explicit LoggingSink(IFrameSink& next) : next_(next) {}
+
+    bool sendFrame(const Frame& frame) override
+    {
+        ProtoMessage msg{};
+        const bool decoded = Proto_Decode(frame.data(), &msg) == PROTO_OK;
+        const bool sent = next_.sendFrame(frame);
+        std::printf("-> %s%s\n", decoded ? describeMessage(msg).c_str() : "(invalid frame)",
+                    sent ? "" : "  [send failed]");
+        std::fflush(stdout);
+        return sent;
+    }
+
+private:
+    IFrameSink& next_;
+};
+
+void printReceived(const Frame& frame)
+{
+    ProtoMessage msg{};
+    const ProtoStatus result = Proto_Decode(frame.data(), &msg);
+    if (result == PROTO_OK) {
+        std::printf("<- %s\n", describeMessage(msg).c_str());
+    } else {
+        std::printf("<- (invalid frame, Proto_Decode=%d)\n", static_cast<int>(result));
+    }
+    std::fflush(stdout);
+}
+
+// Core Audio events, the same in "watch" and "run".
+void handleAudioEvent(HostEvent event, win::WinAudioSystem& audio, HostController& controller)
+{
+    switch (event) {
+    case HostEvent::DevicesChanged:
+        controller.onDevicesChanged();
+        break;
+    case HostEvent::DefaultChanged:
+        audio.rebindVolumeNotifications();
+        controller.onDefaultChanged();
+        break;
+    case HostEvent::VolumeChanged:
+        controller.onVolumeChanged();
+        break;
+    default:
+        break;
+    }
+}
+
+void installCtrlHandler(EventQueue* events)
+{
+    g_events = events;
+    SetConsoleCtrlHandler(onConsoleCtrl, events != nullptr ? TRUE : FALSE);
+}
 
 int cmdList(win::WinAudioSystem& audio)
 {
@@ -140,8 +200,7 @@ int cmdWatch(win::WinAudioSystem& audio, EventQueue& events)
     PrintSink sink;
     HostController controller(audio, sink);
 
-    g_events = &events;
-    SetConsoleCtrlHandler(onConsoleCtrl, TRUE);
+    installCtrlHandler(&events);
 
     // Act as if the STM32 had just connected and asked for the list.
     controller.onConnected();
@@ -155,26 +214,69 @@ int cmdWatch(win::WinAudioSystem& audio, EventQueue& events)
     std::fflush(stdout);
 
     for (;;) {
-        const std::optional<HostEvent> event = events.pop(std::chrono::milliseconds(500));
-        if (!event) {
+        const std::optional<QueuedEvent> item = events.pop(std::chrono::milliseconds(500));
+        if (!item) {
             continue;
         }
-        switch (*event) {
-        case HostEvent::DevicesChanged:
-            controller.onDevicesChanged();
-            break;
-        case HostEvent::DefaultChanged:
-            audio.rebindVolumeNotifications();
-            controller.onDefaultChanged();
-            break;
-        case HostEvent::VolumeChanged:
-            controller.onVolumeChanged();
-            break;
-        case HostEvent::Quit:
-            SetConsoleCtrlHandler(onConsoleCtrl, FALSE);
-            g_events = nullptr;
+        if (item->event == HostEvent::Quit) {
+            installCtrlHandler(nullptr);
             std::printf("Stopped.\n");
             return 0;
+        }
+        handleAudioEvent(item->event, audio, controller);
+    }
+}
+
+int cmdRun(win::WinAudioSystem& audio, EventQueue& events)
+{
+    win::WinHidLink link(events);
+    LoggingSink sink(link);
+    HostController controller(audio, sink);
+
+    installCtrlHandler(&events);
+    if (!link.start()) {
+        installCtrlHandler(nullptr);
+        std::printf("FAIL: cannot start the HID thread.\n");
+        return 1;
+    }
+    std::printf("Waiting for the controller (USB HID %04X:%04X); Ctrl+C stops.\n",
+                static_cast<unsigned>(kControllerVid), static_cast<unsigned>(kControllerPid));
+    std::fflush(stdout);
+
+    for (;;) {
+        const std::optional<QueuedEvent> item = events.pop(std::chrono::milliseconds(500));
+        if (!item) {
+            continue;
+        }
+        switch (item->event) {
+        case HostEvent::FrameReceived:
+            printReceived(item->frame);
+            controller.onFrame(item->frame);
+            break;
+        case HostEvent::HidConnected:
+            std::printf("Controller connected: %s\n", link.description().c_str());
+            std::fflush(stdout);
+            controller.onConnected();
+            break;
+        case HostEvent::HidDisconnected:
+            std::printf("Controller disconnected.\n");
+            std::fflush(stdout);
+            // Nothing is sent until the STM32 asks for the list again.
+            controller.onConnected();
+            break;
+        case HostEvent::Quit: {
+            link.stop();
+            installCtrlHandler(nullptr);
+            const HostController::Stats& st = controller.stats();
+            std::printf("Stopped. sent=%u send_failures=%u rejected=%u ignored=%u errors_received=%u "
+                        "dropped=%lu\n",
+                        st.framesSent, st.sendFailures, st.framesRejected, st.framesIgnored, st.errorsReceived,
+                        static_cast<unsigned long>(events.droppedFrames()));
+            return 0;
+        }
+        default:
+            handleAudioEvent(item->event, audio, controller);
+            break;
         }
     }
 }
@@ -182,7 +284,7 @@ int cmdWatch(win::WinAudioSystem& audio, EventQueue& events)
 int usage()
 {
     std::printf(
-        "usage: stm32-audio-host list | set-default <n> | volume <0-100> | mute on|off | watch\n");
+        "usage: stm32-audio-host run | list | set-default <n> | volume <0-100> | mute on|off | watch\n");
     return 2;
 }
 
@@ -214,6 +316,9 @@ int run(int argc, char** argv)
     }
     if (cmd == "watch") {
         return cmdWatch(audio, events);
+    }
+    if (cmd == "run") {
+        return cmdRun(audio, events);
     }
     return usage();
 }

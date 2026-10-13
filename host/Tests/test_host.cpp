@@ -7,6 +7,7 @@
 #include <cstring>
 #include <deque>
 #include <limits>
+#include <optional>
 #include <string>
 #include <thread>
 #include <vector>
@@ -15,6 +16,7 @@
 #include "DeviceRegistry.h"
 #include "EventQueue.h"
 #include "FrameText.h"
+#include "HidMatch.h"
 #include "HostController.h"
 
 using namespace stm32_audio::host;
@@ -521,25 +523,45 @@ void testAudioMapping()
     }
 }
 
+std::optional<HostEvent> popEvent(EventQueue& q)
+{
+    const std::optional<QueuedEvent> e = q.pop(std::chrono::milliseconds(1));
+    if (!e) {
+        return std::nullopt;
+    }
+    return e->event;
+}
+
 void testEventQueue()
 {
     EventQueue q;
     CHECK(!q.pop(std::chrono::milliseconds(1)).has_value());
 
-    // Duplicates of a waiting event are dropped; order is kept.
+    // Duplicates of a waiting audio event are dropped; order is kept.
     q.push(HostEvent::DevicesChanged);
     q.push(HostEvent::VolumeChanged);
     q.push(HostEvent::DevicesChanged);
     q.push(HostEvent::VolumeChanged);
     CHECK(q.size() == 2);
-    CHECK(q.pop(std::chrono::milliseconds(1)) == HostEvent::DevicesChanged);
-    CHECK(q.pop(std::chrono::milliseconds(1)) == HostEvent::VolumeChanged);
+    CHECK(popEvent(q) == HostEvent::DevicesChanged);
+    CHECK(popEvent(q) == HostEvent::VolumeChanged);
     CHECK(q.size() == 0);
 
     // A popped event can be queued again.
     q.push(HostEvent::DevicesChanged);
     CHECK(q.size() == 1);
     (void)q.pop(std::chrono::milliseconds(1));
+
+    // Connect / disconnect are never merged: each one is a state change.
+    q.push(HostEvent::HidConnected);
+    q.push(HostEvent::HidDisconnected);
+    q.push(HostEvent::HidConnected);
+    q.push(HostEvent::HidDisconnected);
+    CHECK(q.size() == 4);
+    CHECK(popEvent(q) == HostEvent::HidConnected);
+    CHECK(popEvent(q) == HostEvent::HidDisconnected);
+    CHECK(popEvent(q) == HostEvent::HidConnected);
+    CHECK(popEvent(q) == HostEvent::HidDisconnected);
 
     // Push from another thread wakes the waiting consumer.
     std::thread producer([&q] {
@@ -552,17 +574,90 @@ void testEventQueue()
     bool sawQuit = false;
     int volumeEvents = 0;
     while (!sawQuit) {
-        const std::optional<HostEvent> e = q.pop(std::chrono::seconds(5));
+        const std::optional<QueuedEvent> e = q.pop(std::chrono::seconds(5));
         CHECK(e.has_value());
         if (!e) {
             break;
         }
-        sawQuit = (*e == HostEvent::Quit);
-        volumeEvents += (*e == HostEvent::VolumeChanged) ? 1 : 0;
+        sawQuit = (e->event == HostEvent::Quit);
+        volumeEvents += (e->event == HostEvent::VolumeChanged) ? 1 : 0;
     }
     producer.join();
     CHECK(sawQuit);
     CHECK(volumeEvents >= 1 && volumeEvents <= 1000);
+}
+
+void testEventQueueFrames()
+{
+    EventQueue q(3);
+    Frame a{};
+    Frame b{};
+    a[0] = 0x11;
+    b[0] = 0x22;
+
+    // Frames are carried with their content, in order, and never merged
+    // (two identical frames are two requests).
+    CHECK(q.pushFrame(a));
+    q.push(HostEvent::DevicesChanged);
+    CHECK(q.pushFrame(b));
+    CHECK(q.pushFrame(b));
+    std::optional<QueuedEvent> e = q.pop(std::chrono::milliseconds(1));
+    CHECK(e && e->event == HostEvent::FrameReceived && e->frame == a);
+    CHECK(popEvent(q) == HostEvent::DevicesChanged);
+    e = q.pop(std::chrono::milliseconds(1));
+    CHECK(e && e->event == HostEvent::FrameReceived && e->frame == b);
+
+    // Bounded: with 3 frames waiting the next is dropped and counted;
+    // other events still get in.
+    CHECK(q.pushFrame(a));
+    CHECK(q.pushFrame(a));
+    CHECK(!q.pushFrame(b));
+    CHECK(q.droppedFrames() == 1);
+    q.push(HostEvent::HidDisconnected);
+    CHECK(q.size() == 4);
+
+    // Popping a frame frees a slot.
+    for (int i = 0; i < 3; ++i) {
+        CHECK(popEvent(q) == HostEvent::FrameReceived);
+    }
+    CHECK(q.pushFrame(b));
+    CHECK(q.droppedFrames() == 1);
+    CHECK(popEvent(q) == HostEvent::HidDisconnected);
+    e = q.pop(std::chrono::milliseconds(1));
+    CHECK(e && e->frame == b);
+    CHECK(q.size() == 0);
+}
+
+void testHidMatch()
+{
+    HidInfo info;
+    info.vendorId = 0x1209;
+    info.productId = 0x0001;
+    info.usagePage = 0xFF00;
+    info.usage = 0x0001;
+    info.inputReportBytes = 65;
+    info.outputReportBytes = 65;
+    CHECK(isController(info));
+    CHECK(kReportBytes == 65);
+
+    HidInfo other = info;
+    other.vendorId = 0x0483;  // ST
+    CHECK(!isController(other));
+    other = info;
+    other.productId = 0x0002;
+    CHECK(!isController(other));
+    other = info;
+    other.usagePage = 0x0001;  // e.g. a keyboard collection of the same device
+    CHECK(!isController(other));
+    other = info;
+    other.usage = 0x0002;
+    CHECK(!isController(other));
+    other = info;
+    other.inputReportBytes = 64;  // a firmware with a report ID or another size
+    CHECK(!isController(other));
+    other = info;
+    other.outputReportBytes = 0;  // input-only interface
+    CHECK(!isController(other));
 }
 
 void testFrameText()
@@ -627,6 +722,8 @@ int main()
     testSendFailure();
     testAudioMapping();
     testEventQueue();
+    testEventQueueFrames();
+    testHidMatch();
     testFrameText();
 
     std::printf("%d checks, %d failures\n", g_checks, g_failures);
