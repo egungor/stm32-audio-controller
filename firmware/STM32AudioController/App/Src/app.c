@@ -11,8 +11,19 @@
 #include "ltdc.h"
 #include "sdram.h"
 #include "touch.h"
+#include "touch_log.h"
+#include "ui_demo.h"
+#include "ui_port.h"
 
-#define TOUCH_POLL_MS 20U
+/* 1: M1 test screen (pattern, touch targets) instead of the UI.
+ * Set with cmake -DAPP_TEST_SCREEN=ON (see firmware/README.md). */
+#ifndef APP_TEST_SCREEN
+#define APP_TEST_SCREEN 0
+#endif
+
+#define TOUCH_POLL_MS  20U
+#define UI_MIN_WAIT_MS 1U
+#define UI_MAX_WAIT_MS 10U
 
 /* Report the configured clock tree, then measure it against the LSE. A
  * failure is logged but does not stop the bring-up. */
@@ -39,13 +50,11 @@ static void clock_check(void)
     }
 }
 
-/* M1 bring-up: clock check, SDRAM, then the LCD test pattern. Log lines
- * are documented in docs/firmware-log.md. Returns true if the test pattern
- * is on the panel. */
+/* Clock check, then SDRAM. Log lines are documented in
+ * docs/firmware-log.md. Returns true if the SDRAM is usable. */
 static bool bringup(void)
 {
     SdramTestResult test;
-    LcdTestInfo lcd;
     uint32_t t0;
 
     Log_Line("BOOT OK sysclk=%lu", (unsigned long)HAL_RCC_GetSysClockFreq());
@@ -78,23 +87,10 @@ static bool bringup(void)
     }
     Log_Line("SELFTEST SDRAM PASS size=%lu ms=%lu", (unsigned long)SDRAM_SIZE_BYTES,
              (unsigned long)(HAL_GetTick() - t0));
-
-    if (hltdc.LayerCfg[0].PixelFormat != LTDC_PIXEL_FORMAT_RGB565)
-    {
-        Log_Line("LCD PATTERN FAIL reason=pixel_format");
-        return false;
-    }
-    LcdTest_DrawPattern(&lcd);
-    __HAL_LTDC_ENABLE(&hltdc);
-    Log_Line("LCD PATTERN DRAWN w=%lu h=%lu fmt=RGB565 fb=0x%08lX sum=0x%08lX",
-             (unsigned long)lcd.width, (unsigned long)lcd.height,
-             (unsigned long)hltdc.LayerCfg[0].FBStartAdress, (unsigned long)lcd.sum);
     return true;
 }
 
-/* Touch bring-up (M1). Targets are drawn only when the panel shows the
- * test pattern. Returns true if the FT5336 answered. */
-static bool touch_bringup(bool lcd_ok)
+static bool touch_init(void)
 {
     uint8_t id;
 
@@ -104,8 +100,36 @@ static bool touch_bringup(bool lcd_ok)
         return false;
     }
     Log_Line("TOUCH INIT OK id=0x%02X", (unsigned)id);
+    return true;
+}
 
-    if (lcd_ok)
+#if APP_TEST_SCREEN
+
+/* M1 test screen: pattern, touch targets, dot under the finger. */
+static void run_test_screen(bool sdram_ok, bool touch_ok)
+{
+    bool lcd_ok = false;
+    LcdTestInfo lcd;
+
+    if (!sdram_ok)
+    {
+        /* LTDC stays off: no valid framebuffer. */
+    }
+    else if (hltdc.LayerCfg[0].PixelFormat != LTDC_PIXEL_FORMAT_RGB565)
+    {
+        Log_Line("LCD PATTERN FAIL reason=pixel_format");
+    }
+    else
+    {
+        LcdTest_DrawPattern(&lcd);
+        __HAL_LTDC_ENABLE(&hltdc);
+        Log_Line("LCD PATTERN DRAWN w=%lu h=%lu fmt=RGB565 fb=0x%08lX sum=0x%08lX",
+                 (unsigned long)lcd.width, (unsigned long)lcd.height,
+                 (unsigned long)hltdc.LayerCfg[0].FBStartAdress, (unsigned long)lcd.sum);
+        lcd_ok = true;
+    }
+
+    if (lcd_ok && touch_ok)
     {
         LcdTest_DrawTouchTargets();
         for (uint32_t i = 0U; i < LCD_TEST_TOUCH_TARGETS; i++)
@@ -117,65 +141,65 @@ static bool touch_bringup(bool lcd_ok)
             Log_Line("TOUCH TARGET n=%lu x=%u y=%u", (unsigned long)i, (unsigned)x, (unsigned)y);
         }
     }
-    return true;
-}
-
-/* Log press and release transitions; mark the finger position on the panel
- * while pressed. */
-static void touch_poll(bool lcd_ok)
-{
-    static TouchPoint s_last;
-    static bool s_read_failed;
-    TouchPoint now;
-
-    if (!Touch_Read(&now))
-    {
-        if (!s_read_failed)
-        {
-            Log_Line("TOUCH READ FAIL");
-            s_read_failed = true;
-        }
-        return;
-    }
-    s_read_failed = false;
-
-    if (now.pressed && !s_last.pressed)
-    {
-        Log_Line("TOUCH DOWN x=%u y=%u", (unsigned)now.x, (unsigned)now.y);
-    }
-    else if (!now.pressed && s_last.pressed)
-    {
-        Log_Line("TOUCH UP x=%u y=%u", (unsigned)s_last.x, (unsigned)s_last.y);
-    }
-
-    if (now.pressed && lcd_ok)
-    {
-        LcdTest_DrawTouchDot(now.x, now.y);
-    }
-    if (now.pressed)
-    {
-        s_last = now;
-    }
-    else
-    {
-        s_last.pressed = false; /* keep the last position for TOUCH UP */
-    }
-}
-
-void App_Main(void)
-{
-    const bool lcd_ok = bringup();
-    const bool touch_ok = touch_bringup(lcd_ok);
-
     Log_Line("APP READY");
 
-    /* Application features are added in later milestones (see docs/roadmap.md). */
     for (;;)
     {
         if (touch_ok)
         {
-            touch_poll(lcd_ok);
+            TouchPoint now;
+            const bool ok = Touch_Read(&now);
+
+            TouchLog_Track(ok, &now);
+            if (ok && now.pressed && lcd_ok)
+            {
+                LcdTest_DrawTouchDot(now.x, now.y);
+            }
         }
         osDelay(TOUCH_POLL_MS);
     }
+}
+
+#else /* !APP_TEST_SCREEN */
+
+/* LVGL UI. Until USB HID exists (M3) the demo stands in for the host. */
+static void run_ui(bool sdram_ok, bool touch_ok)
+{
+    const bool ui_ok = sdram_ok && UiPort_Init(touch_ok);
+
+    if (!ui_ok)
+    {
+        Log_Line("UI INIT FAIL reason=%s", sdram_ok ? "lcd_format" : "sdram");
+    }
+    else
+    {
+        UiDemo_Start();
+        UiPort_Start();
+        Log_Line("UI INIT OK fb0=0x%08lX fb1=0x%08lX", (unsigned long)UI_PORT_FB0_ADDR,
+                 (unsigned long)UI_PORT_FB1_ADDR);
+    }
+    Log_Line("APP READY");
+
+    for (;;)
+    {
+        uint32_t wait = ui_ok ? UiPort_Run() : UI_MAX_WAIT_MS;
+
+        wait = (wait < UI_MIN_WAIT_MS) ? UI_MIN_WAIT_MS : wait;
+        wait = (wait > UI_MAX_WAIT_MS) ? UI_MAX_WAIT_MS : wait;
+        osDelay(wait);
+    }
+}
+
+#endif /* APP_TEST_SCREEN */
+
+void App_Main(void)
+{
+    const bool sdram_ok = bringup();
+    const bool touch_ok = touch_init();
+
+#if APP_TEST_SCREEN
+    run_test_screen(sdram_ok, touch_ok);
+#else
+    run_ui(sdram_ok, touch_ok);
+#endif
 }
