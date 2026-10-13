@@ -34,6 +34,9 @@ Emitted in this order at boot:
 | Line | Meaning |
 |---|---|
 | `BOOT OK sysclk=<Hz>` | Default task started; SYSCLK frequency |
+| `CLOCK CONFIG OK sysclk=<Hz> hclk=<Hz> pclk1=<Hz> pclk2=<Hz>` | Clock tree as computed by the HAL from the RCC registers (not a measurement) |
+| `CLOCK MEASURE PASS ref=LSE tim=<Hz> exp=<Hz> ppm=<n>` | TIM5 clock measured against the 32.768 kHz LSE crystal over 8192 periods; within ±500 ppm of `exp` |
+| `CLOCK MEASURE FAIL reason=<r> ref=LSE tim=<Hz> exp=<Hz> ppm=<n>` | `r` = `lse_start` (LSE did not start), `capture_timeout`, `overcapture` (a capture was missed) or `out_of_range` (error above ±500 ppm); `tim=0` when nothing was measured |
 | `SDRAM INIT OK` / `SDRAM INIT FAIL` | JEDEC init sequence accepted by the FMC |
 | `SELFTEST SDRAM PASS size=<bytes> ms=<ms>` | Data bus, address bus and full 8 MB fill tests passed |
 | `SELFTEST SDRAM FAIL test=<data\|addr\|fill> addr=0x<a> exp=0x<e> got=0x<g>` | First failing word |
@@ -41,8 +44,14 @@ Emitted in this order at boot:
 | `LCD PATTERN FAIL reason=pixel_format` | Layer 0 is not RGB565 |
 | `APP READY` | Bring-up finished; main loop running |
 
-After a `FAIL` the remaining bring-up steps are skipped (`APP READY` is
+A `CLOCK MEASURE FAIL` is reported only; the bring-up continues. After
+any other `FAIL` the remaining bring-up steps are skipped (`APP READY` is
 still printed) and the LTDC stays disabled, so the panel shows no image.
+
+`tim` is the APB1 timer clock (2 × PCLK1, 100 MHz with the current
+configuration), which comes from HSE through the main PLL, so a `PASS`
+confirms the HSE frequency and the PLL/bus dividers together. The LSE is
+left running after the check.
 
 Example (hardware, 2026-10-13):
 
