@@ -179,7 +179,7 @@ static void run_script(void)
     check(Ui_CurrentPage() == 1U, "next page button shows page 2");
     snapshot("05-page2");
 
-    Ui_ShowError("Kablosuz kulakl\xC4\xB1k ayr\xC4\xB1ld\xC4\xB1. Liste g\xC3\xBCncellendi.");
+    Ui_ShowNotice(UI_NOTICE_HOST_TIMEOUT);
     run_ms(50U);
     snapshot("06-error");
     run_ms(UI_NOTICE_MS + 100U);

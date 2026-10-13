@@ -25,7 +25,7 @@ argument):
 | `03-pending.png` | "Hoparlörler" tapped, waiting for the host to confirm |
 | `04-switched.png` | Host confirmed: "Hoparlörler" active |
 | `05-page2.png` | Next page button tapped |
-| `06-error.png` | Error notice over the main screen |
+| `06-error.png` | "Bilgisayar yanıt vermiyor" notice over the main screen |
 | `07-error-gone.png` | Same screen after the notice timed out |
 | `08-empty.png` | Host reports no playback devices |
 
