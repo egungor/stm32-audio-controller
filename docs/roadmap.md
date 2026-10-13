@@ -45,9 +45,9 @@ Status: **IN PROGRESS**
 
 - [ ] Configure USB Device — vendor HID class, `1209:0001` (#30, ADR-003), REQUIRES HARDWARE
 - [x] Define HID descriptor — ADR-003, `protocol.md` "Transport" (#30)
-- [ ] Implement HID transport — firmware side and protocol client in #30; Windows side pending
+- [ ] Implement HID transport — firmware side and protocol client (#30), Windows `WinHidLink` and `run` (#32); REQUIRES HARDWARE + WINDOWS
 - [ ] Test host ↔ STM32 packets — REQUIRES HARDWARE + WINDOWS
-- [ ] Handle disconnect/reconnect — firmware: waiting screen and list re-request (#30); host side pending
+- [ ] Handle disconnect/reconnect — firmware: waiting screen and list re-request (#30); host: rescan every second, controller reset (#32); REQUIRES HARDWARE + WINDOWS
 
 ## M4 — Windows Audio
 
