@@ -136,6 +136,24 @@ Flow:
 
 6. Build outputs are not committed.
 
+### STM32Cube for VS Code project files
+
+Setting up the project with the STM32Cube VS Code extension ("Set Up
+STM32Cube project(s)", run with `firmware/STM32AudioController` opened
+as the VS Code folder — the extension only detects CMake projects at a
+workspace-folder root) created these committed files:
+
+- `.settings/ide.store.json` — board `STM32F746G-DISCO`, device
+  `STM32F746NGH6`, toolchain GCC. Required by the `stlinkgdbtarget`
+  debug launch.
+- `.settings/bundles.store.json`, `.settings/bundles-lock.store.json` —
+  STM32Cube bundle versions for the project.
+- `.clangd`, `.gitignore` (extension defaults).
+
+Discrepancy to resolve: the extension selected the CMake bundle
+**4.4.0+st.1**, while this document lists CMake 3.26.3 as the project
+CMake. The GCC (14.3.1+st.2) and Ninja (1.13.2+st.1) bundles match.
+
 ### Linux build (secondary)
 
 `tools/build-firmware-linux.sh` builds the same CMake project on Linux.

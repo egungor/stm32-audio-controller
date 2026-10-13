@@ -86,6 +86,25 @@ hardware):
 **host** mode. In device mode it should stay at its inactive level;
 verify its configured state against the MB1191 schematic before M3.
 
+### MPU
+
+The CubeMX default MPU region 0 (4 GB, sub-region mask `0x87`) makes
+`0x6000_0000`–`0xDFFF_FFFF` no-access for the CPU. That range contains
+the FMC control registers (`0xA000_0000`) and the SDRAM (`0xC000_0000`),
+so `MX_FMC_Init()` faulted into `MemManage_Handler` on the board. (The
+first commit had region 0 commented out by hand inside generated code,
+which a regeneration silently undid.)
+
+Fix, configured in CubeMX (CORTEX_M7) so it survives regeneration;
+region 0 is kept as the speculative-access guard:
+
+| Region | Base | Size | Type | Access | XN |
+|---|---|---|---|---|---|
+| 1 | `0xA0000000` | 8 KB | Device (TEX0, S, B) | Full | Yes |
+| 2 | `0xC0000000` | 8 MB | Normal, non-cacheable (TEX1) | Full | Yes |
+
+Region 2 must be revisited if the D-cache is enabled.
+
 ### Clock
 
 Keep 200 MHz for now. Moving to 216 MHz (over-drive) is a separate
