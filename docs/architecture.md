@@ -101,7 +101,8 @@ The exact dimensions/layout depend on the verified board LCD.
   only on LVGL and is previewed with the Linux simulator
   (`firmware/simulator/`); on the board it runs on two SDRAM framebuffers
   with the FT5336 as input (`App/Src/ui_port.c`)
-- Audio control: Windows Core Audio/MMDevice
+- Audio control: Windows Core Audio/MMDevice; switching the default device
+  uses the undocumented `IPolicyConfig` (ADR-002)
 - Device information is discovered dynamically by Windows
 - User-friendly display names are separated from Windows endpoint IDs
 
