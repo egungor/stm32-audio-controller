@@ -35,6 +35,8 @@ Status: **IN PROGRESS**
 - [ ] Add active-device indication
 - [ ] Add pagination
 - [ ] Create device model
+- [ ] Capture LCD screenshots of the final UI into `docs/images/` and add
+      them to the project presentation (see `docs/images/README.md`)
 
 ## M3 — USB HID
 
