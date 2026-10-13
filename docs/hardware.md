@@ -67,14 +67,17 @@ MB1191 schematic, STM32CubeF7 BSP) and must not be guessed.
 - [x] Identify LCD panel (ROCKTECH RK043FN48H-CT672B)
 - [x] Identify touch controller (FT5336)
 - [x] Identify LCD resolution (480 × 272)
-- [ ] Confirm touch I²C bus/address against BSP on hardware
+- [x] Confirm touch I²C bus/address against BSP on hardware — I2C3,
+  address `0x38` (7-bit), chip ID `0x51` read back; VERIFIED 2026-10-14
 - [x] Identify USB connector used for device communication — USB OTG FS
   micro-USB connector (not the ST-LINK one); VERIFIED 2026-10-13
 - [x] Confirm ST-LINK connection — flash + debug via STM32Cube for VS Code;
   VERIFIED 2026-10-13
 - [x] Confirm external SDRAM operation — 8 MB self-test PASS after a
-  software reset; VERIFIED 2026-10-13 (power-cycle boot NOT TESTED)
-- [ ] Confirm clock configuration
+  software reset (2026-10-13) and after a power cycle (2026-10-14);
+  VERIFIED
+- [x] Confirm clock configuration — `CLOCK MEASURE PASS`, TIM5 clock
+  within 12 ppm of 100 MHz against the LSE; VERIFIED 2026-10-14
 - [x] Confirm ST-LINK virtual COM port output on hardware — USART1,
   TX `PA9`, RX `PB7`, 115200 baud, `COM4` on the developer host;
   VERIFIED 2026-10-13
@@ -125,6 +128,90 @@ open. Fix: `App_Main` disables the LTDC until SDRAM is initialised and
 the pattern is drawn. Disabling the LTDC only during the self-test did
 not help; it must be off during the init sequence.
 
+### 2026-10-14 — M1–M6 hardware and Windows checks (issue #48)
+
+Firmware and host: `main` at `41bfed5`. Firmware built with the
+command-line Windows ST toolchain (CMake 4.4.0+st.1, GCC 14.3.1+st.2,
+Debug, 0 warnings) in three variants — `build/TestScreen`
+(`-DAPP_TEST_SCREEN=ON`), `build/UiDemo` (`-DAPP_UI_DEMO=ON`) and
+`build/Debug` (default) — and flashed with `STM32_Programmer_CLI`. Log
+read from `COM4`. Host built with MSVC (Visual Studio 2022 17.11.5,
+Debug). Touches, cable changes and the visual checks on the panel and in
+Settings → Sound were done by the developer; log lines, HID data and
+framebuffer dumps were read on the PC.
+
+Test screen build:
+
+| Check | Result |
+|---|---|
+| Clock | VERIFIED — `CLOCK CONFIG OK sysclk=200000000 hclk=200000000 pclk1=50000000 pclk2=100000000`; `CLOCK MEASURE PASS ref=LSE tim=100001244 exp=100000000 ppm=12`. Later boots: `ppm=0` and `ppm=12` |
+| SDRAM self-test | VERIFIED — `SELFTEST SDRAM PASS size=8388608`; `ms=` varied between boots and builds (1176–1727) |
+| Touch controller | VERIFIED — `TOUCH INIT OK id=0x51` |
+| Test pattern in framebuffer | VERIFIED — `sum=0x010493A2` as on 2026-10-13. `fb2png.py --expected` reports 453 mismatches, all within ±10 px of the five touch-target crosshairs, which the script does not draw |
+| Touch coordinates against the five targets | VERIFIED — axes and orientation correct (no swap or mirroring); see the table below |
+| Dot follows the finger | VERIFIED — developer visual check |
+| Boot after a power cycle (SDRAM from cold) | VERIFIED — ST-LINK cable unplugged for about 18 s: `SELFTEST SDRAM PASS`, `LCD PATTERN DRAWN … sum=0x010493A2`, pattern on the panel; framebuffer dump byte-identical to the one after a software reset. `BOOT OK` and `CLOCK CONFIG` were sent before Windows reopened `COM4` and were not captured |
+
+| Target | `TOUCH TARGET` | `TOUCH DOWN` | Difference |
+|---|---|---|---|
+| 0 top left | 20, 20 | 17, 32 | −3, +12 |
+| 1 top right | 459, 20 | 467, 25 | +8, +5 |
+| 2 bottom left | 20, 251 | 22, 260 | +2, +9 |
+| 3 bottom right | 459, 251 | 463, 264 | +4, +13 |
+| 4 centre | 240, 136 | 240, 144 | 0, +8 |
+
+Every touch landed 5–13 px below the target, x within ±8 px. The offset
+has the same sign at all five targets, so it looks like the finger's
+contact point rather than a scaling error; no calibration was changed.
+
+Demo UI build:
+
+| Check | Result |
+|---|---|
+| UI on the LCD | VERIFIED — `UI INIT OK fb0=0xC0000000 fb1=0xC0040000`, `UI DEMO DEVICES n=5 active=1`; framebuffer dump matches the design; developer visual check on the panel |
+| Taps | VERIFIED — device cards on both pages (`UI SELECT id=<n>`, `UI DEMO ACTIVE` 0.41 s later), page buttons |
+| Volume and mute | VERIFIED — `UI VOLUME value=<n>` on release, `UI MUTE on/off` |
+| Tearing | VERIFIED — none seen while dragging the slider, upright and flipped (developer visual check) |
+| Flip button (#42) | VERIFIED — short taps do nothing; a hold of 1 s or more arms it, it flips on release. Image upright in both orientations; touch maps correctly while flipped (cards, slider, mute, flip button) |
+| `UI FLIP off copy_max_ms` | NOT AS EXPECTED — `copy_max_ms=25` (demo) and `23` (normal build), not "a few ms". The 180° copy of the whole frame from SDRAM to SDRAM takes most of a 33 ms frame period. The buffer swap still waits for vertical blanking, so there is no tearing, but the frame rate drops while flipped |
+
+Default build, USB and host:
+
+| Check | Result |
+|---|---|
+| USB enumeration | VERIFIED — `USB\VID_1209&PID_0001`, HIDClass "HID-compliant vendor-defined device"; `HidP_GetCaps`: usage page `0xFF00`, usage `0x01`, input/output report 65 bytes (64 + report ID byte, no report ID), no feature report — as ADR-003. `USB CONFIGURED` in the log |
+| Host unit tests (`ctest`) | VERIFIED — 1/1 passed, after building with C4127 suppressed locally (see below) |
+| `stm32-audio-host list` | VERIFIED — the 9 active render endpoints, same names as Windows' endpoint list (`Get-PnpDevice -Class AudioEndpoint`) |
+| `set-default`, `volume`, `mute` | VERIFIED — Settings → Sound showed the new default, volume and mute (developer check) |
+| `watch` | VERIFIED — Windows-side changes of the default device, volume (each step) and mute arrive as `DEVICE_CHANGED` / `VOLUME_CHANGED` / `MUTE_CHANGED`; after a device change the volume and mute of the new default follow |
+| `run` started before the board (step 1) | VERIFIED — `Controller connected`, 9 × `DEVICE_LIST`, `DEVICE_CHANGED`, `VOLUME_CHANGED`, `MUTE_CHANGED`; the LCD shows the 9 devices with the default marked |
+| Select on the LCD (step 2) | VERIFIED — `<- SELECT_DEVICE index=n`, `-> DEVICE_CHANGED index=n`; Settings → Sound follows |
+| Default changed in Windows (step 3) | VERIFIED — `LINK ACTIVE` without `UI SELECT`; the LCD follows |
+| Unplug and replug (step 4) | VERIFIED — `Controller disconnected.`, then `Controller connected` and the list again; `LINK LIST OK` about 1.2 s after plugging in |
+| `run` started with the board plugged in, default changed while it was closed (steps 5 and 7) | VERIFIED — the first list already marks the new default; `LINK ACTIVE` 80 ms after `USB CONFIGURED`, no tap; the LCD shows it |
+| Ctrl+C (step 6) | VERIFIED — `Stopped. sent=192 send_failures=0 rejected=0 ignored=0 errors_received=0 dropped=0` |
+| Volume and mute both ways (step 8, #40) | VERIFIED — slider: several `SET_VOLUME` per drag, not one per pixel, Windows follows, 0 and 100 reached; mute tap: `SET_MUTE`, `MUTE_CHANGED`; volume and mute changed in Windows reach the LCD (`VOLUME_CHANGED` without `SET_VOLUME`, `LINK MUTE` without `UI MUTE`) |
+| LCD screenshots | Done — `docs/images/ui-main-screen.png`, `ui-muted.png`, `ui-waiting-for-host.png` (framebuffer dumps of the default build) |
+
+Observations, not failures:
+
+- **`USB CONFIGURED` with the cable unplugged.** Unplugging the USB OTG
+  FS cable logs `USB DISCONNECTED` and, about 100 ms later,
+  `USB CONFIGURED` (seen twice). The LCD stays on the waiting screen and
+  plugging in again works, so only the log line (and the link state
+  behind it) is wrong. Closing the host program also logs
+  `USB DISCONNECTED` and reopening it `USB CONFIGURED`, which fits Windows
+  suspending the idle HID device. Plugging in logs one or two
+  DISCONNECTED/CONFIGURED pairs before the list (bus resets during
+  enumeration).
+- **Long device names are cut** with "…" on the cards (two lines), and
+  the protocol cuts "Kulaklık İşitme Bölümü (G435 Wireless Gaming
+  Headset)" to "… (G435 Wireless Gami".
+- **Host test build with Visual Studio 17.11.5:** `test_host.cpp:745`
+  `CHECK(kReportBytes == 65)` raises C4127 (conditional expression is
+  constant), which `/WX` turns into an error. `stm32-audio-host.exe`
+  itself builds without warnings, and Host CI (newer MSVC) is green.
+
 ## Firmware peripherals in use
 
 Pins and verification status: [`pin-mapping.md`](pin-mapping.md);
@@ -141,22 +228,23 @@ selection: `decisions/ADR-001-firmware-peripheral-set.md`.
 
 ## Pending hardware and Windows tests
 
-Everything below is written and passes CI, but has not run on the board
-or on Windows. Results go into the bring-up log above, with the date and
-the firmware commit.
+The checks for the M1–M6 code. All of them ran on 2026-10-14 on firmware
+and host `41bfed5` (issue #48); details and observations are in the
+bring-up log above. New checks go here first, and their results into the
+bring-up log, with the date and the firmware commit.
 
 | Check | Where | Status |
 |---|---|---|
-| `CLOCK MEASURE PASS`, error of a few tens of ppm or less | #16, `docs/firmware-log.md` | REQUIRES HARDWARE |
-| `TOUCH INIT OK id=0x51`; the five targets log their coordinates; the dot follows the finger | #18 | REQUIRES HARDWARE |
-| UI on the LCD as in the simulator; taps work; no tearing | #24 | REQUIRES HARDWARE |
-| Board enumerates as `1209:0001`, vendor HID, 64-byte reports | #30, ADR-003 | REQUIRES HARDWARE + WINDOWS |
-| `stm32-audio-host list`, `set-default`, `volume`, `mute`, `watch` match Settings → Sound | #28, `host/README.md` | REQUIRES WINDOWS |
-| End to end with `stm32-audio-host run` (list, select on the LCD, Windows changes, unplug/replug, host restart) | `host/README.md`, "Manual check with the board" | REQUIRES HARDWARE + WINDOWS |
-| Volume and mute: drag the slider and tap mute on the LCD → Windows follows; change them in Windows → the LCD follows | #40, `host/README.md` | REQUIRES HARDWARE + WINDOWS |
-| Flip button (hold 1 s, top right): image and touch upright in both orientations, no tearing; `UI FLIP off copy_max_ms=<n>` small (a few ms expected) after dragging the slider while flipped | #42 | REQUIRES HARDWARE |
-| Boot after a power cycle (SDRAM from cold) | bring-up log above | NOT TESTED |
-| LCD screenshots of the final UI in `docs/images/` | `docs/images/README.md` | after the UI check |
+| `CLOCK MEASURE PASS`, error of a few tens of ppm or less | #16, `docs/firmware-log.md` | VERIFIED 2026-10-14 (`ppm=12`) |
+| `TOUCH INIT OK id=0x51`; the five targets log their coordinates; the dot follows the finger | #18 | VERIFIED 2026-10-14 (touches 5–13 px below the targets, see log) |
+| UI on the LCD as in the simulator; taps work; no tearing | #24 | VERIFIED 2026-10-14 (framebuffer dump and panel checked against the design; not compared pixel by pixel with the simulator) |
+| Board enumerates as `1209:0001`, vendor HID, 64-byte reports | #30, ADR-003 | VERIFIED 2026-10-14 |
+| `stm32-audio-host list`, `set-default`, `volume`, `mute`, `watch` match Settings → Sound | #28, `host/README.md` | VERIFIED 2026-10-14 |
+| End to end with `stm32-audio-host run` (list, select on the LCD, Windows changes, unplug/replug, host restart) | `host/README.md`, "Manual check with the board" | VERIFIED 2026-10-14 (steps 1–8) |
+| Volume and mute: drag the slider and tap mute on the LCD → Windows follows; change them in Windows → the LCD follows | #40, `host/README.md` | VERIFIED 2026-10-14 |
+| Flip button (hold 1 s, top right): image and touch upright in both orientations, no tearing; `UI FLIP off copy_max_ms=<n>` small (a few ms expected) after dragging the slider while flipped | #42 | Image, touch, no tearing: VERIFIED 2026-10-14. `copy_max_ms`: NOT AS EXPECTED, 23–25 ms |
+| Boot after a power cycle (SDRAM from cold) | bring-up log above | VERIFIED 2026-10-14 |
+| LCD screenshots of the final UI in `docs/images/` | `docs/images/README.md` | Done 2026-10-14 (main, muted, waiting screens) |
 
 ## Reference sources
 
