@@ -12,6 +12,10 @@
 #define BAR_COUNT    8U
 #define RAMP_STEPS   32U
 #define MARKER_SIZE  16U
+#define TARGET_INSET 20U
+#define TARGET_ARM   10U
+#define COLOR_WHITE  RGB565(255U, 255U, 255U)
+#define COLOR_BLACK  RGB565(0U, 0U, 0U)
 
 static const uint16_t s_bars[BAR_COUNT] = {
     RGB565(255U, 255U, 255U), /* white   */
@@ -71,4 +75,74 @@ void LcdTest_DrawPattern(LcdTestInfo *info)
     info->width  = w;
     info->height = h;
     info->sum    = sum;
+}
+
+/* Fill a rectangle, clipped to the layer. */
+static void fill_rect(int32_t x0, int32_t y0, int32_t x1, int32_t y1, uint16_t color)
+{
+    const LTDC_LayerCfgTypeDef *layer = &hltdc.LayerCfg[0];
+    volatile uint16_t *const fb = (volatile uint16_t *)layer->FBStartAdress;
+    const int32_t w = (int32_t)layer->ImageWidth;
+    const int32_t h = (int32_t)layer->ImageHeight;
+
+    x0 = (x0 < 0) ? 0 : x0;
+    y0 = (y0 < 0) ? 0 : y0;
+    x1 = (x1 > w - 1) ? w - 1 : x1;
+    y1 = (y1 > h - 1) ? h - 1 : y1;
+    for (int32_t y = y0; y <= y1; y++)
+    {
+        for (int32_t x = x0; x <= x1; x++)
+        {
+            fb[(y * w) + x] = color;
+        }
+    }
+}
+
+void LcdTest_TouchTarget(uint32_t index, uint16_t *x, uint16_t *y)
+{
+    const LTDC_LayerCfgTypeDef *layer = &hltdc.LayerCfg[0];
+    const uint16_t right = (uint16_t)(layer->ImageWidth - 1U - TARGET_INSET);
+    const uint16_t bottom = (uint16_t)(layer->ImageHeight - 1U - TARGET_INSET);
+
+    switch (index)
+    {
+    case 0U: *x = TARGET_INSET; *y = TARGET_INSET; break;
+    case 1U: *x = right;        *y = TARGET_INSET; break;
+    case 2U: *x = TARGET_INSET; *y = bottom;       break;
+    case 3U: *x = right;        *y = bottom;       break;
+    default:
+        *x = (uint16_t)(layer->ImageWidth / 2U);
+        *y = (uint16_t)(layer->ImageHeight / 2U);
+        break;
+    }
+}
+
+void LcdTest_DrawTouchTargets(void)
+{
+    const int32_t arm = (int32_t)TARGET_ARM;
+
+    for (uint32_t i = 0U; i < LCD_TEST_TOUCH_TARGETS; i++)
+    {
+        uint16_t tx;
+        uint16_t ty;
+        int32_t cx;
+        int32_t cy;
+
+        LcdTest_TouchTarget(i, &tx, &ty);
+        cx = (int32_t)tx;
+        cy = (int32_t)ty;
+        fill_rect(cx - arm, cy - 1, cx + arm, cy + 1, COLOR_WHITE);
+        fill_rect(cx - 1, cy - arm, cx + 1, cy + arm, COLOR_WHITE);
+        fill_rect(cx - arm, cy, cx + arm, cy, COLOR_BLACK);
+        fill_rect(cx, cy - arm, cx, cy + arm, COLOR_BLACK);
+    }
+}
+
+void LcdTest_DrawTouchDot(uint16_t x, uint16_t y)
+{
+    const int32_t cx = (int32_t)x;
+    const int32_t cy = (int32_t)y;
+
+    fill_rect(cx - 2, cy - 2, cx + 2, cy + 2, COLOR_WHITE);
+    fill_rect(cx - 1, cy - 1, cx + 1, cy + 1, COLOR_BLACK);
 }

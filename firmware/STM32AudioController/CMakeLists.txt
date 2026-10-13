@@ -50,6 +50,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     App/Src/lcd_test.c
     App/Src/log.c
     App/Src/sdram.c
+    App/Src/touch.c
 )
 
 # Add include paths
