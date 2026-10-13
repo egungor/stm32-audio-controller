@@ -1,7 +1,7 @@
 # Touch UI (`firmware/ui`)
 
 Hardware-independent LVGL user interface. It is compiled into the
-firmware (M2 port, pending) and into the Linux simulator
+firmware (`App/Src/ui_port.c`, `App/Src/ui_demo.c`) and into the Linux simulator
 (`firmware/simulator`).
 
 ## Boundary

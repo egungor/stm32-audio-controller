@@ -1,0 +1,70 @@
+/**
+ * @file    ui_demo.c
+ * @brief   Stand-in for the Windows host until USB HID exists (M3).
+ */
+#include "ui_demo.h"
+
+#include <string.h>
+
+#include "log.h"
+#include "lvgl.h"
+#include "ui.h"
+
+#define WAITING_MS 1500U /* show the waiting screen before "connecting" */
+#define CONFIRM_MS 400U  /* delay before the "host" confirms a selection */
+
+static lv_timer_t *s_confirm_timer;
+static uint8_t s_requested = UI_NO_DEVICE;
+
+static UiDevice device(uint8_t id, uint8_t icon, const char *name)
+{
+    UiDevice d;
+
+    memset(&d, 0, sizeof(d));
+    d.id = id;
+    d.icon = icon;
+    (void)strncpy(d.name, name, UI_MAX_NAME_BYTES);
+    return d;
+}
+
+static void on_confirm(lv_timer_t *timer)
+{
+    lv_timer_pause(timer);
+    Log_Line("UI DEMO ACTIVE id=%u", (unsigned)s_requested);
+    Ui_SetActive(s_requested);
+}
+
+static void on_select(uint8_t device_id, void *user)
+{
+    LV_UNUSED(user);
+    Log_Line("UI SELECT id=%u", (unsigned)device_id);
+    s_requested = device_id;
+    Ui_SetPending(device_id);
+    lv_timer_reset(s_confirm_timer);
+    lv_timer_resume(s_confirm_timer);
+}
+
+static void on_connect(lv_timer_t *timer)
+{
+    const UiDevice devices[] = {
+        device(0U, UI_ICON_SPEAKERS, "Hoparl\xC3\xB6rler"),
+        device(1U, UI_ICON_HEADPHONES, "Kulakl\xC4\xB1k"),
+        device(2U, UI_ICON_DISPLAY, "Monit\xC3\xB6r (HDMI)"),
+        device(3U, UI_ICON_HEADSET, "Kablosuz kulakl\xC4\xB1k"),
+        device(4U, UI_ICON_DIGITAL, "USB DAC"),
+    };
+
+    lv_timer_delete(timer);
+    Ui_SetDevices(devices, sizeof(devices) / sizeof(devices[0]));
+    Ui_SetActive(1U);
+    Log_Line("UI DEMO DEVICES n=%u active=1", (unsigned)(sizeof(devices) / sizeof(devices[0])));
+}
+
+void UiDemo_Start(void)
+{
+    Ui_Init(on_select, NULL);
+    s_confirm_timer = lv_timer_create(on_confirm, CONFIRM_MS, NULL);
+    lv_timer_pause(s_confirm_timer);
+    (void)lv_timer_create(on_connect, WAITING_MS, NULL);
+    Log_Line("UI DEMO START");
+}

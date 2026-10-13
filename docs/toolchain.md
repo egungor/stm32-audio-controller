@@ -268,7 +268,9 @@ order. Only one program can hold the COM port at a time.
 
 Reads the LTDC layer 0 framebuffer (480 × 272 × 2 B = `0x3FC00` bytes at
 `0xC0000000`) over SWD without halting the core, converts it to PNG and
-compares it with the expected M1 pattern:
+compares it with the expected M1 pattern. The pattern is only drawn by a
+firmware built with `-DAPP_TEST_SCREEN=ON` (the default build shows the
+UI; its framebuffers can be dumped the same way, without `--expected`):
 
 ```powershell
 STM32_Programmer_CLI -c port=SWD mode=HOTPLUG -u 0xC0000000 0x3FC00 $env:TEMP\fb.bin

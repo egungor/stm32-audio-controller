@@ -42,6 +42,18 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined library search paths
 )
 
+# LVGL (git submodule) and the hardware-independent UI in firmware/ui.
+# LVGL is the one place that uses a glob: it has several hundred sources,
+# and options disabled in firmware/ui/lv_conf.h compile to nothing.
+set(LVGL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/Middlewares/Third_Party/lvgl)
+set(UI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../ui)
+if(NOT EXISTS ${LVGL_DIR}/lvgl.h)
+    message(FATAL_ERROR "LVGL not found in ${LVGL_DIR}. Run: git submodule update --init")
+endif()
+file(GLOB_RECURSE LVGL_SOURCES CONFIGURE_DEPENDS ${LVGL_DIR}/src/*.c)
+
+option(APP_TEST_SCREEN "Show the M1 test pattern and touch targets instead of the UI" OFF)
+
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
@@ -51,17 +63,29 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     App/Src/log.c
     App/Src/sdram.c
     App/Src/touch.c
+    App/Src/touch_log.c
+    App/Src/ui_demo.c
+    App/Src/ui_port.c
+    ${UI_DIR}/ui.c
+    ${UI_DIR}/fonts/ui_font_16.c
+    ${UI_DIR}/fonts/ui_font_22.c
+    ${UI_DIR}/fonts/ui_icons_40.c
+    ${LVGL_SOURCES}
 )
 
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined include paths
     App/Inc
+    ${UI_DIR}
+    ${LVGL_DIR}
 )
 
 # Add project symbols (macros)
 target_compile_definitions(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined symbols
+    LV_CONF_INCLUDE_SIMPLE
+    APP_TEST_SCREEN=$<BOOL:${APP_TEST_SCREEN}>
 )
 
 # Remove wrong libob.a library dependency when using cpp files
