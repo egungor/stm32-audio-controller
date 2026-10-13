@@ -11,114 +11,100 @@ The project consists of:
 
 ## Project status
 
-**Milestone M1 — Hardware Bring-up** (M0 — AI Development Environment is done)
+M0 is done. Firmware, host and protocol for M1–M5 are written and
+tested in CI; verification on the physical board and on Windows is the
+open part (see [`docs/hardware.md`](docs/hardware.md), "Pending hardware
+and Windows tests", and [`docs/roadmap.md`](docs/roadmap.md)).
 
-Repository structure and development rules are established. The STM32CubeMX
-firmware project in `firmware/STM32AudioController/` has been brought up on
-the physical board: boot, USB enumeration, the ST-LINK VCP log, the SDRAM
-self-test and an LCD test pattern are verified. Touch, the UI, the USB HID
-protocol and the Windows host application are not implemented yet. See
-[`docs/hardware.md`](docs/hardware.md) for the hardware test log and
-[`docs/roadmap.md`](docs/roadmap.md) for milestone status.
+| Part | State |
+|---|---|
+| Board bring-up: boot, ST-LINK VCP log, SDRAM, LCD test pattern | VERIFIED on the board |
+| Clock measurement, FT5336 touch | Code done, REQUIRES HARDWARE |
+| LVGL UI (device buttons, pages, waiting screen, notices) | Linux simulator in CI; on the board REQUIRES HARDWARE |
+| USB HID interface `1209:0001` and STM32 protocol client | Unit tests in CI; REQUIRES HARDWARE |
+| Protocol v1 (64-byte frames, CRC-16) | Codec tests in CI (Linux, Windows) |
+| Windows host: Core Audio, default device switching, HID transport | Builds and unit tests in CI; REQUIRES WINDOWS |
+| Firmware ↔ host together | Loopback integration test in CI; end to end REQUIRES HARDWARE + WINDOWS |
+| Volume / mute UI (M6), polish (M7) | Not started |
 
-## Target architecture
+## Architecture
 
 ```text
-┌───────────────────────────────┐
-│          STM32F7              │
-│                               │
-│  Touchscreen UI               │
-│       │                       │
-│       ▼                       │
-│  Audio Device Model           │
-│       │                       │
-│       ▼                       │
-│  USB HID                      │
-└──────────────┬────────────────┘
-               │ USB
-               ▼
-┌───────────────────────────────┐
-│       Windows Host App        │
-│                               │
-│  HID Transport                │
-│       │                       │
-│       ▼                       │
-│  Audio Device Manager         │
-│       │                       │
-│       ▼                       │
-│  Windows Core Audio           │
-└───────────────────────────────┘
+┌───────────── STM32F746G-DISCO ─────────────┐
+│ firmware/ui        LVGL screens            │
+│      ▲ │                                   │
+│      │ ▼                                   │
+│ firmware/link      protocol client         │
+│      ▲ │                                   │
+│      │ ▼                                   │
+│ App/usb_link.c     vendor HID 1209:0001    │
+└──────────────────────┬─────────────────────┘
+                       │ USB, 64-byte reports (protocol/protocol.md)
+┌──────────────────────▼─────────────────────┐
+│ WinHidLink         HID discovery and I/O   │
+│      ▲ │                                   │
+│      │ ▼                                   │
+│ HostController     protocol, device list   │
+│      ▲ │                                   │
+│      │ ▼                                   │
+│ WinAudioSystem     Core Audio              │
+└─────────────── Windows host ───────────────┘
 ```
 
-## Planned features
+Details: [`docs/architecture.md`](docs/architecture.md).
 
-### v0.1
-- STM32 LCD initialization
-- Touchscreen initialization
-- Basic audio-output button UI
-- USB HID communication
-- Windows audio-device enumeration
+## Features
 
-### v0.2
-- Select an audio device from STM32
-- Change Windows default playback endpoint
-- Synchronize Windows changes back to STM32
+Done in code (verification status above):
 
-### v0.3
-- Volume control
-- Mute
-- Pagination
-- Device icons and improved UI
+- device list from Windows on the touchscreen, four per page, with icons
+  and Turkish text;
+- select a device on the touchscreen → Windows default playback device;
+- Windows changes (default, devices added or removed) shown on the board;
+- USB unplug/replug and host program restart handled on both sides.
 
-### v1.0
-- Friendly device names
-- Favorites/custom ordering
-- Startup with Windows
-- Robust error handling
-- Hardware/host integration tests
+Planned:
+
+- volume and mute on the touchscreen (M6; the protocol and host already
+  carry them);
+- friendly names, favourites, custom ordering, start with Windows, tray
+  icon (M7).
 
 ## Repository layout
 
 ```text
 stm32-audio-controller/
-├── .claude/
-│   ├── agents/
-│   └── commands/
-├── .github/
-│   ├── ISSUE_TEMPLATE/
-│   ├── workflows/
-│   ├── pull_request_template.md
-│   └── dependabot.yml
-├── docs/
-│   ├── decisions/
-│   ├── images/
-│   ├── architecture.md
-│   ├── hardware.md
-│   ├── roadmap.md
-│   ├── toolchain.md
-│   └── development-workflow.md
 ├── firmware/
 │   ├── STM32AudioController/   # STM32CubeMX project (CMake)
-│   │   └── App/                # hand-written application code
-│   └── README.md
+│   │   └── App/                # hand-written firmware code
+│   ├── ui/                     # LVGL UI, hardware independent
+│   ├── link/                   # STM32 protocol client + tests
+│   └── simulator/              # headless Linux build of the UI
 ├── host/
-│   ├── Audio/
-│   ├── Hid/
-│   ├── App/
-│   ├── Tests/
-│   └── README.md
-├── protocol/
-│   ├── include/
-│   ├── src/
-│   ├── tests/
-│   └── protocol.md
-├── tests/
-├── tools/
-├── .gitattributes
+│   ├── Audio/ App/ Hid/        # platform-independent core
+│   ├── Platform/Windows/       # Core Audio, HID, console program
+│   └── Tests/
+├── protocol/                   # protocol.md, C codec, tests
+├── tests/integration/          # firmware ↔ host loopback test
+├── docs/                       # architecture, hardware, roadmap, ADRs
+├── tools/                      # build, simulator, font and log helpers
+├── .github/                    # CI workflows, issue/PR templates
+├── .claude/                    # Claude Code agents and commands
 ├── AGENTS.md
-├── CLAUDE.md
-└── README.md
+└── CLAUDE.md
 ```
+
+## Build and test
+
+| What | How |
+|---|---|
+| Firmware | [`docs/toolchain.md`](docs/toolchain.md) (Windows ST toolchain); `tools/build-firmware-linux.sh` on Linux |
+| UI simulator | `tools/run-ui-simulator.sh` ([`firmware/simulator`](firmware/simulator/README.md)) |
+| Host | [`host/README.md`](host/README.md) |
+| Protocol codec | [`protocol/tests`](protocol/tests/README.md) |
+| Integration test | [`tests/integration`](tests/integration/README.md) |
+
+After cloning, run `git submodule update --init` (LVGL).
 
 ## Development model
 

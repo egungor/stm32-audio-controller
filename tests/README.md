@@ -1,6 +1,14 @@
 # Tests
 
-Cross-component and integration-oriented tests will live here.
+Cross-component tests live here. Tests that belong to one component live
+beside it:
 
-Unit tests that belong tightly to a component should normally live beside
-that component.
+| Tests | Location |
+|---|---|
+| Protocol codec | `protocol/tests` |
+| STM32 protocol client | `firmware/link/tests` |
+| Host core | `host/Tests` |
+| UI (screenshots, no assertions) | `firmware/simulator` |
+| Firmware ↔ host loopback | [`integration/`](integration/README.md) |
+
+Each has a CI workflow in `.github/workflows/`.
