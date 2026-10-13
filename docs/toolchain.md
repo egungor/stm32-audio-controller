@@ -10,8 +10,8 @@ listed as verified must not be assumed.
 > An STM32CubeMX project exists in `firmware/STM32AudioController/`
 > (CMake project type). The command-line build, flash, VCP log and
 > framebuffer-dump loop in sections 4–6 was run end to end on the
-> developer host on 2026-10-13 (M1, issue #7). There is no firmware CI
-> build yet.
+> developer host on 2026-10-13 (M1, issue #7). A firmware CI build runs
+> in GitHub Actions (section 7).
 
 ## Target
 
@@ -298,22 +298,31 @@ fault-handler inspection work.
 
 ## 7. Developer-only tools vs. CI
 
-| Tool | Developer | CI (future) |
+| Tool | Developer | CI |
 |---|---|---|
 | STM32CubeMX | Required | Not required (generated code is committed) |
 | STM32CubeF7 package | Required (used by CubeMX) | Not required (needed files are committed) |
-| GNU Tools for STM32 (GCC) | Required | Required |
-| CMake | Required | Required |
-| Ninja | Required | Required |
+| GNU Tools for STM32 (GCC) | Required | Arm GNU Toolchain 14.3.Rel1 (same GCC 14.3.1) |
+| CMake | Required | Required (3.26.3) |
+| Ninja | Required | Required (1.13.2) |
 | GNU GDB for STM32 | Required | Not required |
 | ST-LINK GDB server | Required | Not required |
 | STM32CubeProgrammer | Required | Not required |
 | VS Code + STM32Cube extension | Optional | Not required |
 | Git | Required | Provided by the CI runner |
 
-No firmware CI job exists yet. The CI host OS and how the compiler is
-provided in CI (ST bundle for Linux, Arm official build of the same GCC
-version, or a container image) are future decisions.
+`.github/workflows/firmware-ci.yml` (issue #12) builds the firmware on
+`ubuntu-latest` for every pull request and push to `main` that touches
+`firmware/`, the Linux build script or the workflow. It downloads the
+archives listed under "Linux build (secondary)" into `.toolchain/`
+(cached between runs), runs `tools/build-firmware-linux.sh` for Debug
+and Release, and uploads `STM32AudioController.elf` and `.map` as the
+`firmware-Debug` / `firmware-Release` artifacts.
+
+Like the Linux build, this is not the reference build: it uses the Arm
+official GCC 14.3.1 without ST's patches. A green CI run shows that the
+code compiles and links; it does not replace the Windows ST build or
+any hardware test. The CI `.elf` is not a release artifact.
 
 ## 8. Reproducibility requirements
 
