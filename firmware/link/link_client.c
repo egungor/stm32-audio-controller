@@ -81,8 +81,10 @@ static void show_list(LinkClient *link)
     link->cb.set_active(link->active, link->cb.ctx);
 }
 
-static void on_device_entry(LinkClient *link, const ProtoDeviceEntry *e)
+static void on_device_entry(LinkClient *link, const ProtoDeviceEntry *e, uint32_t now_ms)
 {
+    link->last_entry_ms = now_ms;
+
     if (!link->assembling || (e->generation != link->generation) || (e->total != link->total))
     {
         link->assembling = true;
@@ -174,7 +176,7 @@ void Link_OnFrame(LinkClient *link, const uint8_t frame[PROTO_FRAME_SIZE], uint3
     switch (msg.command)
     {
     case PROTO_CMD_DEVICE_LIST:
-        on_device_entry(link, &msg.u.device);
+        on_device_entry(link, &msg.u.device, now_ms);
         break;
     case PROTO_CMD_DEVICE_CHANGED:
         on_device_changed(link, msg.u.device_index);
@@ -201,6 +203,15 @@ void Link_OnFrame(LinkClient *link, const uint8_t frame[PROTO_FRAME_SIZE], uint3
 
 void Link_Poll(LinkClient *link, uint32_t now_ms)
 {
+    /* A new list stopped arriving half way (a frame was lost, e.g. the
+     * receive queue was full): ask for it again. While requesting, the
+     * retry below already covers this. */
+    if ((link->state == LINK_STATE_READY) && link->assembling &&
+        ((now_ms - link->last_entry_ms) >= LINK_RETRY_MS))
+    {
+        link->assembling = false;
+        send_get_list(link, now_ms);
+    }
     if ((link->state == LINK_STATE_REQUESTING) && ((now_ms - link->last_request_ms) >= LINK_RETRY_MS))
     {
         send_get_list(link, now_ms);

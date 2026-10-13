@@ -11,7 +11,10 @@
  *   - After USB is configured, GET_DEVICE_LIST is sent at once and again
  *     every LINK_RETRY_MS until a complete device list has arrived.
  *   - A list is assembled from the DEVICE_LIST frames of one generation
- *     and shown only when all `total` entries are there.
+ *     and shown only when all `total` entries are there. If a new list
+ *     stays incomplete for LINK_RETRY_MS after its last entry while an
+ *     older list is shown (a frame was lost), GET_DEVICE_LIST is sent
+ *     again; the older list stays on screen meanwhile.
  *   - DEVICE_CHANGED sets the active device (applied once a list is shown).
  *   - Link_Select() sends SELECT_DEVICE. Without DEVICE_CHANGED or ERROR
  *     within LINK_RESPONSE_TIMEOUT_MS the host counts as not responding:
@@ -75,6 +78,7 @@ typedef struct
     uint8_t          generation;
     uint8_t          total;
     bool             assembling;
+    uint32_t         last_entry_ms;  /**< last DEVICE_LIST frame */
 
     uint8_t  active;        /**< from DEVICE_CHANGED, PROTO_NO_DEVICE if none */
     uint8_t  pending;       /**< SELECT_DEVICE sent, PROTO_NO_DEVICE if none */

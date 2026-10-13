@@ -1,0 +1,27 @@
+name: Integration CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  integration:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ windows-latest, ubuntu-latest ]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Configure
+        run: cmake -S tests/integration -B build/integration
+
+      - name: Build
+        run: cmake --build build/integration --config Debug
+
+      - name: Test
+        run: ctest --test-dir build/integration --build-config Debug --output-on-failure

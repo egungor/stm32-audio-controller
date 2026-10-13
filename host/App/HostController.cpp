@@ -110,7 +110,11 @@ void HostController::handleGetDeviceList()
 
 void HostController::handleSelectDevice(const ProtoMessage& msg)
 {
-    const DeviceRegistry::Device* device = registry_.findByIndex(msg.u.device_index);
+    // Indices are only valid within the session they were sent in. Before
+    // the STM32 has asked for the list since the last connect, its index
+    // may come from an earlier session (host program restarted while the
+    // board stayed plugged in) and could name another device now.
+    const DeviceRegistry::Device* device = synced() ? registry_.findByIndex(msg.u.device_index) : nullptr;
 
     if (device == nullptr) {
         sendError(PROTO_ERROR_UNKNOWN_DEVICE, msg.command, msg.sequence);

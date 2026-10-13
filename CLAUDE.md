@@ -120,6 +120,7 @@ A task is not complete until:
 - `firmware/` — STM32 code
 - `host/` — Windows application
 - `protocol/` — shared communication contract
+- `tests/integration/` — firmware ↔ host loopback test (no hardware)
 - `docs/` — architecture and project knowledge
 - `.claude/agents/` — Claude Code specialist agents
 - `.github/` — GitHub workflows/templates

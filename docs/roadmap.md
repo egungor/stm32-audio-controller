@@ -60,12 +60,17 @@ Status: **IN PROGRESS**
 
 ## M5 — Integration
 
-- [ ] Send device list to STM32
-- [ ] Select device from STM32
-- [ ] Update Windows default endpoint
-- [ ] Synchronize Windows changes back to STM32
-- [ ] Handle endpoint removal
-- [ ] Handle USB disconnect
+The firmware protocol client and the host controller run against each
+other in `tests/integration` (simulated USB link and Windows, #34). That
+covers the logic of every item below; each still needs the board and a
+Windows PC (`host/README.md`, "Manual check with the board").
+
+- [ ] Send device list to STM32 — logic tested (#34), REQUIRES HARDWARE + WINDOWS
+- [ ] Select device from STM32 — logic tested (#34), REQUIRES HARDWARE + WINDOWS
+- [ ] Update Windows default endpoint — logic tested (#34), REQUIRES HARDWARE + WINDOWS
+- [ ] Synchronize Windows changes back to STM32 — logic tested (#34), REQUIRES HARDWARE + WINDOWS
+- [ ] Handle endpoint removal — logic tested (#34), REQUIRES HARDWARE + WINDOWS
+- [ ] Handle USB disconnect — logic tested (#34), REQUIRES HARDWARE + WINDOWS
 
 ## M6 — Audio Controls
 

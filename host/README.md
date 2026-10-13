@@ -144,8 +144,10 @@ Manual check with the board (REQUIRES HARDWARE + WINDOWS; firmware from
 - `GET_DEVICE_LIST` → the full list, then `DEVICE_CHANGED`,
   `VOLUME_CHANGED`, `MUTE_CHANGED`.
 - `SELECT_DEVICE` → sets the Windows default and confirms with
-  `DEVICE_CHANGED`; `ERROR UNKNOWN_DEVICE` for an index not in the list,
-  `ERROR OPERATION_FAILED` if Windows refuses.
+  `DEVICE_CHANGED`; `ERROR UNKNOWN_DEVICE` for an index not in the list
+  or before the STM32 has requested the list since the last connect (its
+  index may be from an earlier session), `ERROR OPERATION_FAILED` if
+  Windows refuses.
 - `SET_VOLUME` / `SET_MUTE` → applied to the default device, confirmed
   with `VOLUME_CHANGED` / `MUTE_CHANGED`.
 - Windows notifications (`onDevicesChanged`, `onDefaultChanged`,
@@ -169,7 +171,8 @@ ctest --test-dir build/host --build-config Debug --output-on-failure
 ```
 
 CI runs this with MSVC on Windows and GCC on Linux
-(`.github/workflows/host-ci.yml`).
+(`.github/workflows/host-ci.yml`). The controller is also run against
+the firmware's protocol client in `tests/integration`.
 
 The Windows program also cross-compiles with MinGW-w64; the sandbox used
 that, and Wine, to check that it builds and starts (see the PRs for what

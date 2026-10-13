@@ -31,6 +31,7 @@ Timing, applied by the STM32:
 |---|---|
 | `GET_DEVICE_LIST` repeated until a complete list has arrived | every 1000 ms |
 | No `DEVICE_CHANGED` or `ERROR` after `SELECT_DEVICE` | 2000 ms → host not responding: notice, waiting screen, request the list again |
+| A new list stays incomplete (a frame was lost) while an older list is shown | 1000 ms after its last entry → `GET_DEVICE_LIST` again; the older list stays on screen |
 
 The host does not time out; it answers requests and reports changes.
 These values do not change the frame format, so they are not a protocol
@@ -126,6 +127,13 @@ Windows endpoint IDs are opaque strings and never leave the host.
 The host assigns each device a session-local `device_index` (0–254) and
 keeps the mapping to the Windows endpoint ID. An index is valid until the
 next device list; the firmware only echoes indices it received.
+
+Indices belong to the session that sent them. A session starts when the
+host answers `GET_DEVICE_LIST` after it has (re)opened the device. Until
+then the host answers `SELECT_DEVICE` with `ERROR UNKNOWN_DEVICE`, which
+makes the STM32 request the list: its indices may come from an earlier
+session (for example, the host program was restarted while the board
+stayed connected) and could name another device now.
 
 ## Exchanges
 

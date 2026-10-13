@@ -329,6 +329,38 @@ void testSelectDevice()
     CHECK(r.sink.sent.empty());
 }
 
+// Indices belong to a session: a SELECT_DEVICE before the STM32 has asked
+// for the list since the last connect may carry an index from an earlier
+// session (host restarted, board kept plugged in) and is refused.
+void testSelectBeforeListRequest()
+{
+    Rig r;
+    r.controller.onConnected();
+    r.controller.onDevicesChanged();  // the registry is filled, nothing sent
+    CHECK(r.sink.sent.empty());
+
+    r.controller.onFrame(frameFor(PROTO_CMD_SELECT_DEVICE, 4, r.index("tv")));
+    CHECK(r.audio.setDefaultCalls.empty());
+    ProtoMessage m = r.sink.pop();
+    CHECK(m.command == PROTO_CMD_ERROR && m.u.error.code == PROTO_ERROR_UNKNOWN_DEVICE);
+    CHECK(m.u.error.ref_command == PROTO_CMD_SELECT_DEVICE && m.u.error.ref_sequence == 4);
+
+    // Same after a reconnect: the old session's list no longer counts.
+    r.controller.onFrame(frameFor(PROTO_CMD_GET_DEVICE_LIST, 5));
+    r.sink.sent.clear();
+    r.controller.onConnected();
+    r.controller.onFrame(frameFor(PROTO_CMD_SELECT_DEVICE, 6, r.index("tv")));
+    CHECK(r.audio.setDefaultCalls.empty());
+    m = r.sink.pop();
+    CHECK(m.command == PROTO_CMD_ERROR && m.u.error.code == PROTO_ERROR_UNKNOWN_DEVICE);
+
+    // Once the list has been requested, the selection works.
+    r.controller.onFrame(frameFor(PROTO_CMD_GET_DEVICE_LIST, 7));
+    r.sink.sent.clear();
+    r.controller.onFrame(frameFor(PROTO_CMD_SELECT_DEVICE, 8, r.index("tv")));
+    CHECK(r.audio.setDefaultCalls.size() == 1 && r.audio.setDefaultCalls[0] == "tv");
+}
+
 void testSelectErrors()
 {
     Rig r;
@@ -714,6 +746,7 @@ int main()
     testSequenceNumbers();
     testEmptyList();
     testSelectDevice();
+    testSelectBeforeListRequest();
     testSelectErrors();
     testVolumeAndMute();
     testWindowsChanges();
