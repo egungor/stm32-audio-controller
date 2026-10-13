@@ -1,0 +1,40 @@
+name: UI Simulator CI
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'firmware/ui/**'
+      - 'firmware/simulator/**'
+      - 'firmware/STM32AudioController/Middlewares/Third_Party/lvgl'
+      - 'tools/run-ui-simulator.sh'
+      - 'tools/fb2png.py'
+      - '.github/workflows/ui-sim-ci.yml'
+  pull_request:
+    paths:
+      - 'firmware/ui/**'
+      - 'firmware/simulator/**'
+      - 'firmware/STM32AudioController/Middlewares/Third_Party/lvgl'
+      - 'tools/run-ui-simulator.sh'
+      - 'tools/fb2png.py'
+      - '.github/workflows/ui-sim-ci.yml'
+
+jobs:
+  ui-simulator:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: true
+
+      - name: Build, run and convert screenshots
+        run: tools/run-ui-simulator.sh build/ui-sim
+
+      - name: Upload screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-screenshots
+          path: build/ui-sim/*.png
+          if-no-files-found: error
