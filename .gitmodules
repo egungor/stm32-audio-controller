@@ -1,0 +1,3 @@
+[submodule "firmware/STM32AudioController/Middlewares/Third_Party/lvgl"]
+	path = firmware/STM32AudioController/Middlewares/Third_Party/lvgl
+	url = https://github.com/lvgl/lvgl.git
