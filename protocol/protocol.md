@@ -32,6 +32,8 @@ Timing, applied by the STM32:
 | `GET_DEVICE_LIST` repeated until a complete list has arrived | every 1000 ms |
 | No `DEVICE_CHANGED` or `ERROR` after `SELECT_DEVICE` | 2000 ms → host not responding: notice, waiting screen, request the list again |
 | A new list stays incomplete (a frame was lost) while an older list is shown | 1000 ms after its last entry → `GET_DEVICE_LIST` again; the older list stays on screen |
+| `SET_VOLUME` while the user drags the slider | at most every 100 ms, the latest value; the last value is always sent |
+| `VOLUME_CHANGED` during a local volume change | not shown until 300 ms after the last `SET_VOLUME`; then the host's value is shown |
 
 The host does not time out; it answers requests and reports changes.
 These values do not change the frame format, so they are not a protocol
@@ -93,7 +95,10 @@ offset 62..63: 87 2B            (CRC 0x2B87)
 | `0x08` | `MUTE_CHANGED` | Host → STM32 | `muted` (0 or 1) |
 | `0x7F` | `ERROR` | Either | `code`, `ref_command`, `ref_sequence` (1 byte each) |
 
-Volume and mute refer to the current default playback device.
+Volume and mute refer to the current default playback device. After
+`DEVICE_CHANGED` with `0xFF` (no default device) the STM32 treats them as
+unknown; when a default device appears again the host sends
+`VOLUME_CHANGED` and `MUTE_CHANGED` even if the values did not change.
 
 ### Device list
 
@@ -151,6 +156,7 @@ list `generation` in `SELECT_DEVICE`, a frame-format change (version 2).
 | User selects a device | STM32 → `SELECT_DEVICE`; Host → `DEVICE_CHANGED` after Windows switched, or `ERROR` |
 | Default device, volume or mute changed in Windows | Host → `DEVICE_CHANGED` / `VOLUME_CHANGED` / `MUTE_CHANGED` |
 | Devices added, removed or renamed | Host → new `DEVICE_LIST` (new `generation`), then `DEVICE_CHANGED` |
+| User changes volume or mute | STM32 → `SET_VOLUME` / `SET_MUTE`; Host → `VOLUME_CHANGED` / `MUTE_CHANGED`, or `ERROR OPERATION_FAILED` |
 
 The firmware shows the state reported by the host. It does not mark a
 device as active after `SELECT_DEVICE` until `DEVICE_CHANGED` arrives.

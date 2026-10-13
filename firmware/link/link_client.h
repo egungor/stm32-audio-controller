@@ -19,6 +19,16 @@
  *   - Link_Select() sends SELECT_DEVICE. Without DEVICE_CHANGED or ERROR
  *     within LINK_RESPONSE_TIMEOUT_MS the host counts as not responding:
  *     notice, waiting screen, and back to requesting the list.
+ *   - VOLUME_CHANGED / MUTE_CHANGED are shown; DEVICE_CHANGED "none"
+ *     makes them unknown (controls disabled) until the host reports them
+ *     again.
+ *   - Link_SetVolume() sends SET_VOLUME at most every
+ *     LINK_VOLUME_INTERVAL_MS with the latest value (the last value is
+ *     always sent). Host volume reports are not shown while a local change
+ *     is in progress and for LINK_VOLUME_SETTLE_MS after the last
+ *     SET_VOLUME; then the host's value is shown.
+ *   - Link_SetMute() sends SET_MUTE; the mute state shown changes only
+ *     with MUTE_CHANGED.
  *   - An invalid frame is answered with ERROR (never an ERROR frame).
  *
  * Not thread-safe: call everything from one task.
@@ -39,6 +49,9 @@ extern "C" {
 
 #define LINK_RETRY_MS             1000U
 #define LINK_RESPONSE_TIMEOUT_MS  2000U
+#define LINK_VOLUME_INTERVAL_MS   100U
+#define LINK_VOLUME_SETTLE_MS     300U
+#define LINK_VOLUME_UNKNOWN       0xFFU  /**< volume or mute not reported */
 
 typedef enum
 {
@@ -55,6 +68,10 @@ typedef struct
     void (*set_active)(uint8_t device_id, void *ctx);
     void (*set_pending)(uint8_t device_id, void *ctx);
     void (*notice)(LinkNotice notice, void *ctx);
+    /** Volume 0-100 of the default device, or LINK_VOLUME_UNKNOWN. */
+    void (*set_volume)(uint8_t volume, void *ctx);
+    /** Mute 0/1 of the default device, or LINK_VOLUME_UNKNOWN. */
+    void (*set_muted)(uint8_t muted, void *ctx);
     void *ctx;
 } LinkCallbacks;
 
@@ -85,6 +102,16 @@ typedef struct
     uint8_t  pending_seq;
     uint32_t pending_since_ms;
 
+    /* Volume and mute. */
+    uint8_t  host_volume;      /**< last VOLUME_CHANGED, or LINK_VOLUME_UNKNOWN */
+    uint8_t  host_muted;       /**< last MUTE_CHANGED, or LINK_VOLUME_UNKNOWN */
+    uint8_t  shown_volume;     /**< last value passed to set_volume */
+    uint8_t  wanted_volume;    /**< last Link_SetVolume() value */
+    bool     volume_local;     /**< local change in progress or settling */
+    bool     volume_dirty;     /**< wanted_volume not sent yet */
+    bool     volume_ever_sent;
+    uint32_t volume_sent_ms;   /**< last SET_VOLUME */
+
     uint32_t frames_rejected;
     uint32_t send_failures;
 } LinkClient;
@@ -105,6 +132,13 @@ void Link_Poll(LinkClient *link, uint32_t now_ms);
 
 /** The user chose a device in the UI. Ignored unless READY. */
 void Link_Select(LinkClient *link, uint8_t device_id, uint32_t now_ms);
+
+/** The user moved the volume slider (0-100). Ignored unless READY with a
+ *  known volume. */
+void Link_SetVolume(LinkClient *link, uint8_t volume, uint32_t now_ms);
+
+/** The user toggled mute. Ignored unless READY with a known mute state. */
+void Link_SetMute(LinkClient *link, bool muted);
 
 #ifdef __cplusplus
 }

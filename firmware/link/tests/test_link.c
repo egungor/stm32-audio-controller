@@ -40,6 +40,10 @@ static struct
     int      pending_calls;
     uint8_t  pending;
     int      notices[2];
+    int      volume_calls;
+    uint8_t  volume;
+    int      muted_calls;
+    uint8_t  muted;
 } g;
 
 static bool fake_send(const uint8_t frame[PROTO_FRAME_SIZE], void *ctx)
@@ -71,9 +75,11 @@ static void fake_devices(const UiDevice *devices, size_t count, void *ctx)
 static void fake_active(uint8_t id, void *ctx) { (void)ctx; g.active_calls++; g.active = id; }
 static void fake_pending(uint8_t id, void *ctx) { (void)ctx; g.pending_calls++; g.pending = id; }
 static void fake_notice(LinkNotice n, void *ctx) { (void)ctx; g.notices[n]++; }
+static void fake_volume(uint8_t v, void *ctx) { (void)ctx; g.volume_calls++; g.volume = v; }
+static void fake_muted(uint8_t m, void *ctx) { (void)ctx; g.muted_calls++; g.muted = m; }
 
 static const LinkCallbacks k_callbacks = {
-    fake_send, fake_waiting, fake_devices, fake_active, fake_pending, fake_notice, NULL,
+    fake_send, fake_waiting, fake_devices, fake_active, fake_pending, fake_notice, fake_volume, fake_muted, NULL,
 };
 
 static void reset(LinkClient *link)
@@ -391,6 +397,163 @@ static void test_select_ignored_when_not_ready(void)
     CHECK(link.send_failures == 1);
 }
 
+/* Number of frames with @p command sent since index @p from. */
+static int count_sent(int from, uint8_t command)
+{
+    int n = 0;
+
+    for (int i = from; i < g.sent_count; i++)
+    {
+        n += (g.sent[i % MAX_SENT].command == command) ? 1 : 0;
+    }
+    return n;
+}
+
+static void test_volume_and_mute_shown(void)
+{
+    LinkClient link;
+    ProtoMessage m;
+    reset(&link);
+
+    /* Unknown until the host reports them; reset on connect. */
+    Link_OnConnected(&link, 0);
+    CHECK(g.volume == LINK_VOLUME_UNKNOWN && g.muted == LINK_VOLUME_UNKNOWN);
+    connect_with_list(&link, 0);
+    m = simple(PROTO_CMD_VOLUME_CHANGED, 40);
+    deliver(&link, &m, 0);
+    m = simple(PROTO_CMD_MUTE_CHANGED, 1);
+    deliver(&link, &m, 0);
+    CHECK(g.volume == 40 && g.muted == 1);
+
+    /* No default device: nothing to control. */
+    m = simple(PROTO_CMD_DEVICE_CHANGED, PROTO_NO_DEVICE);
+    deliver(&link, &m, 0);
+    CHECK(g.volume == LINK_VOLUME_UNKNOWN && g.muted == LINK_VOLUME_UNKNOWN);
+    {
+        const int before = g.sent_count;
+        Link_SetVolume(&link, 70, 10);
+        Link_SetMute(&link, true);
+        CHECK(g.sent_count == before); /* ignored while unknown */
+    }
+    m = simple(PROTO_CMD_DEVICE_CHANGED, 11);
+    deliver(&link, &m, 0);
+    m = simple(PROTO_CMD_VOLUME_CHANGED, 40);
+    deliver(&link, &m, 0);
+    CHECK(g.volume == 40);
+
+    /* Unplugged: unknown again. */
+    Link_OnDisconnected(&link);
+    CHECK(g.volume == LINK_VOLUME_UNKNOWN && g.muted == LINK_VOLUME_UNKNOWN);
+}
+
+static void test_volume_drag_is_throttled(void)
+{
+    LinkClient link;
+    ProtoMessage m;
+    int before;
+    reset(&link);
+    connect_with_list(&link, 0);
+    m = simple(PROTO_CMD_VOLUME_CHANGED, 40);
+    deliver(&link, &m, 0);
+    before = g.sent_count;
+
+    /* A drag: one value every 10 ms from 41 to 60. */
+    for (uint32_t i = 0U; i < 20U; i++)
+    {
+        Link_SetVolume(&link, (uint8_t)(41U + i), 1000U + (10U * i));
+        Link_Poll(&link, 1000U + (10U * i));
+    }
+    /* 190 ms of dragging: SET_VOLUME at 1000 and 1100 only. */
+    CHECK(count_sent(before, PROTO_CMD_SET_VOLUME) == 2);
+    CHECK(g.sent[(g.sent_count - 1) % MAX_SENT].u.volume == 51);
+
+    /* The last value (60) goes out at the next interval. */
+    Link_Poll(&link, 1199U);
+    CHECK(count_sent(before, PROTO_CMD_SET_VOLUME) == 2);
+    Link_Poll(&link, 1200U);
+    CHECK(count_sent(before, PROTO_CMD_SET_VOLUME) == 3);
+    CHECK(last_sent()->command == PROTO_CMD_SET_VOLUME && last_sent()->u.volume == 60);
+    Link_Poll(&link, 5000U);
+    CHECK(count_sent(before, PROTO_CMD_SET_VOLUME) == 3);
+
+    /* Out of range is clamped. */
+    Link_SetVolume(&link, 150, 6000U);
+    CHECK(last_sent()->u.volume == 100);
+}
+
+static void test_host_volume_waits_for_local_change(void)
+{
+    LinkClient link;
+    ProtoMessage m;
+    int shown;
+    reset(&link);
+    connect_with_list(&link, 0);
+    m = simple(PROTO_CMD_VOLUME_CHANGED, 40);
+    deliver(&link, &m, 0);
+    shown = g.volume_calls;
+
+    /* Echoes of intermediate values while dragging are not shown. */
+    Link_SetVolume(&link, 50, 1000);
+    m = simple(PROTO_CMD_VOLUME_CHANGED, 50);
+    deliver(&link, &m, 1005);
+    Link_SetVolume(&link, 70, 1050);
+    m = simple(PROTO_CMD_VOLUME_CHANGED, 45); /* stale echo */
+    deliver(&link, &m, 1060);
+    CHECK(g.volume_calls == shown);
+    Link_Poll(&link, 1100); /* sends 70 */
+    m = simple(PROTO_CMD_VOLUME_CHANGED, 70);
+    deliver(&link, &m, 1110);
+    CHECK(g.volume_calls == shown);
+
+    /* Settled, host agrees with the slider: nothing to redraw. */
+    Link_Poll(&link, 1100 + LINK_VOLUME_SETTLE_MS);
+    CHECK(g.volume_calls == shown);
+    CHECK(!link.volume_local);
+
+    /* Host reports apply again. */
+    m = simple(PROTO_CMD_VOLUME_CHANGED, 30);
+    deliver(&link, &m, 2000);
+    CHECK(g.volume_calls == shown + 1 && g.volume == 30);
+
+    /* Windows refused (ERROR, no VOLUME_CHANGED): after the settle time
+     * the slider returns to the host's value. */
+    Link_SetVolume(&link, 90, 3000);
+    m.command = PROTO_CMD_ERROR;
+    m.u.error.code = PROTO_ERROR_OPERATION_FAILED;
+    m.u.error.ref_command = PROTO_CMD_SET_VOLUME;
+    m.u.error.ref_sequence = last_sent()->sequence;
+    deliver(&link, &m, 3005);
+    Link_Poll(&link, 3000 + LINK_VOLUME_SETTLE_MS - 1);
+    CHECK(g.volume == 30 && g.volume_calls == shown + 1);
+    Link_Poll(&link, 3000 + LINK_VOLUME_SETTLE_MS);
+    CHECK(g.volume == 30 && g.volume_calls == shown + 2);
+    CHECK(g.notices[LINK_NOTICE_SELECT_FAILED] == 0);
+}
+
+static void test_mute(void)
+{
+    LinkClient link;
+    ProtoMessage m;
+    int calls;
+    reset(&link);
+    connect_with_list(&link, 0);
+    m = simple(PROTO_CMD_VOLUME_CHANGED, 40);
+    deliver(&link, &m, 0);
+    m = simple(PROTO_CMD_MUTE_CHANGED, 0);
+    deliver(&link, &m, 0);
+    calls = g.muted_calls;
+
+    /* The tap only sends; the host's answer changes the display. */
+    Link_SetMute(&link, true);
+    CHECK(last_sent()->command == PROTO_CMD_SET_MUTE && last_sent()->u.muted == 1);
+    CHECK(g.muted_calls == calls && g.muted == 0);
+    m = simple(PROTO_CMD_MUTE_CHANGED, 1);
+    deliver(&link, &m, 10);
+    CHECK(g.muted_calls == calls + 1 && g.muted == 1);
+    Link_SetMute(&link, false);
+    CHECK(last_sent()->u.muted == 0);
+}
+
 static void test_bad_frames(void)
 {
     LinkClient link;
@@ -441,6 +604,10 @@ int main(void)
     test_select_error();
     test_select_timeout();
     test_select_ignored_when_not_ready();
+    test_volume_and_mute_shown();
+    test_volume_drag_is_throttled();
+    test_host_volume_waits_for_local_change();
+    test_mute();
     test_bad_frames();
 
     printf("%d checks, %d failures\n", g_checks, g_failures);
