@@ -1,13 +1,20 @@
 // Unit tests for the host device model and protocol controller.
 // No test framework; returns non-zero if a check fails.
 
+#include <chrono>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <deque>
+#include <limits>
 #include <string>
+#include <thread>
 #include <vector>
 
+#include "AudioMapping.h"
 #include "DeviceRegistry.h"
+#include "EventQueue.h"
+#include "FrameText.h"
 #include "HostController.h"
 
 using namespace stm32_audio::host;
@@ -480,6 +487,123 @@ void testSendFailure()
     CHECK(r.controller.stats().framesSent == 0);
 }
 
+// ------------------------------------------------- helper tests
+
+void testAudioMapping()
+{
+    CHECK(formFactorFromWindows(1) == FormFactor::Speakers);
+    CHECK(formFactorFromWindows(3) == FormFactor::Headphones);
+    CHECK(formFactorFromWindows(5) == FormFactor::Headset);
+    CHECK(formFactorFromWindows(6) == FormFactor::Headset);
+    CHECK(formFactorFromWindows(7) == FormFactor::DigitalOutput);
+    CHECK(formFactorFromWindows(8) == FormFactor::DigitalOutput);
+    CHECK(formFactorFromWindows(9) == FormFactor::Display);
+    CHECK(formFactorFromWindows(0) == FormFactor::Unknown);
+    CHECK(formFactorFromWindows(2) == FormFactor::Unknown);
+    CHECK(formFactorFromWindows(10) == FormFactor::Unknown);
+    CHECK(formFactorFromWindows(-1) == FormFactor::Unknown);
+    CHECK(formFactorFromWindows(99) == FormFactor::Unknown);
+
+    CHECK(percentFromScalar(0.0F) == 0U);
+    CHECK(percentFromScalar(1.0F) == 100U);
+    CHECK(percentFromScalar(0.5F) == 50U);
+    CHECK(percentFromScalar(0.004F) == 0U);
+    CHECK(percentFromScalar(0.006F) == 1U);
+    CHECK(percentFromScalar(-0.5F) == 0U);
+    CHECK(percentFromScalar(1.5F) == 100U);
+    CHECK(percentFromScalar(std::numeric_limits<float>::quiet_NaN()) == 0U);
+    CHECK(scalarFromPercent(0U) == 0.0F);
+    CHECK(scalarFromPercent(100U) == 1.0F);
+    CHECK(scalarFromPercent(250U) == 1.0F);
+    // Every percent survives a round trip through the scalar.
+    for (unsigned p = 0; p <= 100U; ++p) {
+        CHECK(percentFromScalar(scalarFromPercent(p)) == p);
+    }
+}
+
+void testEventQueue()
+{
+    EventQueue q;
+    CHECK(!q.pop(std::chrono::milliseconds(1)).has_value());
+
+    // Duplicates of a waiting event are dropped; order is kept.
+    q.push(HostEvent::DevicesChanged);
+    q.push(HostEvent::VolumeChanged);
+    q.push(HostEvent::DevicesChanged);
+    q.push(HostEvent::VolumeChanged);
+    CHECK(q.size() == 2);
+    CHECK(q.pop(std::chrono::milliseconds(1)) == HostEvent::DevicesChanged);
+    CHECK(q.pop(std::chrono::milliseconds(1)) == HostEvent::VolumeChanged);
+    CHECK(q.size() == 0);
+
+    // A popped event can be queued again.
+    q.push(HostEvent::DevicesChanged);
+    CHECK(q.size() == 1);
+    (void)q.pop(std::chrono::milliseconds(1));
+
+    // Push from another thread wakes the waiting consumer.
+    std::thread producer([&q] {
+        std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        for (int i = 0; i < 1000; ++i) {
+            q.push(HostEvent::VolumeChanged);
+        }
+        q.push(HostEvent::Quit);
+    });
+    bool sawQuit = false;
+    int volumeEvents = 0;
+    while (!sawQuit) {
+        const std::optional<HostEvent> e = q.pop(std::chrono::seconds(5));
+        CHECK(e.has_value());
+        if (!e) {
+            break;
+        }
+        sawQuit = (*e == HostEvent::Quit);
+        volumeEvents += (*e == HostEvent::VolumeChanged) ? 1 : 0;
+    }
+    producer.join();
+    CHECK(sawQuit);
+    CHECK(volumeEvents >= 1 && volumeEvents <= 1000);
+}
+
+void testFrameText()
+{
+    ProtoMessage m{};
+    m.command = PROTO_CMD_DEVICE_LIST;
+    m.sequence = 3;
+    m.u.device.generation = 1;
+    m.u.device.total = 3;
+    m.u.device.position = 1;
+    m.u.device.device_index = 4;
+    m.u.device.flags = PROTO_DEVICE_FLAG_DEFAULT;
+    m.u.device.icon = PROTO_ICON_HEADPHONES;
+    std::memcpy(m.u.device.name, "Kulakl\xC4\xB1k", 9);
+    m.u.device.name_len = 9;
+    CHECK(describeMessage(m) == "DEVICE_LIST seq=3 gen=1 2/3 index=4 default icon=headphones \"Kulakl\xC4\xB1k\"");
+
+    m = ProtoMessage{};
+    m.command = PROTO_CMD_DEVICE_LIST;
+    m.u.device.device_index = PROTO_NO_DEVICE;
+    CHECK(describeMessage(m) == "DEVICE_LIST seq=0 gen=0 empty");
+
+    m = ProtoMessage{};
+    m.command = PROTO_CMD_DEVICE_CHANGED;
+    m.u.device_index = PROTO_NO_DEVICE;
+    CHECK(describeMessage(m) == "DEVICE_CHANGED seq=0 index=none");
+
+    m = ProtoMessage{};
+    m.command = PROTO_CMD_ERROR;
+    m.sequence = 7;
+    m.u.error.code = PROTO_ERROR_UNKNOWN_DEVICE;
+    m.u.error.ref_command = PROTO_CMD_SELECT_DEVICE;
+    m.u.error.ref_sequence = 2;
+    CHECK(describeMessage(m) == "ERROR seq=7 code=UNKNOWN_DEVICE ref_cmd=3 ref_seq=2");
+
+    m = ProtoMessage{};
+    m.command = PROTO_CMD_MUTE_CHANGED;
+    m.u.muted = 1;
+    CHECK(describeMessage(m) == "MUTE_CHANGED seq=0 muted=1");
+}
+
 }  // namespace
 
 int main()
@@ -501,6 +625,9 @@ int main()
     testReconnect();
     testBadFrames();
     testSendFailure();
+    testAudioMapping();
+    testEventQueue();
+    testFrameText();
 
     std::printf("%d checks, %d failures\n", g_checks, g_failures);
     return g_failures == 0 ? 0 : 1;
