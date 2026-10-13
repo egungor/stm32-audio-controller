@@ -65,6 +65,9 @@ Then, as the USB host link works (`App/Src/link_port.c`, `protocol.md`):
 | `UI SELECT id=<id>` | User tapped a device that is not active; `SELECT_DEVICE` sent |
 | `LINK SELECT FAIL reason=host_error` | The host answered the selection with `ERROR` |
 | `LINK SELECT FAIL reason=timeout` | No answer within 2 s; waiting screen, list requested again |
+| `UI VOLUME value=<n>` | User released the volume slider at `n` percent (`SET_VOLUME` is sent while dragging, at most every 100 ms) |
+| `UI MUTE on\|off` | User tapped the mute button; `SET_MUTE` sent |
+| `LINK MUTE muted=<0\|1>` | The host reported the mute state (`MUTE_CHANGED`) |
 
 With `-DAPP_UI_DEMO=ON` demo data replaces the host link (no USB lines):
 
@@ -74,6 +77,7 @@ With `-DAPP_UI_DEMO=ON` demo data replaces the host link (no USB lines):
 | `UI DEMO DEVICES n=<n> active=<id>` | About 1.5 s later: demo device list shown |
 | `UI SELECT id=<id>` | User tapped a device that is not active |
 | `UI DEMO ACTIVE id=<id>` | 0.4 s later the demo confirms the selection |
+| `UI VOLUME value=<n>` / `UI MUTE on\|off` | Volume slider released / mute tapped; the demo accepts at once |
 
 ### Test screen build (`-DAPP_TEST_SCREEN=ON`)
 

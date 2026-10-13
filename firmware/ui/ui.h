@@ -21,6 +21,7 @@
 #ifndef UI_H
 #define UI_H
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -54,6 +55,17 @@ typedef struct
 
 /** Called when the user taps a device that is not already active. */
 typedef void (*UiSelectCallback)(uint8_t device_id, void *user);
+
+#define UI_VOLUME_UNKNOWN    0xFFU  /**< volume or mute not reported */
+
+/**
+ * Called while the user drags the volume slider (0-100), and once more with
+ * @p released true when the finger lifts. Rate limiting is the caller's job.
+ */
+typedef void (*UiVolumeCallback)(uint8_t volume, bool released, void *user);
+
+/** Called when the user taps the mute button: the state wanted. */
+typedef void (*UiMuteCallback)(bool muted, void *user);
 
 /**
  * @brief  Build all screens on the default LVGL display and show the
@@ -93,6 +105,19 @@ typedef enum
 
 /** Show one of the fixed notices (Ui_ShowError with the UI's own text). */
 void Ui_ShowNotice(UiNotice notice);
+
+/** Set the volume and mute handlers (optional; without them the controls
+ *  do nothing). */
+void Ui_SetAudioHandlers(UiVolumeCallback on_volume, UiMuteCallback on_mute, void *user);
+
+/**
+ * @brief  Volume reported by the host, 0-100, or UI_VOLUME_UNKNOWN (slider
+ *         disabled). Ignored while the user is dragging the slider.
+ */
+void Ui_SetVolume(uint8_t volume);
+
+/** Mute reported by the host: 0, 1, or UI_VOLUME_UNKNOWN (button disabled). */
+void Ui_SetMuted(uint8_t muted);
 
 /** Currently shown page, 0-based (for tests). */
 uint32_t Ui_CurrentPage(void);

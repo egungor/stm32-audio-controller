@@ -64,6 +64,39 @@ static void cb_notice(LinkNotice notice, void *ctx)
     }
 }
 
+static void cb_set_volume(uint8_t volume, void *ctx)
+{
+    (void)ctx;
+    Ui_SetVolume(volume);
+}
+
+static void cb_set_muted(uint8_t muted, void *ctx)
+{
+    (void)ctx;
+    if (muted != LINK_VOLUME_UNKNOWN)
+    {
+        Log_Line("LINK MUTE muted=%u", (unsigned)muted);
+    }
+    Ui_SetMuted(muted);
+}
+
+static void on_ui_volume(uint8_t volume, bool released, void *user)
+{
+    (void)user;
+    if (released)
+    {
+        Log_Line("UI VOLUME value=%u", (unsigned)volume);
+    }
+    Link_SetVolume(&s_link, volume, HAL_GetTick());
+}
+
+static void on_ui_mute(bool muted, void *user)
+{
+    (void)user;
+    Log_Line("UI MUTE %s", muted ? "on" : "off");
+    Link_SetMute(&s_link, muted);
+}
+
 static void on_ui_select(uint8_t device_id, void *user)
 {
     (void)user;
@@ -74,10 +107,12 @@ static void on_ui_select(uint8_t device_id, void *user)
 void LinkPort_Init(void)
 {
     static const LinkCallbacks callbacks = {
-        cb_send_frame, cb_show_waiting, cb_show_devices, cb_set_active, cb_set_pending, cb_notice, NULL,
+        cb_send_frame, cb_show_waiting, cb_show_devices, cb_set_active, cb_set_pending, cb_notice,
+        cb_set_volume, cb_set_muted, NULL,
     };
 
     Ui_Init(on_ui_select, NULL);
+    Ui_SetAudioHandlers(on_ui_volume, on_ui_mute, NULL);
     Link_Init(&s_link, &callbacks);
 }
 

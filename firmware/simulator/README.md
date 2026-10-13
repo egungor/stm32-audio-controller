@@ -27,11 +27,16 @@ argument):
 | `05-page2.png` | Next page button tapped |
 | `06-error.png` | "Bilgisayar yanıt vermiyor" notice over the main screen |
 | `07-error-gone.png` | Same screen after the notice timed out |
-| `08-empty.png` | Host reports no playback devices |
+| `08-volume.png` | Volume slider dragged up (bottom strip) |
+| `09-muted.png` | Mute tapped and confirmed by the host |
+| `10-no-volume.png` | No default device: volume and mute disabled |
+| `11-empty.png` | Host reports no playback devices |
 
 The script also checks behaviour: a tap calls the selection callback with
-the right device, a tap on the active device does nothing, and the page
-button changes the page. The simulator exits non-zero if a check fails.
+the right device, a tap on the active device does nothing, the page
+button changes the page, dragging the slider reports values and one
+release, the mute button asks for the opposite state, and the disabled
+mute button does nothing. The simulator exits non-zero if a check fails.
 
 ## How it works
 
