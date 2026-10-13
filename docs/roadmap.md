@@ -51,9 +51,9 @@ Status: **IN PROGRESS**
 
 ## M4 — Windows Audio
 
-- [ ] Create Windows C++17 host project
+- [x] Create Windows C++17 host project — platform-independent core + tests (#26)
 - [ ] Enumerate render endpoints
-- [ ] Build audio device model
+- [x] Build audio device model — `DeviceRegistry`, protocol controller (#26)
 - [ ] Detect current default endpoint
 - [ ] Implement default endpoint switching
 - [ ] Monitor endpoint/default-device changes
