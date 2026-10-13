@@ -21,6 +21,11 @@ firmware (`App/Src/ui_port.c`, `App/Src/ui_demo.c`) and into the Linux simulator
   icon itself; it shows what `Ui_SetMuted` reports. `UI_VOLUME_UNKNOWN`
   disables the controls. Rate limiting is the caller's job
   (`firmware/link`).
+- Display flip: a button in the top right corner of both screens; held
+  for `UI_FLIP_HOLD_MS` (icon turns orange), it calls the
+  `UiFlipCallback` (`Ui_SetFlipHandler`) when the finger lifts. The UI
+  does not rotate anything: the display port turns the image and mirrors
+  touch (`App/Inc/ui_port.h`).
 - `UiDevice` mirrors the protocol's device entry (id, icon, UTF-8 name of
   up to 48 bytes); `UiIcon` values equal `ProtoIcon`.
 - Memory: the device list is a fixed array of 32 entries; LVGL objects are

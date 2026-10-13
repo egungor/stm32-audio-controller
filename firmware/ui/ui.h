@@ -13,7 +13,9 @@
  *   - main: up to UI_DEVICES_PER_PAGE device buttons per page, the active
  *     device marked by colour and by the text "Etkin çıkış", page buttons
  *     when there are more devices than fit on one page;
- *   - error notice: shown over any screen for UI_NOTICE_MS.
+ *   - error notice: shown over any screen for UI_NOTICE_MS;
+ *   - flip button (top right corner of both screens): held for
+ *     UI_FLIP_HOLD_MS, it asks to turn the image by 180° when released.
  *
  * Call everything from the task that runs lv_timer_handler(). No dynamic
  * allocation besides the LVGL objects created once in Ui_Init().
@@ -34,6 +36,7 @@ extern "C" {
 #define UI_DEVICES_PER_PAGE  4U
 #define UI_NO_DEVICE         0xFFU
 #define UI_NOTICE_MS         3000U
+#define UI_FLIP_HOLD_MS      1000U
 
 /** Device icon; values match ProtoIcon in protocol/include/protocol.h. */
 typedef enum
@@ -118,6 +121,16 @@ void Ui_SetVolume(uint8_t volume);
 
 /** Mute reported by the host: 0, 1, or UI_VOLUME_UNKNOWN (button disabled). */
 void Ui_SetMuted(uint8_t muted);
+
+/**
+ * Called when the user asks to turn the image by 180° (long press on the
+ * flip button, on release). The UI does not rotate anything itself: the
+ * display port does, and the UI's layout stays the same.
+ */
+typedef void (*UiFlipCallback)(void *user);
+
+/** Set the flip handler (optional; without it the button does nothing). */
+void Ui_SetFlipHandler(UiFlipCallback on_flip, void *user);
 
 /** Currently shown page, 0-based (for tests). */
 uint32_t Ui_CurrentPage(void);

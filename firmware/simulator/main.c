@@ -24,6 +24,7 @@
 #define HEIGHT 272
 
 static uint16_t s_framebuffer[WIDTH * HEIGHT];
+static uint16_t s_turned[WIDTH * HEIGHT];  /* what the panel shows when flipped */
 static uint32_t s_now_ms;
 static const char *s_out_dir;
 static int s_failures;
@@ -49,6 +50,8 @@ static struct
     int     mute_calls;
     bool    mute_wanted;
 } s_audio;
+
+static int s_flip_calls;
 
 /* ---------------------------------------------------------------- platform */
 
@@ -114,16 +117,38 @@ static void drag(int32_t x0, int32_t x1, int32_t y)
     run_ms(60U);
 }
 
-static void snapshot(const char *name)
+/* Press at (x, y) for @p ms, release. */
+static void hold(int32_t x, int32_t y, uint32_t ms)
+{
+    s_touch.x = x;
+    s_touch.y = y;
+    s_touch.pressed = true;
+    run_ms(ms);
+    s_touch.pressed = false;
+    run_ms(100U);
+}
+
+/* Write the framebuffer; @p turned: as the board's display port shows it
+ * when flipped (pixel order reversed). */
+static void snapshot_as(const char *name, bool turned)
 {
     char path[512];
+    const uint16_t *pixels = s_framebuffer;
     FILE *f;
 
     lv_obj_invalidate(lv_screen_active());
     lv_refr_now(NULL);
+    if (turned)
+    {
+        for (size_t i = 0U; i < (size_t)(WIDTH * HEIGHT); i++)
+        {
+            s_turned[(WIDTH * HEIGHT) - 1U - i] = s_framebuffer[i];
+        }
+        pixels = s_turned;
+    }
     (void)snprintf(path, sizeof(path), "%s/%s.bin", s_out_dir, name);
     f = fopen(path, "wb");
-    if ((f == NULL) || (fwrite(s_framebuffer, sizeof(s_framebuffer), 1U, f) != 1U))
+    if ((f == NULL) || (fwrite(pixels, sizeof(s_framebuffer), 1U, f) != 1U))
     {
         printf("FAIL cannot write %s\n", path);
         s_failures++;
@@ -136,6 +161,11 @@ static void snapshot(const char *name)
     {
         (void)fclose(f);
     }
+}
+
+static void snapshot(const char *name)
+{
+    snapshot_as(name, false);
 }
 
 static void check(bool ok, const char *what)
@@ -160,6 +190,12 @@ static void on_volume(uint8_t volume, bool released, void *user)
     s_audio.calls++;
     s_audio.released += released ? 1 : 0;
     s_audio.last = volume;
+}
+
+static void on_flip(void *user)
+{
+    LV_UNUSED(user);
+    s_flip_calls++;
 }
 
 static void on_mute(bool muted, void *user)
@@ -260,6 +296,32 @@ static void run_script(void)
     Ui_SetDevices(NULL, 0U);
     run_ms(50U);
     snapshot("11-empty");
+
+    /* Flip button, top right corner: a tap does nothing, a long press asks
+     * once, when the finger lifts. */
+    Ui_SetDevices(devices, sizeof(devices) / sizeof(devices[0]));
+    Ui_SetActive(1U);
+    Ui_SetVolume(45U);
+    Ui_SetMuted(0U);
+    run_ms(50U);
+    tap(458, 18);
+    check(s_flip_calls == 0, "a short tap on the flip button does nothing");
+    s_touch.x = 458;
+    s_touch.y = 18;
+    s_touch.pressed = true;
+    run_ms(UI_FLIP_HOLD_MS + 100U);
+    check(s_flip_calls == 0, "the flip waits for the finger to lift");
+    snapshot("12-flip-armed");
+    s_touch.pressed = false;
+    run_ms(100U);
+    check(s_flip_calls == 1, "a long press on the flip button asks to flip once");
+    snapshot_as("13-flipped", true);
+
+    /* Same button on the waiting screen. */
+    Ui_ShowWaiting();
+    run_ms(50U);
+    hold(458, 18, UI_FLIP_HOLD_MS + 100U);
+    check(s_flip_calls == 2, "the flip button works on the waiting screen");
 }
 
 int main(int argc, char **argv)
@@ -289,6 +351,7 @@ int main(int argc, char **argv)
 
     Ui_Init(on_select, NULL);
     Ui_SetAudioHandlers(on_volume, on_mute, NULL);
+    Ui_SetFlipHandler(on_flip, NULL);
     run_ms(50U);
     run_script();
 
