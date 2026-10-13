@@ -4,7 +4,8 @@ cmake_minimum_required(VERSION 3.20)
 #
 # host_core: platform-independent device model and protocol controller,
 #            with tests; builds on Windows and Linux.
-# stm32-audio-host: Windows console program on Core Audio (Windows only).
+# stm32-audio-host: Windows console program on Core Audio and USB HID
+#                   (Windows only).
 project(stm32_audio_host LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -34,10 +35,11 @@ if(WIN32)
     add_executable(stm32-audio-host
         Platform/Windows/main.cpp
         Platform/Windows/WinAudioSystem.cpp
+        Platform/Windows/WinHidLink.cpp
         Platform/Windows/WinStrings.cpp)
     target_include_directories(stm32-audio-host PRIVATE Platform/Windows)
     target_compile_definitions(stm32-audio-host PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX UNICODE _UNICODE)
-    target_link_libraries(stm32-audio-host PRIVATE host_core ole32)
+    target_link_libraries(stm32-audio-host PRIVATE host_core ole32 setupapi hid)
     if(MSVC)
         target_compile_options(stm32-audio-host PRIVATE /W4 /WX /permissive- /utf-8)
     else()
