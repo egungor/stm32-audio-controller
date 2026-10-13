@@ -97,7 +97,9 @@ The exact dimensions/layout depend on the verified board LCD.
 
 - STM32 ↔ Windows: USB HID
 - Host language: C++17
-- GUI: LVGL, pending hardware bring-up validation
+- GUI: LVGL v9.5.0 (git submodule). The UI lives in `firmware/ui/`, depends
+  only on LVGL and is previewed with the Linux simulator
+  (`firmware/simulator/`); running it on the LCD is pending (M2 port)
 - Audio control: Windows Core Audio/MMDevice
 - Device information is discovered dynamically by Windows
 - User-friendly display names are separated from Windows endpoint IDs

@@ -30,6 +30,9 @@ Status: **IN PROGRESS**
 ## M2 — STM32 UI
 
 - [ ] Add LVGL
+  - [x] LVGL v9.5.0 submodule, `lv_conf.h`, fonts with Turkish letters (#22)
+  - [x] Hardware-independent UI module and Linux simulator with screenshots (#22)
+  - [ ] Port to the board: LTDC display driver, FT5336 input, timer task
 - [ ] Create main screen
 - [ ] Create 2×2 audio device buttons
 - [ ] Add active-device indication

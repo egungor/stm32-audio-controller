@@ -23,16 +23,28 @@ At boot `App_Main()` initialises the SDRAM, runs a self-test and draws
 an LCD test pattern (`App/Src/sdram.c`, `App/Src/lcd_test.c`), logging
 each step on the ST-LINK VCP (`docs/firmware-log.md`).
 
+## UI and simulator
+
+The touch UI is written against LVGL only, in `firmware/ui/` (see its
+README). `firmware/simulator/` builds it on Linux and renders the screens
+to PNG without a board: `tools/run-ui-simulator.sh`. LVGL v9.5.0 is a git
+submodule; run `git submodule update --init` after cloning. LVGL is not
+linked into the firmware image yet (M2 port).
+
 ## Layout
 
 ```text
+firmware/
+├── ui/                   # LVGL UI, hardware independent (+ lv_conf.h, fonts)
+├── simulator/            # headless Linux build of ui/ for screenshots
 firmware/STM32AudioController/
 ├── App/                  # hand-written application code (never generated)
 │   ├── Inc/
 │   └── Src/
 ├── Core/                 # CubeMX generated (edit only inside USER CODE)
 ├── Drivers/              # CubeMX copy of HAL / CMSIS
-├── Middlewares/          # CubeMX copy of FreeRTOS, FatFs, USB Device lib
+├── Middlewares/          # CubeMX copy of FreeRTOS, USB Device lib;
+│                         # Third_Party/lvgl is the LVGL submodule
 ├── FATFS/ USB_DEVICE/    # CubeMX generated
 ├── cmake/                # CubeMX generated toolchain + source lists
 ├── CMakeLists.txt        # generated once; user sections maintained by us
