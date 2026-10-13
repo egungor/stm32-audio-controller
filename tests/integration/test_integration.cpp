@@ -169,7 +169,7 @@ public:
         if (hostOpen_) {
             hostOpen_ = false;
             if (host) {
-                host->onConnected();  // HidDisconnected
+                host->onDisconnected();  // HidDisconnected
             }
         }
     }
@@ -451,6 +451,11 @@ void testConnect()
     r.plugIn();
     CHECK(r.screen.waiting);
 
+    // The host opens the device after kHostOpenDelayMs and sends the list
+    // at once; the board's first GET_DEVICE_LIST was lost (no handle open
+    // yet) and its 1 s retry is not needed.
+    r.run(kHostOpenDelayMs + 200);
+    CHECK(r.inSync());
     r.run(3000);
     CHECK(r.inSync());
     CHECK(r.link.state == LINK_STATE_READY);
@@ -458,9 +463,7 @@ void testConnect()
     CHECK(r.shownIdOf("Kulakl\xC4\xB1k") == r.screen.active);
     CHECK(r.screen.devices.size() == 3 && r.screen.devices[0].icon == UI_ICON_SPEAKERS &&
           r.screen.devices[1].icon == UI_ICON_HEADPHONES && r.screen.devices[2].icon == UI_ICON_DISPLAY);
-    // The first GET_DEVICE_LIST went out before the host had the device
-    // open and was lost; the 1 s retry got through.
-    CHECK(r.wire.count(r.wire.toHost, PROTO_CMD_GET_DEVICE_LIST) == 1);
+    CHECK(r.wire.count(r.wire.toHost, PROTO_CMD_GET_DEVICE_LIST) == 0);
     CHECK(r.wire.count(r.wire.toDevice, PROTO_CMD_DEVICE_LIST) == 3);
     CHECK(r.wire.errorCodesToHost.empty());
     CHECK(r.wire.errorCodesToDevice.empty());
@@ -672,9 +675,9 @@ void testUnplugDuringList()
     }
     r.startHost();
     r.plugIn();
-    // The first GET_DEVICE_LIST is lost (host not open yet); the retry
-    // after 1 s starts the 26-frame answer. Unplug half way through it.
-    r.run(1000 + 50);
+    // The host opens the device after kHostOpenDelayMs and sends the
+    // 26-frame list. Unplug half way through it.
+    r.run(kHostOpenDelayMs + 50);
     CHECK(r.screen.waiting);
     r.unplug();
     r.run(100);
@@ -708,40 +711,42 @@ void testHostTimeoutAndRecovery()
     CHECK(r.audio.setDefaultCalls.empty());  // the lost tap is not replayed
 }
 
-// The board keeps the list of the previous host session after the host
-// program restarts. Device indices are session-local (protocol.md), so the
-// new session must not act on an index from the old one.
-void testHostRestartKeepsOldIndices()
+// The host program restarts while the board stays plugged in. Device
+// indices are session-local (protocol.md); the new session sends its list
+// when it opens the device, so the board drops the old one without a tap.
+void testHostRestart()
 {
-    g_scenario = "host restart, stale index";
+    g_scenario = "host restart";
     Rig r;
     addHomeSetup(r.audio);
     connect(r);
-    const std::uint8_t oldHdmi = *r.shownIdOf("LG HDR 4K");  // index 2
+    CHECK(r.shownIdOf("LG HDR 4K") == 2);
 
     r.stopHost();
     r.run(500);
-    // While the host is closed: the speakers go away and a DAC arrives.
+    // While the host is closed: the speakers go away, a DAC arrives and
+    // becomes the default. The board cannot know.
     r.audio.endpoints.erase(r.audio.endpoints.begin());
     r.audio.endpoints.push_back(endpoint("{dac}", "USB DAC", FormFactor::DigitalOutput));
+    r.audio.defaultId = "{dac}";
+    r.run(500);
+    CHECK(r.screen.devices.size() == 3 && r.shownIdOf("Hoparl\xC3\xB6r"));
 
     r.startHost();
-    r.run(1000);
-    // A Windows notification reaches the new session before the board
-    // asks for anything; the new registry numbers {hp}=0 {hdmi}=1 {dac}=2.
-    r.windowsVolume(55);
-    r.windowsAdd(endpoint("{bt}", "Bluetooth", FormFactor::Headphones));
-    r.run(100);
+    r.run(kHostOpenDelayMs + 200);
+    CHECK(r.inSync());
+    CHECK(!r.shownIdOf("Hoparl\xC3\xB6r"));
+    CHECK(r.screen.active == *r.shownIdOf("USB DAC"));
+    // The new session numbered {hp}=0 {hdmi}=1 {dac}=2.
+    CHECK(r.shownIdOf("LG HDR 4K") == 1);
+    CHECK(r.wire.errorCodesToDevice.empty());
+    CHECK(r.screen.notices[LINK_NOTICE_SELECT_FAILED] == 0);
 
-    // The board still shows the old list; the user taps the LG display.
-    CHECK(r.link.state == LINK_STATE_READY);
-    r.tap(oldHdmi);
-    r.run(3000);
-    // Old index 2 must not switch Windows to whatever has index 2 now.
-    CHECK(r.audio.setDefaultCalls.empty());
-    CHECK(r.wire.errorCodesToDevice == std::vector<std::uint8_t>{PROTO_ERROR_UNKNOWN_DEVICE});
-    CHECK(r.screen.notices[LINK_NOTICE_SELECT_FAILED] == 1);
-    CHECK(r.inSync());  // the board fetched the new list
+    // A tap uses the new indices.
+    r.tap(*r.shownIdOf("LG HDR 4K"));
+    r.run(100);
+    CHECK(r.audio.setDefaultCalls == std::vector<std::string>{"{hdmi}"});
+    CHECK(r.inSync());
 }
 
 void testManyDevicesAndLongNames()
@@ -847,7 +852,7 @@ int main()
     testUsbUnplugAndReplug();
     testUnplugDuringList();
     testHostTimeoutAndRecovery();
-    testHostRestartKeepsOldIndices();
+    testHostRestart();
     testManyDevicesAndLongNames();
     testVolumeFramesIgnoredByBoard();
     testBoardBusyDuringLongList();

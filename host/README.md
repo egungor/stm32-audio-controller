@@ -71,9 +71,10 @@ Details of the USB interface: `docs/decisions/ADR-003-usb-hid-interface.md`.
 - Writing: `sendFrame()` writes one output report from the consumer
   thread and gives up after 1 s if the STM32 does not take it.
 - Connect / disconnect are queued as `HidConnected` / `HidDisconnected`.
-  Both reset the controller (`onConnected()`), so nothing is sent until
-  the STM32 asks for the list (it repeats `GET_DEVICE_LIST` every second
-  until answered).
+  On connect the controller sends the full list, default, volume and
+  mute at once (`onConnected()`), so a board that stayed plugged in while
+  the host restarted drops the previous session's list. On disconnect it
+  forgets what was sent (`onDisconnected()`) and sends nothing.
 - Only the consumer thread touches `HostController` and the audio
   system; the HID thread and the Core Audio threads only push events.
 
@@ -96,7 +97,8 @@ STM32, `->` sent to it (`[send failed]` if the write failed). Ctrl+C prints
 counters (sent, send failures, rejected, ignored, errors received,
 dropped).
 
-`watch` needs no board: it starts with a simulated `GET_DEVICE_LIST`, then prints
+`watch` needs no board: it starts as if the board had just been opened
+(the full list), then prints
 `DEVICE_LIST` / `DEVICE_CHANGED` / `VOLUME_CHANGED` / `MUTE_CHANGED` lines
 as you change devices or volume in Windows.
 
@@ -114,9 +116,10 @@ Manual check with the board (REQUIRES HARDWARE + WINDOWS; firmware from
 #31, built without `APP_UI_DEMO`):
 
 1. Start `run` before plugging in the board: `Controller connected`,
-   then `<- GET_DEVICE_LIST`, `-> DEVICE_LIST …` for every device,
-   `-> DEVICE_CHANGED`, `-> VOLUME_CHANGED`, `-> MUTE_CHANGED`. The LCD
-   shows the same devices with the default marked.
+   then `-> DEVICE_LIST …` for every device, `-> DEVICE_CHANGED`,
+   `-> VOLUME_CHANGED`, `-> MUTE_CHANGED` (a `<- GET_DEVICE_LIST` and a
+   second list may follow if the board asked at the same moment). The
+   LCD shows the same devices with the default marked.
 2. Touch another device on the LCD: `<- SELECT_DEVICE index=…`,
    `-> DEVICE_CHANGED index=…`; Settings → Sound follows.
 3. Change the default in Windows: one `-> DEVICE_CHANGED`; the LCD
@@ -125,6 +128,9 @@ Manual check with the board (REQUIRES HARDWARE + WINDOWS; firmware from
    reconnects within about 2 s and the list is sent again.
 5. Start `run` with the board already plugged in: same as 1.
 6. Ctrl+C: `send_failures=0 rejected=0 dropped=0` in a normal session.
+7. Restart `run` with the board plugged in, after changing the default
+   in Windows while it was closed: the LCD shows the current list and
+   default right after `Controller connected`, without a tap.
 
 ### Device registry
 
@@ -141,18 +147,18 @@ Manual check with the board (REQUIRES HARDWARE + WINDOWS; firmware from
 
 ### Host controller
 
-- `GET_DEVICE_LIST` → the full list, then `DEVICE_CHANGED`,
-  `VOLUME_CHANGED`, `MUTE_CHANGED`.
+- Device opened (`onConnected`) or `GET_DEVICE_LIST` → the full list,
+  then `DEVICE_CHANGED`, `VOLUME_CHANGED`, `MUTE_CHANGED`.
 - `SELECT_DEVICE` → sets the Windows default and confirms with
   `DEVICE_CHANGED`; `ERROR UNKNOWN_DEVICE` for an index not in the list
-  or before the STM32 has requested the list since the last connect (its
-  index may be from an earlier session), `ERROR OPERATION_FAILED` if
-  Windows refuses.
+  or before the list has been sent since the last connect (its index may
+  be from an earlier session), `ERROR OPERATION_FAILED` if Windows
+  refuses.
 - `SET_VOLUME` / `SET_MUTE` → applied to the default device, confirmed
   with `VOLUME_CHANGED` / `MUTE_CHANGED`.
 - Windows notifications (`onDevicesChanged`, `onDefaultChanged`,
   `onVolumeChanged`) send only what changed since the STM32 was last told,
-  and nothing until the STM32 has requested the list after a connect.
+  and nothing while no list has been sent since the last connect.
 - Malformed frames are answered with `ERROR`; an `ERROR` frame is never
   answered. Frames meant for the STM32 are dropped.
 - Single-threaded by design: the Windows layer must queue Core Audio

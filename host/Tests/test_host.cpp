@@ -332,10 +332,12 @@ void testSelectDevice()
 // Indices belong to a session: a SELECT_DEVICE before the STM32 has asked
 // for the list since the last connect may carry an index from an earlier
 // session (host restarted, board kept plugged in) and is refused.
-void testSelectBeforeListRequest()
+// Indices belong to a session: a SELECT_DEVICE before the list has been
+// sent since the last connect may carry an index from an earlier session
+// and is refused.
+void testSelectBeforeListSent()
 {
     Rig r;
-    r.controller.onConnected();
     r.controller.onDevicesChanged();  // the registry is filled, nothing sent
     CHECK(r.sink.sent.empty());
 
@@ -345,16 +347,16 @@ void testSelectBeforeListRequest()
     CHECK(m.command == PROTO_CMD_ERROR && m.u.error.code == PROTO_ERROR_UNKNOWN_DEVICE);
     CHECK(m.u.error.ref_command == PROTO_CMD_SELECT_DEVICE && m.u.error.ref_sequence == 4);
 
-    // Same after a reconnect: the old session's list no longer counts.
+    // Same after a disconnect: the old session's list no longer counts.
     r.controller.onFrame(frameFor(PROTO_CMD_GET_DEVICE_LIST, 5));
     r.sink.sent.clear();
-    r.controller.onConnected();
+    r.controller.onDisconnected();
     r.controller.onFrame(frameFor(PROTO_CMD_SELECT_DEVICE, 6, r.index("tv")));
     CHECK(r.audio.setDefaultCalls.empty());
     m = r.sink.pop();
     CHECK(m.command == PROTO_CMD_ERROR && m.u.error.code == PROTO_ERROR_UNKNOWN_DEVICE);
 
-    // Once the list has been requested, the selection works.
+    // Once the list has been sent (requested or on connect), it works.
     r.controller.onFrame(frameFor(PROTO_CMD_GET_DEVICE_LIST, 7));
     r.sink.sent.clear();
     r.controller.onFrame(frameFor(PROTO_CMD_SELECT_DEVICE, 8, r.index("tv")));
@@ -463,11 +465,52 @@ void testReconnect()
     Rig r;
     r.controller.onFrame(frameFor(PROTO_CMD_GET_DEVICE_LIST, 1));
     r.sink.sent.clear();
-    r.controller.onConnected();
+    r.controller.onDisconnected();
 
     r.audio.volume = 90;
-    r.controller.onVolumeChanged();  // not synced after reconnect
+    r.controller.onVolumeChanged();  // nothing while disconnected
+    r.controller.onDevicesChanged();
     CHECK(r.sink.sent.empty());
+}
+
+// The host opens the device: the full answer to GET_DEVICE_LIST goes out
+// without a request, so a board that kept the previous session's list
+// (host restarted, board stayed plugged in) is brought up to date.
+void testConnectSendsList()
+{
+    Rig r;
+    r.controller.onConnected();
+    CHECK(r.sink.sent.size() == 3 + 3);
+    for (unsigned i = 0; i < 3; ++i) {
+        const ProtoMessage m = r.sink.pop();
+        CHECK(m.command == PROTO_CMD_DEVICE_LIST && m.u.device.total == 3 && m.u.device.position == i);
+    }
+    ProtoMessage m = r.sink.pop();
+    CHECK(m.command == PROTO_CMD_DEVICE_CHANGED && m.u.device_index == r.index("hp"));
+    m = r.sink.pop();
+    CHECK(m.command == PROTO_CMD_VOLUME_CHANGED && m.u.volume == 50);
+    m = r.sink.pop();
+    CHECK(m.command == PROTO_CMD_MUTE_CHANGED);
+
+    // Synced: changes are sent, and a selection is accepted.
+    r.audio.volume = 70;
+    r.controller.onVolumeChanged();
+    m = r.sink.pop();
+    CHECK(m.command == PROTO_CMD_VOLUME_CHANGED && m.u.volume == 70);
+    r.controller.onFrame(frameFor(PROTO_CMD_SELECT_DEVICE, 3, r.index("tv")));
+    CHECK(r.audio.setDefaultCalls.size() == 1 && r.audio.setDefaultCalls[0] == "tv");
+
+    // A GET_DEVICE_LIST that crossed the pushed list is answered in full
+    // again (the board may also ask right after USB enumeration).
+    r.sink.sent.clear();
+    r.controller.onFrame(frameFor(PROTO_CMD_GET_DEVICE_LIST, 4));
+    CHECK(r.sink.sent.size() == 6);
+
+    // Every connect sends the list again.
+    r.sink.sent.clear();
+    r.controller.onDisconnected();
+    r.controller.onConnected();
+    CHECK(r.sink.sent.size() == 6);
 }
 
 void testBadFrames()
@@ -746,11 +789,12 @@ int main()
     testSequenceNumbers();
     testEmptyList();
     testSelectDevice();
-    testSelectBeforeListRequest();
+    testSelectBeforeListSent();
     testSelectErrors();
     testVolumeAndMute();
     testWindowsChanges();
     testReconnect();
+    testConnectSendsList();
     testBadFrames();
     testSendFailure();
     testAudioMapping();

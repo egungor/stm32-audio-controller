@@ -129,23 +129,34 @@ keeps the mapping to the Windows endpoint ID. An index is valid until the
 next device list; the firmware only echoes indices it received.
 
 Indices belong to the session that sent them. A session starts when the
-host answers `GET_DEVICE_LIST` after it has (re)opened the device. Until
-then the host answers `SELECT_DEVICE` with `ERROR UNKNOWN_DEVICE`, which
-makes the STM32 request the list: its indices may come from an earlier
-session (for example, the host program was restarted while the board
-stayed connected) and could name another device now.
+host sends the list after it has (re)opened the device, on its own or in
+answer to `GET_DEVICE_LIST`. Until then the host answers `SELECT_DEVICE`
+with `ERROR UNKNOWN_DEVICE`, which makes the STM32 request the list: its
+indices may come from an earlier session (for example, the host program
+was restarted while the board stayed connected) and could name another
+device now.
+
+Known limit: a `SELECT_DEVICE` the STM32 sends after the host opened the
+device but before the new list reached the STM32 (the list transfer, tens
+of milliseconds after the host starts) carries an index of the earlier
+session and is treated as one of the new session. Closing this needs the
+list `generation` in `SELECT_DEVICE`, a frame-format change (version 2).
 
 ## Exchanges
 
 | Trigger | Frames |
 |---|---|
 | Firmware starts or USB (re)connects | STM32 → `GET_DEVICE_LIST`; Host → `DEVICE_LIST` × total, then `DEVICE_CHANGED`, `VOLUME_CHANGED`, `MUTE_CHANGED` |
+| Host opens the device (host program starts, or USB (re)connects) | Host → `DEVICE_LIST` × total, then `DEVICE_CHANGED`, `VOLUME_CHANGED`, `MUTE_CHANGED`, without a request |
 | User selects a device | STM32 → `SELECT_DEVICE`; Host → `DEVICE_CHANGED` after Windows switched, or `ERROR` |
 | Default device, volume or mute changed in Windows | Host → `DEVICE_CHANGED` / `VOLUME_CHANGED` / `MUTE_CHANGED` |
 | Devices added, removed or renamed | Host → new `DEVICE_LIST` (new `generation`), then `DEVICE_CHANGED` |
 
 The firmware shows the state reported by the host. It does not mark a
 device as active after `SELECT_DEVICE` until `DEVICE_CHANGED` arrives.
+It accepts a `DEVICE_LIST` at any time, requested or not. When the board
+is plugged in, its request and the host's own list can cross; the second
+complete list simply replaces the first.
 
 Retries and timeouts: see "Transport".
 
