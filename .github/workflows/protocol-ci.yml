@@ -7,13 +7,21 @@ on:
 
 jobs:
   protocol:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-latest, windows-latest ]
+    runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Placeholder
-        run: |
-          echo "Protocol CI scaffold."
-          echo "Build/test steps will be enabled when the protocol test project exists."
+      - name: Configure
+        run: cmake -S protocol -B build/protocol
+
+      - name: Build
+        run: cmake --build build/protocol --config Debug
+
+      - name: Test
+        run: ctest --test-dir build/protocol --build-config Debug --output-on-failure
