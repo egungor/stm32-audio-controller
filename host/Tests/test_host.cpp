@@ -416,6 +416,35 @@ void testVolumeAndMute()
     CHECK(m.command == PROTO_CMD_ERROR && m.u.error.code == PROTO_ERROR_OPERATION_FAILED);
 }
 
+// "No default device" makes the STM32 forget volume and mute; when a
+// default device appears again they are sent even if unchanged.
+void testVolumeResentAfterNoDefault()
+{
+    Rig r;
+    r.controller.onFrame(frameFor(PROTO_CMD_GET_DEVICE_LIST, 1));
+    r.sink.sent.clear();
+
+    r.audio.defaultId.clear();
+    r.audio.volume.reset();
+    r.audio.mute.reset();
+    r.controller.onDefaultChanged();
+    ProtoMessage m = r.sink.pop();
+    CHECK(m.command == PROTO_CMD_DEVICE_CHANGED && m.u.device_index == PROTO_NO_DEVICE);
+    CHECK(r.sink.sent.empty());
+
+    r.audio.defaultId = "hp";
+    r.audio.volume = 50;  // same values as before
+    r.audio.mute = false;
+    r.controller.onDefaultChanged();
+    m = r.sink.pop();
+    CHECK(m.command == PROTO_CMD_DEVICE_CHANGED && m.u.device_index == r.index("hp"));
+    m = r.sink.pop();
+    CHECK(m.command == PROTO_CMD_VOLUME_CHANGED && m.u.volume == 50);
+    m = r.sink.pop();
+    CHECK(m.command == PROTO_CMD_MUTE_CHANGED && m.u.muted == 0);
+    CHECK(r.sink.sent.empty());
+}
+
 void testWindowsChanges()
 {
     Rig r;
@@ -793,6 +822,7 @@ int main()
     testSelectErrors();
     testVolumeAndMute();
     testWindowsChanges();
+    testVolumeResentAfterNoDefault();
     testReconnect();
     testConnectSendsList();
     testBadFrames();
