@@ -184,9 +184,33 @@ CI runs this with MSVC on Windows and GCC on Linux
 (`.github/workflows/host-ci.yml`). The controller is also run against
 the firmware's protocol client in `tests/integration`.
 
-The Windows program also cross-compiles with MinGW-w64; the sandbox used
-that, and Wine, to check that it builds and starts (see the PRs for what
-Wine can and cannot show). Link libraries: `ole32`, `setupapi`, `hid`.
+Link libraries: `ole32`, `setupapi`, `hid`.
+
+### Cross-build on Linux (MinGW-w64 + Wine)
+
+A quick check of the Windows code without a Windows PC; Claude's sandbox
+uses it before CI. Not the reference build (CI builds with MSVC).
+
+```text
+sudo apt install g++-mingw-w64-x86-64-posix wine64
+cmake -S host -B build/host-mingw -DCMAKE_TOOLCHAIN_FILE=$PWD/host/cmake/mingw-w64.cmake
+cmake --build build/host-mingw
+```
+
+The toolchain path must be absolute (CMake resolves it from the build
+directory). To run the programs under Wine, copy the MinGW runtime DLLs
+next to them (paths for GCC 13 on Ubuntu/Debian):
+
+```text
+cp /usr/lib/gcc/x86_64-w64-mingw32/13-posix/{libstdc++-6.dll,libgcc_s_seh-1.dll} \
+   /usr/x86_64-w64-mingw32/lib/libwinpthread-1.dll build/host-mingw/
+wine build/host-mingw/test_host.exe
+```
+
+What Wine shows: `test_host.exe` passes, `stm32-audio-host` starts,
+`run` scans for the board and stops on Ctrl+C. What it cannot show: no
+HID devices, and Core Audio is limited (`set-default` and `volume` fail
+under Wine). None of this replaces the checks on Windows above.
 
 ## Still to do
 
