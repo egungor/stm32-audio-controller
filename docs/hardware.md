@@ -60,11 +60,32 @@ mapping is tracked as an M1 task in `docs/roadmap.md`.
 - [x] Identify touch controller (FT5336)
 - [x] Identify LCD resolution (480 × 272)
 - [ ] Confirm touch I²C bus/address against BSP on hardware
-- [ ] Identify USB connector used for device communication
-- [ ] Confirm ST-LINK connection
+- [x] Identify USB connector used for device communication — USB OTG FS
+  micro-USB connector (not the ST-LINK one); VERIFIED 2026-10-13
+- [x] Confirm ST-LINK connection — flash + debug via STM32Cube for VS Code;
+  VERIFIED 2026-10-13
 - [ ] Confirm external SDRAM operation
 - [ ] Confirm clock configuration
+- [ ] Confirm ST-LINK virtual COM port output on hardware (configured
+  as USART1, TX `PA9`, RX `PB7`, 115200 baud — see ADR-001)
 - [ ] Capture board photos in `docs/images/`
+
+## Bring-up log
+
+### 2026-10-13 — first boot (developer, physical board)
+
+Firmware: branch `feature/1-firmware-skeleton` after ADR-001 (trimmed
+peripherals + MPU fix). Built and flashed with the Windows ST toolchain
+from STM32Cube for VS Code.
+
+| Check | Result |
+|---|---|
+| Board flashes and halts at `main` | VERIFIED |
+| `MX_FMC_Init()` no longer faults (MPU regions 1–2) | VERIFIED — reaches `osKernelStart()` |
+| FreeRTOS scheduler runs the default task | VERIFIED — implied by USB enumeration, which happens in `StartDefaultTask` |
+| USB OTG FS enumerates on Windows | VERIFIED — "HID-compliant mouse" (CubeMX default HID class; Custom HID is M3 work) |
+| ST-LINK VCP (USART1) output | NOT TESTED — no logging code yet |
+| LCD / touch | NOT TESTED — SDRAM init sequence and display code not written yet |
 
 ## Planned firmware peripherals
 

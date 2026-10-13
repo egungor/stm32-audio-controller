@@ -40,6 +40,9 @@ Makefile
 test-results/
 coverage/
 
+# Local Linux toolchain archives (see tools/build-firmware-linux.sh)
+.toolchain/
+
 # Local Claude/session data if generated
 .claude/local/
 
