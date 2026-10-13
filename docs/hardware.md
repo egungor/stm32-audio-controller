@@ -53,12 +53,12 @@
 
 ## GPIO / peripheral mapping
 
-Not yet documented in this repository.
+See [`pin-mapping.md`](pin-mapping.md) for the pins, peripherals and
+clocks the firmware configures, with the verification status of each.
 
 Exact GPIO and peripheral assignments must be taken from the official
 STM32F746G-DISCO sources listed below (UM1907 I/O assignment table,
-MB1191 schematic, STM32CubeF7 BSP) and must not be guessed. The full
-mapping is tracked as an M1 task in `docs/roadmap.md`.
+MB1191 schematic, STM32CubeF7 BSP) and must not be guessed.
 
 ## Bring-up checklist
 

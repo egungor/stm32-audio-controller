@@ -25,7 +25,7 @@ Status: **IN PROGRESS**
 - [ ] Initialize touch
 - [x] Display a static test screen — M1 test pattern, verified on the panel 2026-10-13
 - [ ] Verify touch coordinates
-- [ ] Document hardware pin/peripheral mapping
+- [x] Document hardware pin/peripheral mapping — `docs/pin-mapping.md`, issue #14
 
 ## M2 — STM32 UI
 
