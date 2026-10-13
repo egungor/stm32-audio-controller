@@ -73,7 +73,20 @@
 #define USB_SIZ_BOS_DESC            0x0C
 
 /* USER CODE BEGIN PRIVATE_DEFINES */
-
+/* Project identifiers (docs/decisions/ADR-003-usb-hid-interface.md):
+ * pid.codes test VID/PID, replaced by a project PID before distribution. */
+#undef USBD_VID
+#undef USBD_PID_FS
+#undef USBD_MANUFACTURER_STRING
+#undef USBD_PRODUCT_STRING_FS
+#undef USBD_CONFIGURATION_STRING_FS
+#undef USBD_INTERFACE_STRING_FS
+#define USBD_VID                       0x1209
+#define USBD_PID_FS                    0x0001
+#define USBD_MANUFACTURER_STRING       "stm32-audio-controller"
+#define USBD_PRODUCT_STRING_FS         "STM32 Audio Controller"
+#define USBD_CONFIGURATION_STRING_FS   "Audio Controller Config"
+#define USBD_INTERFACE_STRING_FS       "Audio Controller HID"
 /* USER CODE END PRIVATE_DEFINES */
 
 /**

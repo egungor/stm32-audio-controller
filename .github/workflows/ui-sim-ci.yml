@@ -1,4 +1,4 @@
-name: UI Simulator CI
+name: UI Simulator and Link CI
 
 on:
   push:
@@ -6,6 +6,8 @@ on:
     paths:
       - 'firmware/ui/**'
       - 'firmware/simulator/**'
+      - 'firmware/link/**'
+      - 'protocol/**'
       - 'firmware/STM32AudioController/Middlewares/Third_Party/lvgl'
       - 'tools/run-ui-simulator.sh'
       - 'tools/fb2png.py'
@@ -14,6 +16,8 @@ on:
     paths:
       - 'firmware/ui/**'
       - 'firmware/simulator/**'
+      - 'firmware/link/**'
+      - 'protocol/**'
       - 'firmware/STM32AudioController/Middlewares/Third_Party/lvgl'
       - 'tools/run-ui-simulator.sh'
       - 'tools/fb2png.py'
@@ -31,6 +35,12 @@ jobs:
 
       - name: Build, run and convert screenshots
         run: tools/run-ui-simulator.sh build/ui-sim
+
+      - name: Protocol client tests (firmware/link)
+        run: |
+          cmake -S firmware/link -B build/link
+          cmake --build build/link
+          ctest --test-dir build/link --output-on-failure
 
       - name: Upload screenshots
         uses: actions/upload-artifact@v4

@@ -84,6 +84,16 @@ void Ui_SetPending(uint8_t device_id);
 /** Show a short notice with a warning icon for UI_NOTICE_MS. */
 void Ui_ShowError(const char *text);
 
+/** Notices with fixed UI text. */
+typedef enum
+{
+    UI_NOTICE_SELECT_FAILED,  /**< the computer could not switch the device */
+    UI_NOTICE_HOST_TIMEOUT,   /**< the computer did not answer */
+} UiNotice;
+
+/** Show one of the fixed notices (Ui_ShowError with the UI's own text). */
+void Ui_ShowNotice(UiNotice notice);
+
 /** Currently shown page, 0-based (for tests). */
 uint32_t Ui_CurrentPage(void);
 

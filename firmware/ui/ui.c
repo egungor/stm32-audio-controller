@@ -41,6 +41,10 @@
 #define TXT_ACTIVE       SYM_CHECK " Etkin \xC3\xA7\xC4\xB1k\xC4\xB1\xC5\x9F" /* Etkin çıkış */
 #define TXT_PENDING      "Ge\xC3\xA7iliyor..."                     /* Geçiliyor... */
 #define TXT_EMPTY        "Ses \xC3\xA7\xC4\xB1k\xC4\xB1\xC5\x9F\xC4\xB1 bulunamad\xC4\xB1"
+/* Ses çıkışı değiştirilemedi */
+#define TXT_SELECT_FAILED "Ses \xC3\xA7\xC4\xB1k\xC4\xB1\xC5\x9F\xC4\xB1 de\xC4\x9Fi\xC5\x9Ftirilemedi"
+/* Bilgisayar yanıt vermiyor */
+#define TXT_HOST_TIMEOUT  "Bilgisayar yan\xC4\xB1t vermiyor"
 
 LV_FONT_DECLARE(ui_font_16)
 LV_FONT_DECLARE(ui_font_22)
@@ -451,6 +455,11 @@ void Ui_ShowError(const char *text)
     lv_obj_remove_flag(s_ui.notice, LV_OBJ_FLAG_HIDDEN);
     lv_timer_reset(s_ui.notice_timer);
     lv_timer_resume(s_ui.notice_timer);
+}
+
+void Ui_ShowNotice(UiNotice notice)
+{
+    Ui_ShowError((notice == UI_NOTICE_SELECT_FAILED) ? TXT_SELECT_FAILED : TXT_HOST_TIMEOUT);
 }
 
 uint32_t Ui_CurrentPage(void)
