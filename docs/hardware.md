@@ -37,6 +37,14 @@
 
 - SDRAM: 128-Mbit device on FMC; only the lower 16 data bits are used,
   so 64 Mbit is accessible (UM1907).
+  - Part MT48LC4M32B2B5-6A (`.ioc` pin labels), FMC SDRAM bank 1,
+    `0xC0000000`–`0xC07FFFFF` (8 MB): 12 row bits, 8 column bits,
+    4 internal banks, 16-bit bus.
+  - CubeMX configures only the FMC controller; the JEDEC init sequence
+    and refresh rate are in `App/Src/sdram.c` (CL3, SDCLK 100 MHz,
+    refresh count 1542).
+  - The LTDC must not read SDRAM while the init sequence runs (see the
+    2026-10-13 LCD bring-up entry below).
 - Quad-SPI NOR flash: 128 Mbit (UM1907).
 
 ## Debug
@@ -64,10 +72,12 @@ mapping is tracked as an M1 task in `docs/roadmap.md`.
   micro-USB connector (not the ST-LINK one); VERIFIED 2026-10-13
 - [x] Confirm ST-LINK connection — flash + debug via STM32Cube for VS Code;
   VERIFIED 2026-10-13
-- [ ] Confirm external SDRAM operation
+- [x] Confirm external SDRAM operation — 8 MB self-test PASS after a
+  software reset; VERIFIED 2026-10-13 (power-cycle boot NOT TESTED)
 - [ ] Confirm clock configuration
-- [ ] Confirm ST-LINK virtual COM port output on hardware (configured
-  as USART1, TX `PA9`, RX `PB7`, 115200 baud — see ADR-001)
+- [x] Confirm ST-LINK virtual COM port output on hardware — USART1,
+  TX `PA9`, RX `PB7`, 115200 baud, `COM4` on the developer host;
+  VERIFIED 2026-10-13
 - [ ] Capture board photos in `docs/images/`
 
 ## Bring-up log
@@ -86,6 +96,34 @@ from STM32Cube for VS Code.
 | USB OTG FS enumerates on Windows | VERIFIED — "HID-compliant mouse" (CubeMX default HID class; Custom HID is M3 work) |
 | ST-LINK VCP (USART1) output | NOT TESTED — no logging code yet |
 | LCD / touch | NOT TESTED — SDRAM init sequence and display code not written yet |
+
+### 2026-10-13 — SDRAM and LCD bring-up (M1, issue #7)
+
+Firmware: branch `hardware/7-lcd-bringup`. Built with the command-line
+Windows ST toolchain (CMake 4.4.0+st.1), flashed with
+`STM32_Programmer_CLI`, log read from `COM4`. Commands: `docs/toolchain.md`.
+
+| Check | Result |
+|---|---|
+| VCP log on `COM4` (USART1, 115200 8N1) | VERIFIED — `BOOT OK sysclk=200000000` |
+| SDRAM JEDEC init | VERIFIED — `SDRAM INIT OK`; FMC registers read over SWD: SDCR1 `0x19D4`, SDTR1 `0x01126361`, SDRTR `0x0C0C`, last SDCMR = LOAD MODE `0x230` |
+| SDRAM self-test (data bus, address bus, full 8 MB, two patterns) | VERIFIED — `SELFTEST SDRAM PASS size=8388608 ms=1492`, 5 consecutive software resets |
+| Test pattern in framebuffer | VERIFIED — framebuffer dumped over SWD, converted to PNG, pixel-exact match with the expected pattern; pixel sum `0x010493A2` matches the log |
+| Pattern visible on the panel (colours, orientation, stability) | VERIFIED — developer visual check on the physical panel |
+| Boot after a power cycle (SDRAM from cold) | NOT TESTED — all runs used a software reset via ST-LINK |
+| Long-run SDRAM retention / temperature | NOT TESTED |
+
+Failure found and fixed during bring-up: with the LTDC enabled (as
+`MX_LTDC_Init()` leaves it), the self-test failed in the fill pass
+(`SELFTEST SDRAM FAIL test=fill addr=0xC0000010 exp=0x00000004
+got=0x00000000`). Single SWD writes to SDRAM smeared into neighbouring
+columns, while the same writes to internal SRAM did not, i.e. the
+SDRAM was still in its power-up burst mode. Cause: LTDC framebuffer
+fetches were interleaved by the FMC with the init commands, and the
+LOAD MODE REGISTER command was ignored by the device because a bank was
+open. Fix: `App_Main` disables the LTDC until SDRAM is initialised and
+the pattern is drawn. Disabling the LTDC only during the self-test did
+not help; it must be off during the init sequence.
 
 ## Planned firmware peripherals
 
