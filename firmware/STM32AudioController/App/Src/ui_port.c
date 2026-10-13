@@ -5,6 +5,7 @@
 #include "ui_port.h"
 
 #include "cmsis_os.h"
+#include "log.h"
 #include "lvgl.h"
 #include "ltdc.h"
 #include "touch.h"
@@ -16,6 +17,27 @@
 #define SWAP_TIMEOUT_MS  50U /* three frames at ~59 Hz */
 
 static lv_display_t *s_display;
+
+/* Flipped image (board upside down). The LTDC cannot rotate and the DMA2D
+ * cannot copy backwards, so LVGL keeps drawing into FB0/FB1 as usual and
+ * each finished frame is copied, turned by 180°, into FB2 or FB3, which
+ * the LTDC then scans out. All of this runs in the UI task. */
+static bool     s_flipped;
+static uint32_t s_shown;        /* address the LTDC scans out */
+static uint32_t s_copy_max_ms;  /* longest copy since the last toggle */
+
+/* Turning a framebuffer by 180° reverses the order of its pixels. With two
+ * RGB565 pixels per word (the pixel count is even): reverse the words and
+ * swap the two halves of each. */
+static void copy_turned(uint32_t *dst, const uint32_t *src)
+{
+    const uint32_t words = FB_BYTES / sizeof(uint32_t);
+
+    for (uint32_t i = 0U; i < words; i++)
+    {
+        dst[words - 1U - i] = __ROR(src[i], 16U);
+    }
+}
 
 static uint32_t tick_cb(void)
 {
@@ -31,9 +53,22 @@ static void flush_cb(lv_display_t *disp, const lv_area_t *area, uint8_t *px_map)
 
     if (lv_display_flush_is_last(disp))
     {
-        const uint32_t start = HAL_GetTick();
+        uint32_t start = HAL_GetTick();
+        uint32_t show = (uint32_t)px_map;
+        uint32_t copy_ms;
 
-        (void)HAL_LTDC_SetAddress_NoReload(&hltdc, (uint32_t)px_map, 0U);
+        if (s_flipped)
+        {
+            /* Into the scan-out buffer that is not shown. */
+            show = (s_shown == UI_PORT_FB2_ADDR) ? UI_PORT_FB3_ADDR : UI_PORT_FB2_ADDR;
+            copy_turned((uint32_t *)show, (const uint32_t *)px_map);
+            copy_ms = HAL_GetTick() - start;
+            s_copy_max_ms = (copy_ms > s_copy_max_ms) ? copy_ms : s_copy_max_ms;
+            start += copy_ms; /* the swap timeout starts after the copy */
+        }
+        s_shown = show;
+
+        (void)HAL_LTDC_SetAddress_NoReload(&hltdc, show, 0U);
         if ((hltdc.Instance->GCR & LTDC_GCR_LTDCEN) == 0U)
         {
             /* No scan-out yet (first frame): no blanking to wait for. */
@@ -65,8 +100,9 @@ static void touch_read_cb(lv_indev_t *indev, lv_indev_data_t *data)
     TouchLog_Track(ok, &point);
     if (point.pressed)
     {
-        data->point.x = (int32_t)point.x;
-        data->point.y = (int32_t)point.y;
+        /* Touch_Read clamps to the panel, so the mirrored point is too. */
+        data->point.x = s_flipped ? (int32_t)(LCD_WIDTH - 1U - point.x) : (int32_t)point.x;
+        data->point.y = s_flipped ? (int32_t)(LCD_HEIGHT - 1U - point.y) : (int32_t)point.y;
     }
     /* On release LVGL keeps the last pressed point. */
     data->state = point.pressed ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
@@ -107,6 +143,26 @@ void UiPort_Start(void)
      * there valid content to scan out. */
     lv_refr_now(s_display);
     __HAL_LTDC_ENABLE(&hltdc);
+}
+
+void UiPort_SetFlipped(bool flipped)
+{
+    if (flipped == s_flipped)
+    {
+        return;
+    }
+    /* The copy times belong to the orientation being left. */
+    Log_Line("UI FLIP %s copy_max_ms=%lu", flipped ? "on" : "off",
+             (unsigned long)s_copy_max_ms);
+    s_copy_max_ms = 0U;
+    s_flipped = flipped;
+    /* Redraw so the next frame is shown in the new orientation. */
+    lv_obj_invalidate(lv_display_get_screen_active(s_display));
+}
+
+bool UiPort_IsFlipped(void)
+{
+    return s_flipped;
 }
 
 uint32_t UiPort_Run(void)

@@ -13,6 +13,7 @@
 #include "touch.h"
 #include "touch_log.h"
 #include "link_port.h"
+#include "ui.h"
 #include "ui_demo.h"
 #include "ui_port.h"
 
@@ -169,6 +170,13 @@ static void run_test_screen(bool sdram_ok, bool touch_ok)
 
 #else /* !APP_TEST_SCREEN */
 
+/* Flip button on the touchscreen: turn the image by 180°. */
+static void on_ui_flip(void *user)
+{
+    (void)user;
+    UiPort_SetFlipped(!UiPort_IsFlipped());
+}
+
 /* LVGL UI, fed by the USB host link (or by demo data with APP_UI_DEMO). */
 static void run_ui(bool sdram_ok, bool touch_ok)
 {
@@ -185,6 +193,7 @@ static void run_ui(bool sdram_ok, bool touch_ok)
 #else
         LinkPort_Init();
 #endif
+        Ui_SetFlipHandler(on_ui_flip, NULL);
         UiPort_Start();
         Log_Line("UI INIT OK fb0=0x%08lX fb1=0x%08lX", (unsigned long)UI_PORT_FB0_ADDR,
                  (unsigned long)UI_PORT_FB1_ADDR);
