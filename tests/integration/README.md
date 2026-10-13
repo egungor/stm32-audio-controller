@@ -20,7 +20,8 @@ Scenarios: connect, host started late, select on the board, Windows
 default change, devices added and removed, default device removed, all
 devices removed, Windows refuses the switch, a select racing a device
 removal, USB unplug/replug (also during a list), host stops answering,
-host restarted with the board still showing the old list, 40 devices with
+host restarted while the board stays plugged in (the new list replaces
+the old one without a tap), 40 devices with
 long UTF-8 names, volume frames, and the board busy while long lists
 arrive.
 

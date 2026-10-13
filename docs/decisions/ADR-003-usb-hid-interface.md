@@ -50,7 +50,8 @@ USER CODE section of `usbd_desc.c`. Both survive regeneration.
 **Timing** (in `protocol.md`, "Transport"):
 
 - the STM32 repeats `GET_DEVICE_LIST` every 1 s until a complete list
-  has arrived;
+  has arrived (the host also sends the list when it opens the device,
+  #36);
 - a `SELECT_DEVICE` without `DEVICE_CHANGED` or `ERROR` within 2 s means
   the host is not responding: the UI says so and the STM32 goes back to
   requesting the list.
