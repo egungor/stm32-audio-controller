@@ -47,8 +47,26 @@ typedef struct
  */
 void UsbLink_DeviceInit(USBD_HandleTypeDef *pdev);
 
-/** True while the host has configured the device. */
+/**
+ * @brief  Watch VBUS (PJ12) and treat its loss as a disconnect.
+ *
+ * Call periodically from the application task, before
+ * UsbLink_IsConfigured(). Needed because the OTG FS core has no VBUS
+ * sensing on this board and would otherwise only see a suspend.
+ */
+void UsbLink_Poll(void);
+
+/** VBUS state seen by the last UsbLink_Poll(). */
+bool UsbLink_VbusPresent(void);
+
+/** True while VBUS is present and the device is configured (not
+ *  suspended). */
 bool UsbLink_IsConfigured(void);
+
+/** Number of SET_CONFIGURATION requests so far. Unchanged across a
+ *  suspend/resume, so the caller can tell a resume from a new
+ *  configuration. */
+uint32_t UsbLink_ConfigCount(void);
 
 /**
  * @brief  Take the next received frame.

@@ -17,6 +17,8 @@
 
 static LinkClient s_link;
 static bool s_usb_configured;
+static bool s_vbus;
+static uint32_t s_config_count;
 
 static bool cb_send_frame(const uint8_t frame[PROTO_FRAME_SIZE], void *ctx)
 {
@@ -118,16 +120,30 @@ void LinkPort_Init(void)
 
 void LinkPort_Run(void)
 {
-    const bool configured = UsbLink_IsConfigured();
     const uint32_t now = HAL_GetTick();
     uint8_t frame[PROTO_FRAME_SIZE];
+    bool vbus;
+    bool configured;
 
+    UsbLink_Poll();
+    vbus = UsbLink_VbusPresent();
+    configured = UsbLink_IsConfigured();
+
+    if (vbus != s_vbus)
+    {
+        s_vbus = vbus;
+        Log_Line("USB VBUS %s", vbus ? "ON" : "OFF");
+    }
     if (configured != s_usb_configured)
     {
         s_usb_configured = configured;
         if (configured)
         {
-            Log_Line("USB CONFIGURED");
+            const uint32_t config_count = UsbLink_ConfigCount();
+
+            /* No new SET_CONFIGURATION: the host resumed a suspended device. */
+            Log_Line("USB %s", (config_count != s_config_count) ? "CONFIGURED" : "RESUMED");
+            s_config_count = config_count;
             Link_OnConnected(&s_link, now);
         }
         else

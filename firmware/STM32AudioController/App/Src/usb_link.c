@@ -112,6 +112,8 @@ static QueueHandle_t s_rx_queue;
 static StaticQueue_t s_rx_queue_storage;
 static uint8_t s_rx_queue_buf[USB_LINK_RX_DEPTH * EP_SIZE];
 static volatile UsbLinkStats s_stats;
+static volatile uint32_t s_config_count; /* SET_CONFIGURATION requests */
+static bool s_vbus;
 
 /* ------------------------------------------------------------- class */
 
@@ -122,6 +124,7 @@ static uint8_t link_init(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
     pdev->pClassDataCmsit[pdev->classId] = &s_class;
     pdev->pClassData = &s_class;
     s_class.tx_busy = false;
+    s_config_count++;
 
     pdev->ep_in[EP_IN_ADDR & 0xFU].bInterval = EP_INTERVAL_MS;
     (void)USBD_LL_OpenEP(pdev, EP_IN_ADDR, USBD_EP_TYPE_INTR, EP_SIZE);
@@ -288,9 +291,15 @@ static USBD_ClassTypeDef s_link_class = {
 
 /* --------------------------------------------------------------- API */
 
+static bool read_vbus(void)
+{
+    return HAL_GPIO_ReadPin(OTG_FS_VBUS_GPIO_Port, OTG_FS_VBUS_Pin) == GPIO_PIN_SET;
+}
+
 void UsbLink_DeviceInit(USBD_HandleTypeDef *pdev)
 {
     s_pdev = pdev;
+    s_vbus = read_vbus();
     s_rx_queue = xQueueCreateStatic(USB_LINK_RX_DEPTH, EP_SIZE, s_rx_queue_buf, &s_rx_queue_storage);
 
     if ((USBD_Init(pdev, &FS_Desc, DEVICE_FS) != USBD_OK) ||
@@ -300,9 +309,40 @@ void UsbLink_DeviceInit(USBD_HandleTypeDef *pdev)
     }
 }
 
+/* The OTG FS core runs without VBUS sensing (PA9 is USART1_TX on this
+ * board), so it never reports a disconnect: an unplugged cable is only a
+ * suspend, and the stack keeps CONFIGURED as the state to resume to. A
+ * wake-up interrupt from the floating lines then restores CONFIGURED with
+ * no host attached (issue #52). VBUS is wired to the GPIO PJ12 instead;
+ * losing it is handled here as the HAL would handle a session end. */
+void UsbLink_Poll(void)
+{
+    const bool vbus = read_vbus();
+
+    if ((s_pdev != NULL) && s_vbus && !vbus)
+    {
+        /* Same path as HAL_PCD_DisconnectCallback, but from the task: keep
+         * the USB interrupt out while the class is de-initialised. */
+        HAL_NVIC_DisableIRQ(OTG_FS_IRQn);
+        (void)USBD_LL_DevDisconnected(s_pdev);
+        HAL_NVIC_EnableIRQ(OTG_FS_IRQn);
+    }
+    s_vbus = vbus;
+}
+
+bool UsbLink_VbusPresent(void)
+{
+    return s_vbus;
+}
+
 bool UsbLink_IsConfigured(void)
 {
-    return (s_pdev != NULL) && (s_pdev->dev_state == USBD_STATE_CONFIGURED);
+    return (s_pdev != NULL) && s_vbus && (s_pdev->dev_state == USBD_STATE_CONFIGURED);
+}
+
+uint32_t UsbLink_ConfigCount(void)
+{
+    return s_config_count;
 }
 
 bool UsbLink_Receive(uint8_t frame[PROTO_FRAME_SIZE], uint32_t timeout_ms)
