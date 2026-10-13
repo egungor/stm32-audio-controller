@@ -99,7 +99,8 @@ The exact dimensions/layout depend on the verified board LCD.
 - Host language: C++17
 - GUI: LVGL v9.5.0 (git submodule). The UI lives in `firmware/ui/`, depends
   only on LVGL and is previewed with the Linux simulator
-  (`firmware/simulator/`); running it on the LCD is pending (M2 port)
+  (`firmware/simulator/`); on the board it runs on two SDRAM framebuffers
+  with the FT5336 as input (`App/Src/ui_port.c`)
 - Audio control: Windows Core Audio/MMDevice
 - Device information is discovered dynamically by Windows
 - User-friendly display names are separated from Windows endpoint IDs

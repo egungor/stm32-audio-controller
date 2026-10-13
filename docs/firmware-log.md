@@ -27,9 +27,9 @@ parse it, so changes to existing lines must update this file.
 - Numbers in `key=value` pairs are decimal unless prefixed with `0x`.
 - Lines are emitted only from task context (blocking transmit).
 
-## Lines (M1)
+## Lines
 
-Emitted in this order at boot:
+Emitted in this order at boot, in every build:
 
 | Line | Meaning |
 |---|---|
@@ -40,13 +40,40 @@ Emitted in this order at boot:
 | `SDRAM INIT OK` / `SDRAM INIT FAIL` | JEDEC init sequence accepted by the FMC |
 | `SELFTEST SDRAM PASS size=<bytes> ms=<ms>` | Data bus, address bus and full 8 MB fill tests passed |
 | `SELFTEST SDRAM FAIL test=<data\|addr\|fill> addr=0x<a> exp=0x<e> got=0x<g>` | First failing word |
+| `TOUCH INIT OK id=0x51` / `TOUCH INIT FAIL id=0x<id>` | FT5336 chip ID read over I2C3 (`id=0x00` if the read failed); polling mode selected |
+
+A `CLOCK MEASURE FAIL` is reported only; the boot continues. After an
+SDRAM failure the LTDC stays disabled (no image); `APP READY` is still
+printed.
+
+### UI build (default)
+
+| Line | Meaning |
+|---|---|
+| `UI DEMO START` | UI built; demo data stands in for the host (no USB HID yet, M3) |
+| `UI INIT OK fb0=0x<addr> fb1=0x<addr>` | LVGL running on the two SDRAM framebuffers; LTDC enabled |
+| `UI INIT FAIL reason=<sdram\|lcd_format>` | No UI: SDRAM failed, or LTDC layer 0 is not RGB565 480×272 |
+| `APP READY` | Main loop running |
+| `UI DEMO DEVICES n=<n> active=<id>` | About 1.5 s later: demo device list shown |
+| `UI SELECT id=<id>` | User tapped a device that is not active (`SELECT_DEVICE` once M3 exists) |
+| `UI DEMO ACTIVE id=<id>` | 0.4 s later the demo confirms the selection (`DEVICE_CHANGED` once M3 exists) |
+
+### Test screen build (`-DAPP_TEST_SCREEN=ON`)
+
+The M1 bring-up screen instead of the UI.
+
+| Line | Meaning |
+|---|---|
 | `LCD PATTERN DRAWN w=<px> h=<px> fmt=RGB565 fb=0x<addr> sum=0x<sum>` | Test pattern written; `sum` = 32-bit sum of all 16-bit pixels, compare with `tools/fb2png.py` |
 | `LCD PATTERN FAIL reason=pixel_format` | Layer 0 is not RGB565 |
-| `TOUCH INIT OK id=0x51` / `TOUCH INIT FAIL id=0x<id>` | FT5336 chip ID read over I2C3 (`id=0x00` if the read failed); polling mode selected |
-| `TOUCH TARGET n=<0..4> x=<px> y=<px>` | Centre of each touch target drawn on the pattern (corners, then centre); only when the pattern is on the panel |
-| `APP READY` | Bring-up finished; main loop running |
+| `TOUCH TARGET n=<0..4> x=<px> y=<px>` | Centre of each touch target drawn on the pattern (corners, then centre) |
+| `APP READY` | Main loop running |
 
-Emitted from the main loop (FT5336 polled every 20 ms):
+While a finger is down, a small black-and-white dot is drawn under it on
+the test pattern. To check the coordinates, touch each target and compare
+`TOUCH DOWN` with the matching `TOUCH TARGET` line.
+
+### Touch (both builds)
 
 | Line | Meaning |
 |---|---|
@@ -54,22 +81,16 @@ Emitted from the main loop (FT5336 polled every 20 ms):
 | `TOUCH UP x=<px> y=<px>` | Released; last position seen while pressed |
 | `TOUCH READ FAIL` | I2C read failed; printed once until a read succeeds again |
 
-While a finger is down, a small black-and-white dot is drawn under it on
-the test pattern. To check the coordinates, touch each target and compare
-`TOUCH DOWN` with the matching `TOUCH TARGET` line.
-
-A `CLOCK MEASURE FAIL` is reported only; the bring-up continues. After
-any other `FAIL` the remaining bring-up steps are skipped (`APP READY` is
-still printed) and the LTDC stays disabled, so the panel shows no image.
-The touch controller is still initialised and polled in that case, but
-no targets or dots are drawn.
+The test screen polls the FT5336 every 20 ms; the UI build polls it each
+time LVGL reads the input device (every 33 ms).
 
 `tim` is the APB1 timer clock (2 × PCLK1, 100 MHz with the current
 configuration), which comes from HSE through the main PLL, so a `PASS`
 confirms the HSE frequency and the PLL/bus dividers together. The LSE is
 left running after the check.
 
-Example (hardware, 2026-10-13):
+Example (hardware, 2026-10-13, M1 firmware before the clock and touch
+checks existed):
 
 ```text
 BOOT OK sysclk=200000000

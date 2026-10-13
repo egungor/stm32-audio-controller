@@ -28,8 +28,24 @@ each step on the ST-LINK VCP (`docs/firmware-log.md`).
 The touch UI is written against LVGL only, in `firmware/ui/` (see its
 README). `firmware/simulator/` builds it on Linux and renders the screens
 to PNG without a board: `tools/run-ui-simulator.sh`. LVGL v9.5.0 is a git
-submodule; run `git submodule update --init` after cloning. LVGL is not
-linked into the firmware image yet (M2 port).
+submodule; run `git submodule update --init` after cloning, otherwise the
+firmware build stops with "LVGL not found".
+
+On the board (`App/Src/ui_port.c`) LVGL draws into two framebuffers in
+SDRAM (`0xC0000000`, `0xC0040000`) and the LTDC switches between them
+during vertical blanking; the FT5336 is the LVGL pointer input. Until
+USB HID exists (M3), `App/Src/ui_demo.c` stands in for the host with a
+fixed device list (logged as `UI DEMO`).
+
+Build options (CMake cache variables):
+
+| Option | Default | Effect |
+|---|---|---|
+| `APP_TEST_SCREEN` | `OFF` | `ON`: show the M1 test pattern and touch targets instead of the UI (needed for the framebuffer `--expected` check in `docs/toolchain.md`) |
+
+```text
+cmake --preset Debug -DAPP_TEST_SCREEN=ON
+```
 
 ## Layout
 
