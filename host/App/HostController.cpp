@@ -183,6 +183,12 @@ void HostController::sendDefault(bool force)
         msg.u.device_index = value;
         send(msg);
         sentDefault_ = value;
+        if (value == PROTO_NO_DEVICE) {
+            // The STM32 forgets volume and mute with "no default device";
+            // send them again when a default device appears.
+            sentVolume_.reset();
+            sentMuted_.reset();
+        }
     }
 }
 

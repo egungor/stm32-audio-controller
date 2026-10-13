@@ -10,7 +10,7 @@
 
 /* Layout for the 480 x 272 panel. */
 #define BAR_H        36
-#define PAGER_H      36
+#define BOTTOM_H     40
 #define PAD          8
 #define BTN_RADIUS   12
 
@@ -32,6 +32,8 @@
 #define SYM_NEXT       "\xEF\x81\x94"
 #define SYM_PLUG       "\xEF\x87\xA6"
 #define SYM_HOURGLASS  "\xEF\x89\x94"
+#define SYM_VOLUME     "\xEF\x80\xA8" /* volume-up */
+#define SYM_MUTED      "\xEF\x9A\xA9" /* volume-mute */
 
 /* UI text (Turkish). */
 #define TXT_TITLE        "SES \xC3\x87IKI\xC5\x9EI"               /* SES ÇIKIŞI */
@@ -62,6 +64,11 @@ static struct
 {
     UiSelectCallback on_select;
     void            *user;
+    UiVolumeCallback on_volume;
+    UiMuteCallback   on_mute;
+    void            *audio_user;
+    uint8_t          volume;  /* 0-100 or UI_VOLUME_UNKNOWN */
+    uint8_t          muted;   /* 0, 1 or UI_VOLUME_UNKNOWN */
 
     UiDevice devices[UI_MAX_DEVICES];
     uint32_t count;
@@ -75,6 +82,10 @@ static struct
     lv_obj_t    *empty_label;
     lv_obj_t    *pager;
     lv_obj_t    *page_label;
+    lv_obj_t    *mute_btn;
+    lv_obj_t    *mute_icon;
+    lv_obj_t    *slider;
+    lv_obj_t    *volume_label;
     lv_obj_t    *prev_btn;
     lv_obj_t    *next_btn;
     lv_obj_t    *notice;
@@ -183,8 +194,7 @@ static void render_main(void)
 
     if (pages > 1U)
     {
-        lv_label_set_text_fmt(s_ui.page_label, "Sayfa %u / %u", (unsigned)(s_ui.page + 1U),
-                              (unsigned)pages);
+        lv_label_set_text_fmt(s_ui.page_label, "%u/%u", (unsigned)(s_ui.page + 1U), (unsigned)pages);
         lv_obj_remove_flag(s_ui.pager, LV_OBJ_FLAG_HIDDEN);
         lv_obj_set_state(s_ui.prev_btn, LV_STATE_DISABLED, s_ui.page == 0U);
         lv_obj_set_state(s_ui.next_btn, LV_STATE_DISABLED, s_ui.page + 1U >= pages);
@@ -195,7 +205,62 @@ static void render_main(void)
     }
 }
 
+static void render_audio(void)
+{
+    const bool known = (s_ui.volume != UI_VOLUME_UNKNOWN);
+    const bool muted = (s_ui.muted == 1U);
+
+    lv_obj_set_state(s_ui.slider, LV_STATE_DISABLED, !known);
+    if (known && !lv_obj_has_state(s_ui.slider, LV_STATE_PRESSED))
+    {
+        lv_slider_set_value(s_ui.slider, s_ui.volume, LV_ANIM_OFF);
+    }
+    if (known)
+    {
+        lv_label_set_text_fmt(s_ui.volume_label, "%u%%", (unsigned)lv_slider_get_value(s_ui.slider));
+    }
+    else
+    {
+        lv_label_set_text_static(s_ui.volume_label, "--");
+    }
+    /* Muted: grey fill. Unknown: empty track, no knob. */
+    lv_obj_set_style_bg_color(s_ui.slider, lv_color_hex(muted ? COLOR_MUTED : COLOR_ACCENT), LV_PART_INDICATOR);
+    lv_obj_set_style_bg_color(s_ui.slider, lv_color_hex(muted ? COLOR_MUTED : COLOR_ACCENT), LV_PART_KNOB);
+    lv_obj_set_style_bg_opa(s_ui.slider, known ? LV_OPA_COVER : LV_OPA_TRANSP, LV_PART_INDICATOR);
+    lv_obj_set_style_bg_opa(s_ui.slider, known ? LV_OPA_COVER : LV_OPA_TRANSP, LV_PART_KNOB);
+
+    lv_obj_set_state(s_ui.mute_btn, LV_STATE_DISABLED, s_ui.muted == UI_VOLUME_UNKNOWN);
+    lv_label_set_text_static(s_ui.mute_icon, muted ? SYM_MUTED : SYM_VOLUME);
+    lv_obj_set_style_bg_color(s_ui.mute_btn, lv_color_hex(muted ? COLOR_ACCENT : COLOR_BTN), 0);
+    lv_obj_set_style_text_color(s_ui.mute_icon, lv_color_hex(muted ? COLOR_ON_ACC : COLOR_TEXT), 0);
+}
+
 /* ---------------------------------------------------------------- events */
+
+static void on_slider_event(lv_event_t *e)
+{
+    const lv_event_code_t code = lv_event_get_code(e);
+    const uint8_t value = (uint8_t)lv_slider_get_value(s_ui.slider);
+
+    if ((code != LV_EVENT_VALUE_CHANGED) && (code != LV_EVENT_RELEASED))
+    {
+        return;
+    }
+    lv_label_set_text_fmt(s_ui.volume_label, "%u%%", (unsigned)value);
+    if (s_ui.on_volume != NULL)
+    {
+        s_ui.on_volume(value, code == LV_EVENT_RELEASED, s_ui.audio_user);
+    }
+}
+
+static void on_mute_clicked(lv_event_t *e)
+{
+    LV_UNUSED(e);
+    if ((s_ui.on_mute != NULL) && (s_ui.muted != UI_VOLUME_UNKNOWN))
+    {
+        s_ui.on_mute(s_ui.muted == 0U, s_ui.audio_user);
+    }
+}
 
 static void on_device_clicked(lv_event_t *e)
 {
@@ -313,6 +378,70 @@ static void build_device_button(lv_obj_t *grid, uint32_t slot)
     b->state = make_label(text, &ui_font_16, COLOR_ON_ACC, "");
 }
 
+static lv_obj_t *make_small_button(lv_obj_t *parent, int32_t w, const char *symbol, lv_obj_t **label)
+{
+    lv_obj_t *btn = lv_button_create(parent);
+    lv_obj_t *l;
+
+    lv_obj_set_size(btn, w, BOTTOM_H - 8);
+    lv_obj_set_style_bg_color(btn, lv_color_hex(COLOR_BTN), 0);
+    lv_obj_set_style_shadow_width(btn, 0, 0);
+    l = make_label(btn, &ui_font_16, COLOR_TEXT, symbol);
+    lv_obj_center(l);
+    if (label != NULL)
+    {
+        *label = l;
+    }
+    return btn;
+}
+
+/* Bottom strip: mute button, volume slider and percentage; page arrows on
+ * the right when there is more than one page. */
+static void build_bottom_strip(lv_obj_t *scr)
+{
+    lv_obj_t *strip = lv_obj_create(scr);
+
+    lv_obj_remove_style_all(strip);
+    lv_obj_set_size(strip, LV_PCT(100), BOTTOM_H);
+    lv_obj_align(strip, LV_ALIGN_BOTTOM_MID, 0, 0);
+    lv_obj_set_style_pad_hor(strip, PAD, 0);
+    lv_obj_set_style_pad_column(strip, 12, 0);
+    lv_obj_set_flex_flow(strip, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(strip, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_remove_flag(strip, LV_OBJ_FLAG_SCROLLABLE);
+
+    s_ui.mute_btn = make_small_button(strip, 52, SYM_VOLUME, &s_ui.mute_icon);
+    lv_obj_add_event_cb(s_ui.mute_btn, on_mute_clicked, LV_EVENT_CLICKED, NULL);
+
+    s_ui.slider = lv_slider_create(strip);
+    lv_slider_set_range(s_ui.slider, 0, 100);
+    lv_obj_set_flex_grow(s_ui.slider, 1);
+    lv_obj_set_height(s_ui.slider, 8);
+    lv_obj_set_ext_click_area(s_ui.slider, 14);
+    lv_obj_set_style_bg_color(s_ui.slider, lv_color_hex(COLOR_BTN), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(s_ui.slider, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(s_ui.slider, 6, LV_PART_KNOB);
+    lv_obj_add_event_cb(s_ui.slider, on_slider_event, LV_EVENT_ALL, NULL);
+
+    s_ui.volume_label = make_label(strip, &ui_font_16, COLOR_TEXT, "--");
+    lv_obj_set_width(s_ui.volume_label, 44);
+    lv_obj_set_style_text_align(s_ui.volume_label, LV_TEXT_ALIGN_LEFT, 0);
+
+    s_ui.pager = lv_obj_create(strip);
+    lv_obj_remove_style_all(s_ui.pager);
+    lv_obj_set_size(s_ui.pager, LV_SIZE_CONTENT, LV_PCT(100));
+    lv_obj_set_flex_flow(s_ui.pager, LV_FLEX_FLOW_ROW);
+    lv_obj_set_flex_align(s_ui.pager, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_style_pad_column(s_ui.pager, 8, 0);
+    lv_obj_set_style_pad_left(s_ui.pager, 4, 0);
+
+    s_ui.prev_btn = make_small_button(s_ui.pager, 44, SYM_PREV, NULL);
+    s_ui.page_label = make_label(s_ui.pager, &ui_font_16, COLOR_MUTED, "");
+    s_ui.next_btn = make_small_button(s_ui.pager, 44, SYM_NEXT, NULL);
+    lv_obj_add_event_cb(s_ui.prev_btn, on_page_clicked, LV_EVENT_CLICKED, NULL);
+    lv_obj_add_event_cb(s_ui.next_btn, on_page_clicked, LV_EVENT_CLICKED, (void *)s_ui.next_btn);
+}
+
 static void build_main_screen(void)
 {
     static const int32_t cols[] = { LV_GRID_FR(1), LV_GRID_FR(1), LV_GRID_TEMPLATE_LAST };
@@ -325,7 +454,7 @@ static void build_main_screen(void)
     grid = lv_obj_create(s_ui.main_screen);
     lv_obj_remove_style_all(grid);
     lv_obj_set_pos(grid, 0, BAR_H);
-    lv_obj_set_size(grid, LV_PCT(100), 272 - BAR_H - PAGER_H);
+    lv_obj_set_size(grid, LV_PCT(100), 272 - BAR_H - BOTTOM_H);
     lv_obj_set_style_pad_all(grid, PAD, 0);
     lv_obj_set_style_pad_gap(grid, PAD, 0);
     lv_obj_set_grid_dsc_array(grid, cols, rows);
@@ -338,29 +467,7 @@ static void build_main_screen(void)
     s_ui.empty_label = make_label(s_ui.main_screen, &ui_font_22, COLOR_MUTED, TXT_EMPTY);
     lv_obj_center(s_ui.empty_label);
 
-    s_ui.pager = lv_obj_create(s_ui.main_screen);
-    lv_obj_remove_style_all(s_ui.pager);
-    lv_obj_set_size(s_ui.pager, LV_PCT(100), PAGER_H);
-    lv_obj_align(s_ui.pager, LV_ALIGN_BOTTOM_MID, 0, 0);
-    lv_obj_set_flex_flow(s_ui.pager, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(s_ui.pager, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_style_pad_column(s_ui.pager, 24, 0);
-
-    s_ui.prev_btn = lv_button_create(s_ui.pager);
-    s_ui.page_label = make_label(s_ui.pager, &ui_font_16, COLOR_MUTED, "");
-    s_ui.next_btn = lv_button_create(s_ui.pager);
-    lv_obj_move_to_index(s_ui.page_label, 1);
-    for (int i = 0; i < 2; i++)
-    {
-        lv_obj_t *btn = (i == 0) ? s_ui.prev_btn : s_ui.next_btn;
-
-        lv_obj_set_size(btn, 64, 28);
-        lv_obj_set_style_bg_color(btn, lv_color_hex(COLOR_BTN), 0);
-        lv_obj_set_style_shadow_width(btn, 0, 0);
-        (void)make_label(btn, &ui_font_16, COLOR_TEXT, (i == 0) ? SYM_PREV : SYM_NEXT);
-        lv_obj_center(lv_obj_get_child(btn, 0));
-        lv_obj_add_event_cb(btn, on_page_clicked, LV_EVENT_CLICKED, (i == 0) ? NULL : (void *)btn);
-    }
+    build_bottom_strip(s_ui.main_screen);
 }
 
 static void build_notice(void)
@@ -400,6 +507,8 @@ void Ui_Init(UiSelectCallback on_select, void *user)
     s_ui.user = user;
     s_ui.active = UI_NO_DEVICE;
     s_ui.pending = UI_NO_DEVICE;
+    s_ui.volume = UI_VOLUME_UNKNOWN;
+    s_ui.muted = UI_VOLUME_UNKNOWN;
 
     (void)lv_theme_default_init(lv_display_get_default(), lv_color_hex(COLOR_ACCENT),
                                 lv_color_hex(COLOR_LINK), true, &ui_font_16);
@@ -407,6 +516,7 @@ void Ui_Init(UiSelectCallback on_select, void *user)
     build_main_screen();
     build_notice();
     render_main();
+    render_audio();
     lv_screen_load(s_ui.waiting_screen);
 }
 
@@ -460,6 +570,25 @@ void Ui_ShowError(const char *text)
 void Ui_ShowNotice(UiNotice notice)
 {
     Ui_ShowError((notice == UI_NOTICE_SELECT_FAILED) ? TXT_SELECT_FAILED : TXT_HOST_TIMEOUT);
+}
+
+void Ui_SetAudioHandlers(UiVolumeCallback on_volume, UiMuteCallback on_mute, void *user)
+{
+    s_ui.on_volume = on_volume;
+    s_ui.on_mute = on_mute;
+    s_ui.audio_user = user;
+}
+
+void Ui_SetVolume(uint8_t volume)
+{
+    s_ui.volume = (volume > 100U) ? UI_VOLUME_UNKNOWN : volume;
+    render_audio();
+}
+
+void Ui_SetMuted(uint8_t muted)
+{
+    s_ui.muted = (muted > 1U) ? UI_VOLUME_UNKNOWN : muted;
+    render_audio();
 }
 
 uint32_t Ui_CurrentPage(void)

@@ -76,8 +76,8 @@ Responsible for:
 
 | Module | Hardware dependent | Role |
 |---|---|---|
-| `ui/` | no (LVGL only) | Screens: device buttons (2×2 per page, icon, name, active and pending marks), page arrows, waiting screen, error screen, notices |
-| `link/` | no (C, protocol codec) | Protocol v1 state machine: request the list, assemble it, apply `DEVICE_CHANGED`, send `SELECT_DEVICE`, timeouts |
+| `ui/` | no (LVGL only) | Screens: device buttons (2×2 per page, icon, name, active and pending marks), bottom strip (mute, volume slider, page arrows), waiting screen, error screen, notices |
+| `link/` | no (C, protocol codec) | Protocol v1 state machine: request the list, assemble it, apply `DEVICE_CHANGED`, send `SELECT_DEVICE`, volume and mute (rate limited), timeouts |
 | `App/usb_link.c` | yes | Vendor HID class (ADR-003); the ISR only queues received frames |
 | `App/link_port.c` | yes | Connects USB, `link/` and `ui/` in the UI task |
 | `App/ui_port.c` | yes | LVGL on the LTDC (two SDRAM framebuffers, swap on VBLANK) and the FT5336 |
@@ -107,8 +107,10 @@ main thread pops them and calls `HostController`.
 Four large device buttons per page (2×2), each with an icon and the
 device name; the active device is marked by colour and text, a device
 waiting for the host's confirmation by a pending mark. Arrows switch pages
-when there are more than four devices. Without a host the UI shows a
-waiting screen. UI text is Turkish.
+when there are more than four devices. A strip at the bottom holds the
+mute button, the volume slider with its percentage and, on the right, the
+page arrows. Without a host the UI shows a waiting screen. UI text is
+Turkish.
 
 Screenshots: run `tools/run-ui-simulator.sh`, or download the
 `ui-screenshots` artifact of the UI Simulator CI job. Photos from the LCD
@@ -131,8 +133,6 @@ go to `docs/images/` once the UI has been checked on the board.
 
 ## Future extensions
 
-- Volume and mute on the touchscreen (M6; the protocol and the host
-  already carry them)
 - Favourites, custom ordering and names
 - Start with Windows, tray icon
 - Device groups

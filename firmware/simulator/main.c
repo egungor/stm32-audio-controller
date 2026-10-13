@@ -41,6 +41,15 @@ static struct
     uint8_t last_id;
 } s_select;
 
+static struct
+{
+    int     calls;
+    int     released;
+    uint8_t last;
+    int     mute_calls;
+    bool    mute_wanted;
+} s_audio;
+
 /* ---------------------------------------------------------------- platform */
 
 static uint32_t tick_cb(void)
@@ -85,6 +94,26 @@ static void tap(int32_t x, int32_t y)
     run_ms(100U);
 }
 
+/* Press at (x0, y), move to x1 in 10 px steps, release. */
+static void drag(int32_t x0, int32_t x1, int32_t y)
+{
+    const int32_t step = (x1 > x0) ? 10 : -10;
+
+    s_touch.x = x0;
+    s_touch.y = y;
+    s_touch.pressed = true;
+    run_ms(60U);
+    while ((step > 0) ? (s_touch.x < x1) : (s_touch.x > x1))
+    {
+        s_touch.x += step;
+        run_ms(20U);
+    }
+    s_touch.x = x1;
+    run_ms(60U);
+    s_touch.pressed = false;
+    run_ms(60U);
+}
+
 static void snapshot(const char *name)
 {
     char path[512];
@@ -125,6 +154,21 @@ static void on_select(uint8_t device_id, void *user)
     s_select.last_id = device_id;
 }
 
+static void on_volume(uint8_t volume, bool released, void *user)
+{
+    LV_UNUSED(user);
+    s_audio.calls++;
+    s_audio.released += released ? 1 : 0;
+    s_audio.last = volume;
+}
+
+static void on_mute(bool muted, void *user)
+{
+    LV_UNUSED(user);
+    s_audio.mute_calls++;
+    s_audio.mute_wanted = muted;
+}
+
 /* ---------------------------------------------------------------- script */
 
 static UiDevice device(uint8_t id, uint8_t icon, const char *name)
@@ -155,6 +199,8 @@ static void run_script(void)
 
     Ui_SetDevices(devices, sizeof(devices) / sizeof(devices[0]));
     Ui_SetActive(1U);
+    Ui_SetVolume(45U);
+    Ui_SetMuted(0U);
     run_ms(50U);
     snapshot("02-main");
 
@@ -174,8 +220,8 @@ static void run_script(void)
     tap(120, 85);
     check(s_select.calls == 1, "tap on the active device does not call the callback");
 
-    /* Next page button (right of the page label). */
-    tap(320, 254);
+    /* Next page button (bottom right). */
+    tap(452, 252);
     check(Ui_CurrentPage() == 1U, "next page button shows page 2");
     snapshot("05-page2");
 
@@ -185,9 +231,35 @@ static void run_script(void)
     run_ms(UI_NOTICE_MS + 100U);
     snapshot("07-error-gone");
 
+    /* Drag the volume slider to the right; the host's report while the
+     * finger is down does not move the knob. */
+    drag(140, 230, 252);
+    check(s_audio.calls > 2, "dragging the slider reports several values");
+    check(s_audio.released == 1, "releasing the slider reports once with released");
+    check(s_audio.last > 45U, "the slider moved up");
+    Ui_SetVolume(s_audio.last);
+    run_ms(50U);
+    snapshot("08-volume");
+
+    /* Mute: the tap asks; the host's MUTE_CHANGED changes the icon. */
+    tap(34, 252);
+    check((s_audio.mute_calls == 1) && s_audio.mute_wanted, "mute button asks to mute");
+    Ui_SetMuted(1U);
+    run_ms(50U);
+    snapshot("09-muted");
+
+    /* No default device: volume and mute unknown, controls disabled. */
+    Ui_SetActive(UI_NO_DEVICE);
+    Ui_SetVolume(UI_VOLUME_UNKNOWN);
+    Ui_SetMuted(UI_VOLUME_UNKNOWN);
+    run_ms(50U);
+    tap(34, 252);
+    check(s_audio.mute_calls == 1, "disabled mute button does nothing");
+    snapshot("10-no-volume");
+
     Ui_SetDevices(NULL, 0U);
     run_ms(50U);
-    snapshot("08-empty");
+    snapshot("11-empty");
 }
 
 int main(int argc, char **argv)
@@ -216,6 +288,7 @@ int main(int argc, char **argv)
     lv_indev_set_read_cb(indev, touch_read_cb);
 
     Ui_Init(on_select, NULL);
+    Ui_SetAudioHandlers(on_volume, on_mute, NULL);
     run_ms(50U);
     run_script();
 

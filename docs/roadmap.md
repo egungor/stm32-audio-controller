@@ -87,12 +87,12 @@ Windows PC (`host/README.md`, "Manual check with the board").
 
 ## M6 — Audio Controls
 
-Status: **NOT STARTED** on the STM32 side
+Status: **CODE DONE** — REQUIRES HARDWARE + WINDOWS
 
-- [ ] Volume read/write — host side done: `SET_VOLUME`, `VOLUME_CHANGED` (#26, #28); STM32 ignores them for now
-- [ ] Mute — host side done: `SET_MUTE`, `MUTE_CHANGED` (#26, #28)
-- [ ] Volume UI
-- [ ] Mute UI
+- [ ] Volume read/write — host (#26, #28), STM32 protocol client with rate limiting (#40); REQUIRES HARDWARE + WINDOWS
+- [ ] Mute — host (#26, #28), STM32 (#40); REQUIRES HARDWARE + WINDOWS
+- [ ] Volume UI — bottom strip slider and percentage (#40), simulator; on the LCD REQUIRES HARDWARE
+- [ ] Mute UI — bottom strip button (#40), simulator; on the LCD REQUIRES HARDWARE
 
 ## M7 — Polish
 

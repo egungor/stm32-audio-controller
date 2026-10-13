@@ -19,6 +19,14 @@ What it does:
   request the list again);
 - shows a notice when the host answers the selection with `ERROR`, and
   re-requests the list after `UNKNOWN_DEVICE`;
+- shows `VOLUME_CHANGED` / `MUTE_CHANGED`; after `DEVICE_CHANGED` "none"
+  volume and mute are unknown (controls disabled) until reported again;
+- `Link_SetVolume`: `SET_VOLUME` at most every 100 ms with the latest
+  value, the last value always sent; host reports are not shown during a
+  local change and for 300 ms after the last `SET_VOLUME`, then the
+  host's value is shown (no knob jumping back while dragging);
+- `Link_SetMute`: sends `SET_MUTE`; the mute state shown changes only
+  with `MUTE_CHANGED`;
 - answers invalid frames with `ERROR`, never an `ERROR` frame.
 
 Tests (Linux, any C compiler). The client is also run against the real

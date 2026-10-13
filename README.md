@@ -25,7 +25,8 @@ and Windows tests", and [`docs/roadmap.md`](docs/roadmap.md)).
 | Protocol v1 (64-byte frames, CRC-16) | Codec tests in CI (Linux, Windows) |
 | Windows host: Core Audio, default device switching, HID transport | Builds and unit tests in CI; REQUIRES WINDOWS |
 | Firmware ↔ host together | Loopback integration test in CI; end to end REQUIRES HARDWARE + WINDOWS |
-| Volume / mute UI (M6), polish (M7) | Not started |
+| Volume and mute on the touchscreen (M6) | Simulator and tests in CI; REQUIRES HARDWARE + WINDOWS |
+| Polish (M7) | Not started |
 
 ## Architecture
 
@@ -61,12 +62,11 @@ Done in code (verification status above):
   and Turkish text;
 - select a device on the touchscreen → Windows default playback device;
 - Windows changes (default, devices added or removed) shown on the board;
-- USB unplug/replug and host program restart handled on both sides.
+- USB unplug/replug and host program restart handled on both sides;
+- volume slider and mute button on the touchscreen, following Windows.
 
 Planned:
 
-- volume and mute on the touchscreen (M6; the protocol and host already
-  carry them);
 - friendly names, favourites, custom ordering, start with Windows, tray
   icon (M7).
 

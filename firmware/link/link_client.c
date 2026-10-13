@@ -41,12 +41,58 @@ static void send_error(LinkClient *link, ProtoErrorCode code, uint8_t ref_comman
     (void)send(link, &msg);
 }
 
+static void show_volume(LinkClient *link, uint8_t volume)
+{
+    link->shown_volume = volume;
+    link->cb.set_volume(volume, link->cb.ctx);
+}
+
+/* Volume and mute unknown until the host reports them (again). */
+static void forget_volume(LinkClient *link)
+{
+    link->host_volume = LINK_VOLUME_UNKNOWN;
+    link->host_muted = LINK_VOLUME_UNKNOWN;
+    link->volume_local = false;
+    link->volume_dirty = false;
+    show_volume(link, LINK_VOLUME_UNKNOWN);
+    link->cb.set_muted(LINK_VOLUME_UNKNOWN, link->cb.ctx);
+}
+
+static void send_volume(LinkClient *link, uint32_t now_ms)
+{
+    ProtoMessage msg;
+
+    memset(&msg, 0, sizeof(msg));
+    msg.command = PROTO_CMD_SET_VOLUME;
+    msg.u.volume = link->wanted_volume;
+    (void)send(link, &msg);
+    link->volume_dirty = false;
+    link->volume_ever_sent = true;
+    link->volume_sent_ms = now_ms;
+}
+
+static void on_volume_changed(LinkClient *link, uint8_t volume)
+{
+    link->host_volume = volume;
+    if (!link->volume_local)
+    {
+        show_volume(link, volume);
+    }
+}
+
+static void on_mute_changed(LinkClient *link, uint8_t muted)
+{
+    link->host_muted = muted;
+    link->cb.set_muted(muted, link->cb.ctx);
+}
+
 static void start_requesting(LinkClient *link, uint32_t now_ms)
 {
     link->state = LINK_STATE_REQUESTING;
     link->assembling = false;
     link->pending = PROTO_NO_DEVICE;
     link->cb.show_waiting(link->cb.ctx);
+    forget_volume(link);
     send_get_list(link, now_ms);
 }
 
@@ -117,6 +163,10 @@ static void on_device_changed(LinkClient *link, uint8_t device_id)
     {
         link->cb.set_active(device_id, link->cb.ctx);
     }
+    if (device_id == PROTO_NO_DEVICE)
+    {
+        forget_volume(link);  /* nothing to control */
+    }
 }
 
 static void on_error(LinkClient *link, const ProtoError *err)
@@ -138,6 +188,9 @@ void Link_Init(LinkClient *link, const LinkCallbacks *callbacks)
     link->state = LINK_STATE_DISCONNECTED;
     link->active = PROTO_NO_DEVICE;
     link->pending = PROTO_NO_DEVICE;
+    link->host_volume = LINK_VOLUME_UNKNOWN;
+    link->host_muted = LINK_VOLUME_UNKNOWN;
+    link->shown_volume = LINK_VOLUME_UNKNOWN;
 }
 
 void Link_OnConnected(LinkClient *link, uint32_t now_ms)
@@ -152,6 +205,7 @@ void Link_OnDisconnected(LinkClient *link)
     link->assembling = false;
     link->pending = PROTO_NO_DEVICE;
     link->cb.show_waiting(link->cb.ctx);
+    forget_volume(link);
 }
 
 void Link_OnFrame(LinkClient *link, const uint8_t frame[PROTO_FRAME_SIZE], uint32_t now_ms)
@@ -194,8 +248,11 @@ void Link_OnFrame(LinkClient *link, const uint8_t frame[PROTO_FRAME_SIZE], uint3
         }
         break;
     case PROTO_CMD_VOLUME_CHANGED:
+        on_volume_changed(link, msg.u.volume);
+        break;
     case PROTO_CMD_MUTE_CHANGED:
-        break;  /* volume UI is M6 */
+        on_mute_changed(link, msg.u.muted);
+        break;
     default:
         break;  /* STM32 -> host commands coming the wrong way: drop */
     }
@@ -215,6 +272,21 @@ void Link_Poll(LinkClient *link, uint32_t now_ms)
     if ((link->state == LINK_STATE_REQUESTING) && ((now_ms - link->last_request_ms) >= LINK_RETRY_MS))
     {
         send_get_list(link, now_ms);
+    }
+    if ((link->state == LINK_STATE_READY) && link->volume_dirty &&
+        ((now_ms - link->volume_sent_ms) >= LINK_VOLUME_INTERVAL_MS))
+    {
+        send_volume(link, now_ms);
+    }
+    if (link->volume_local && !link->volume_dirty &&
+        ((now_ms - link->volume_sent_ms) >= LINK_VOLUME_SETTLE_MS))
+    {
+        /* Local change over: show what the host reports. */
+        link->volume_local = false;
+        if (link->host_volume != link->shown_volume)
+        {
+            show_volume(link, link->host_volume);
+        }
     }
     if ((link->state == LINK_STATE_READY) && (link->pending != PROTO_NO_DEVICE) &&
         ((now_ms - link->pending_since_ms) >= LINK_RESPONSE_TIMEOUT_MS))
@@ -242,4 +314,37 @@ void Link_Select(LinkClient *link, uint8_t device_id, uint32_t now_ms)
         link->pending_since_ms = now_ms;
         link->cb.set_pending(device_id, link->cb.ctx);
     }
+}
+
+void Link_SetVolume(LinkClient *link, uint8_t volume, uint32_t now_ms)
+{
+    if ((link->state != LINK_STATE_READY) || (link->host_volume == LINK_VOLUME_UNKNOWN))
+    {
+        return;
+    }
+    link->wanted_volume = (volume > 100U) ? 100U : volume;
+    link->shown_volume = link->wanted_volume;  /* the slider already shows it */
+    link->volume_local = true;
+    if (!link->volume_ever_sent || ((now_ms - link->volume_sent_ms) >= LINK_VOLUME_INTERVAL_MS))
+    {
+        send_volume(link, now_ms);
+    }
+    else
+    {
+        link->volume_dirty = true;  /* Link_Poll sends the latest value */
+    }
+}
+
+void Link_SetMute(LinkClient *link, bool muted)
+{
+    ProtoMessage msg;
+
+    if ((link->state != LINK_STATE_READY) || (link->host_muted == LINK_VOLUME_UNKNOWN))
+    {
+        return;
+    }
+    memset(&msg, 0, sizeof(msg));
+    msg.command = PROTO_CMD_SET_MUTE;
+    msg.u.muted = muted ? 1U : 0U;
+    (void)send(link, &msg);
 }

@@ -18,8 +18,9 @@ CONV=(npx --yes lv_font_conv@1.5.3)
 
 # Basic Latin, Latin-1 Supplement, Latin Extended-A (covers Turkish).
 TEXT_RANGE="0x20-0x7E,0xA0-0x17F"
-# check, warning, chevron-left, chevron-right, plug, hourglass
-TEXT_SYMBOLS="0xF00C,0xF071,0xF053,0xF054,0xF1E6,0xF254"
+# check, warning, chevron-left, chevron-right, plug, hourglass, volume-up,
+# volume-mute
+TEXT_SYMBOLS="0xF00C,0xF071,0xF053,0xF054,0xF1E6,0xF254,0xF028,0xF6A9"
 # music (generic), volume-up (speakers), headphones, headset, desktop
 # (display), usb (digital output), plug, hourglass, warning
 ICON_SYMBOLS="0xF001,0xF028,0xF025,0xF590,0xF108,0xF287,0xF1E6,0xF254,0xF071"

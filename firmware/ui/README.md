@@ -9,11 +9,18 @@ firmware (`App/Src/ui_port.c`, `App/Src/ui_demo.c`) and into the Linux simulator
 - Depends only on LVGL (`lvgl.h`). No HAL, CMSIS, FreeRTOS, USB,
   protocol framing or Windows concepts.
 - Input: the state reported by the host, through `Ui_SetDevices`,
-  `Ui_SetActive`, `Ui_ShowWaiting`, `Ui_ShowError`.
+  `Ui_SetActive`, `Ui_SetVolume`, `Ui_SetMuted`, `Ui_ShowWaiting`,
+  `Ui_ShowError`.
 - Output: the `UiSelectCallback` when the user taps a device. The caller
   sends `SELECT_DEVICE` and calls `Ui_SetPending`; the button turns
   active only when the host confirms with `DEVICE_CHANGED`
   (`protocol/protocol.md`, "Exchanges").
+- Volume and mute (bottom strip; handlers set with `Ui_SetAudioHandlers`):
+  `UiVolumeCallback` while the slider is dragged and once on release;
+  `UiMuteCallback` with the state wanted. The UI does not change the mute
+  icon itself; it shows what `Ui_SetMuted` reports. `UI_VOLUME_UNKNOWN`
+  disables the controls. Rate limiting is the caller's job
+  (`firmware/link`).
 - `UiDevice` mirrors the protocol's device entry (id, icon, UTF-8 name of
   up to 48 bytes); `UiIcon` values equal `ProtoIcon`.
 - Memory: the device list is a fixed array of 32 entries; LVGL objects are
