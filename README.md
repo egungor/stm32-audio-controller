@@ -106,6 +106,10 @@ stm32-audio-controller/
 
 After cloning, run `git submodule update --init` (LVGL).
 
+An overview for readers is in the
+[wiki](https://github.com/egungor/stm32-audio-controller/wiki); its pages
+are kept in [`docs/wiki/`](docs/wiki/README.md).
+
 ## Development model
 
 This repository uses **Claude Code** as the AI development environment.
