@@ -1,0 +1,85 @@
+# Getting Started
+
+## What you need
+
+- STM32F746G-DISCO board (MB1191) and two USB cables: one to the
+  **ST-LINK** connector (power, flashing, log) and one to the **USB OTG
+  FS** micro-USB connector (the link to the PC).
+- A Windows PC for flashing, the log and the host program.
+- For the firmware: the ST toolchain installed through *STM32Cube for VS
+  Code* (versions in [toolchain.md](https://github.com/egungor/stm32-audio-controller/blob/main/docs/toolchain.md)).
+- For the host program: Visual Studio 2022 or newer with the C++ desktop
+  workload, and CMake.
+
+## 1. Clone
+
+```text
+git clone https://github.com/egungor/stm32-audio-controller
+cd stm32-audio-controller
+git submodule update --init      # LVGL; without it the firmware build stops
+```
+
+## 2. Build the firmware (Windows, PowerShell)
+
+The STM32Cube bundles are not on the PATH, and an older system CMake may
+be. Put the bundles first for the session:
+
+```powershell
+$b = "$env:LOCALAPPDATA\stm32cube\bundles"
+$env:PATH = "$b\cmake\4.4.0+st.1\bin;$b\ninja\1.13.2+st.1\bin;" +
+            "$b\gnu-tools-for-stm32\14.3.1+st.2\bin;$b\programmer\2.23.0\bin;$env:PATH"
+cd firmware\STM32AudioController
+cmake --preset Debug
+cmake --build --preset Debug
+```
+
+Build options (add to the configure command, e.g.
+`cmake --preset Debug -DAPP_TEST_SCREEN=ON`):
+
+| Option | Effect |
+|---|---|
+| default | The UI, fed by the PC over USB |
+| `-DAPP_TEST_SCREEN=ON` | M1 test pattern and five touch targets (touch check) |
+| `-DAPP_UI_DEMO=ON` | The UI with a fixed demo device list, no PC needed |
+
+On Linux, `tools/build-firmware-linux.sh [Debug|Release]` builds the same
+project (secondary build, used by CI).
+
+## 3. Flash and read the log
+
+```powershell
+STM32_Programmer_CLI -c port=SWD -w build/Debug/STM32AudioController.elf -v -rst
+powershell -ExecutionPolicy Bypass -File ..\..\tools\read-vcp.ps1 `
+    -Port COM4 -Reset -Until '^(APP READY|.*FAIL)'
+```
+
+`COM4` is the ST-LINK virtual COM port on the developer PC; check yours
+with `Get-CimInstance Win32_SerialPort`. The log lines are listed in
+[Firmware](Firmware#log-lines).
+
+## 4. Build and run the host program
+
+```text
+cmake -S host -B build/host
+cmake --build build/host --config Release
+ctest --test-dir build/host --build-config Release --output-on-failure
+```
+
+With the Visual Studio generator the program is
+`build\host\Release\stm32-audio-host.exe`.
+
+```text
+stm32-audio-host list          # playback devices, * = default
+stm32-audio-host run           # serve the board over USB HID (Ctrl+C stops)
+```
+
+All commands: [Host Application](Host-Application).
+
+## 5. Try the UI without a board
+
+```text
+tools/run-ui-simulator.sh      # Linux; writes PNG screenshots to build/ui-sim
+```
+
+The *UI Simulator and Link CI* job also uploads them as the
+`ui-screenshots` artifact.
