@@ -31,6 +31,7 @@ Timing, applied by the STM32:
 |---|---|
 | `GET_DEVICE_LIST` repeated until a complete list has arrived | every 1000 ms |
 | No `DEVICE_CHANGED` or `ERROR` after `SELECT_DEVICE` | 2000 ms → host not responding: notice, waiting screen, request the list again |
+| A new list stays incomplete (a frame was lost) while an older list is shown | 1000 ms after its last entry → `GET_DEVICE_LIST` again; the older list stays on screen |
 
 The host does not time out; it answers requests and reports changes.
 These values do not change the frame format, so they are not a protocol

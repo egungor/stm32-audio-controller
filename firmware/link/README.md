@@ -10,7 +10,9 @@ What it does:
 - after USB is configured, sends `GET_DEVICE_LIST` and repeats it every
   1 s until a complete list has arrived;
 - assembles `DEVICE_LIST` frames by `generation` and `position` and shows
-  the list only when complete;
+  the list only when complete; a new list that stays incomplete for 1 s
+  after its last entry (a frame was lost) is requested again, and the
+  older list stays on screen meanwhile;
 - applies `DEVICE_CHANGED` (the default flag in the list until then);
 - sends `SELECT_DEVICE` and marks the device as pending; without an answer
   in 2 s the host counts as not responding (notice, waiting screen,
@@ -19,7 +21,8 @@ What it does:
   re-requests the list after `UNKNOWN_DEVICE`;
 - answers invalid frames with `ERROR`, never an `ERROR` frame.
 
-Tests (Linux, any C compiler):
+Tests (Linux, any C compiler). The client is also run against the real
+host controller in `tests/integration`.
 
 ```text
 cmake -S firmware/link -B build/link

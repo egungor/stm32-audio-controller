@@ -208,6 +208,51 @@ static void test_generation_change_restarts_assembly(void)
     CHECK(g.devices[0].id == 20 && g.devices[1].id == 21);
 }
 
+static void test_incomplete_list_is_requested_again(void)
+{
+    LinkClient link;
+    ProtoMessage e;
+    reset(&link);
+
+    /* While requesting: entry 1 of 3 is lost. The regular retry asks
+     * again, once. */
+    Link_OnConnected(&link, 0);
+    e = device_entry(1, 3, 0, 10, "A", false);
+    deliver(&link, &e, 10);
+    e = device_entry(1, 3, 2, 12, "C", false);
+    deliver(&link, &e, 20);
+    CHECK(g.devices_calls == 0);
+    Link_Poll(&link, LINK_RETRY_MS);
+    CHECK(g.sent_count == 2 && last_sent()->command == PROTO_CMD_GET_DEVICE_LIST);
+    Link_Poll(&link, 20 + LINK_RETRY_MS);
+    CHECK(g.sent_count == 2);
+
+    /* The repeated list completes it. */
+    for (uint8_t i = 0U; i < 3U; i++)
+    {
+        static const char *const names[] = {"A", "B", "C"};
+        e = device_entry(1, 3, i, (uint8_t)(10U + i), names[i], i == 1U);
+        deliver(&link, &e, 1100);
+    }
+    CHECK(g.devices_calls == 1 && g.device_count == 3);
+    CHECK(link.state == LINK_STATE_READY);
+
+    /* While ready: a new generation stops half way. The old list stays on
+     * screen, the list is requested again. */
+    e = device_entry(2, 4, 0, 10, "A", false);
+    deliver(&link, &e, 2000);
+    Link_Poll(&link, 2000 + LINK_RETRY_MS - 1);
+    CHECK(g.sent_count == 2);
+    Link_Poll(&link, 2000 + LINK_RETRY_MS);
+    CHECK(g.sent_count == 3 && last_sent()->command == PROTO_CMD_GET_DEVICE_LIST);
+    CHECK(link.state == LINK_STATE_READY);
+    CHECK(g.devices_calls == 1 && g.waiting_calls == 1);
+
+    /* Complete lists never trigger it. */
+    Link_Poll(&link, 10U * LINK_RETRY_MS);
+    CHECK(g.sent_count == 3);
+}
+
 static void test_empty_list_and_full_list(void)
 {
     LinkClient link;
@@ -389,6 +434,7 @@ int main(void)
     test_connect_requests_list();
     test_list_assembly();
     test_generation_change_restarts_assembly();
+    test_incomplete_list_is_requested_again();
     test_empty_list_and_full_list();
     test_device_changed();
     test_select_confirmed();
