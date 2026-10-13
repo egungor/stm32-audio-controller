@@ -10,6 +10,9 @@
  *   - 16x16 red marker in the top-left corner, 16x16 blue marker in the
  *     bottom-right corner (orientation check).
  *
+ * The touch helpers below draw over the pattern after it has been checked;
+ * the pattern `sum` only covers LcdTest_DrawPattern().
+ *
  * The expected image is reproduced by tools/fb2png.py --expected.
  */
 #ifndef LCD_TEST_H
@@ -35,6 +38,28 @@ typedef struct
  * The framebuffer must be in initialized SDRAM. Task context only.
  */
 void LcdTest_DrawPattern(LcdTestInfo *info);
+
+/** Number of touch targets drawn by LcdTest_DrawTouchTargets(). */
+#define LCD_TEST_TOUCH_TARGETS 5U
+
+/**
+ * @brief  Centre of touch target @p index (0 .. LCD_TEST_TOUCH_TARGETS-1):
+ *         top-left, top-right, bottom-left, bottom-right (20 px from the
+ *         edges), then the screen centre.
+ */
+void LcdTest_TouchTarget(uint32_t index, uint16_t *x, uint16_t *y);
+
+/**
+ * @brief  Draw the touch targets (white cross with a black centre line)
+ *         over the test pattern. Call after LcdTest_DrawPattern().
+ */
+void LcdTest_DrawTouchTargets(void);
+
+/**
+ * @brief  Mark a touch position: 3x3 black square inside a 5x5 white one,
+ *         clipped to the screen.
+ */
+void LcdTest_DrawTouchDot(uint16_t x, uint16_t y);
 
 #ifdef __cplusplus
 }
