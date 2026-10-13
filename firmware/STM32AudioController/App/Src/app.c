@@ -4,14 +4,40 @@
  */
 #include "app.h"
 
+#include "clock_check.h"
 #include "cmsis_os.h"
 #include "lcd_test.h"
 #include "log.h"
 #include "ltdc.h"
 #include "sdram.h"
 
-/* M1 bring-up: SDRAM, then the LCD test pattern. Log lines are documented
- * in docs/firmware-log.md. */
+/* Report the configured clock tree, then measure it against the LSE. A
+ * failure is logged but does not stop the bring-up. */
+static void clock_check(void)
+{
+    ClockCheckResult clk;
+
+    Log_Line("CLOCK CONFIG OK sysclk=%lu hclk=%lu pclk1=%lu pclk2=%lu",
+             (unsigned long)HAL_RCC_GetSysClockFreq(), (unsigned long)HAL_RCC_GetHCLKFreq(),
+             (unsigned long)HAL_RCC_GetPCLK1Freq(), (unsigned long)HAL_RCC_GetPCLK2Freq());
+
+    ClockCheck_Measure(&clk);
+    if (clk.passed)
+    {
+        Log_Line("CLOCK MEASURE PASS ref=LSE tim=%lu exp=%lu ppm=%ld",
+                 (unsigned long)clk.measured_hz, (unsigned long)clk.expected_hz,
+                 (long)clk.error_ppm);
+    }
+    else
+    {
+        Log_Line("CLOCK MEASURE FAIL reason=%s ref=LSE tim=%lu exp=%lu ppm=%ld",
+                 clk.fail_reason, (unsigned long)clk.measured_hz,
+                 (unsigned long)clk.expected_hz, (long)clk.error_ppm);
+    }
+}
+
+/* M1 bring-up: clock check, SDRAM, then the LCD test pattern. Log lines
+ * are documented in docs/firmware-log.md. */
 static void bringup(void)
 {
     SdramTestResult test;
@@ -19,6 +45,7 @@ static void bringup(void)
     uint32_t t0;
 
     Log_Line("BOOT OK sysclk=%lu", (unsigned long)HAL_RCC_GetSysClockFreq());
+    clock_check();
 
     /* MX_LTDC_Init() starts LTDC fetches from the SDRAM framebuffer. The FMC
      * interleaves those reads with the SDRAM init commands, and a LOAD MODE
