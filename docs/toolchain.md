@@ -193,7 +193,10 @@ from the Windows preset build directories.
 
 ## 5. Firmware flashing flow
 
-**Planned, not yet performed.**
+**First performed 2026-10-13** from STM32Cube for VS Code (debug launch
+`STM32F746G-DISCO: Debug`, `stlinkgdbtarget`), with
+`firmware/STM32AudioController` opened as the VS Code folder. A
+standalone `STM32_Programmer_CLI` command line is still to be recorded.
 
 - Flashing requires the **physical STM32F746G-DISCO connected by USB to
   the Windows development host** (ST-LINK/V2-1 USB connector).
@@ -204,7 +207,9 @@ from the Windows preset build directories.
 
 ## 6. Debugging flow
 
-**Planned, not yet performed.**
+**First performed 2026-10-13** with the STM32Cube for VS Code debug
+launch (ST-LINK GDB server bundle). Breakpoints, halting at `main` and
+fault-handler inspection work.
 
 - Requires the physical board connected to the Windows host.
 - Expected tools: ST-LINK GDB server with GNU GDB for STM32, driven from
