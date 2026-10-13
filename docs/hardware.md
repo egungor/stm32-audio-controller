@@ -109,7 +109,7 @@ Windows ST toolchain (CMake 4.4.0+st.1), flashed with
 | SDRAM JEDEC init | VERIFIED — `SDRAM INIT OK`; FMC registers read over SWD: SDCR1 `0x19D4`, SDTR1 `0x01126361`, SDRTR `0x0C0C`, last SDCMR = LOAD MODE `0x230` |
 | SDRAM self-test (data bus, address bus, full 8 MB, two patterns) | VERIFIED — `SELFTEST SDRAM PASS size=8388608 ms=1492`, 5 consecutive software resets |
 | Test pattern in framebuffer | VERIFIED — framebuffer dumped over SWD, converted to PNG, pixel-exact match with the expected pattern; pixel sum `0x010493A2` matches the log |
-| Pattern visible on the panel (colours, orientation, stability) | REQUIRES HARDWARE — developer visual check pending |
+| Pattern visible on the panel (colours, orientation, stability) | VERIFIED — developer visual check on the physical panel |
 | Boot after a power cycle (SDRAM from cold) | NOT TESTED — all runs used a software reset via ST-LINK |
 | Long-run SDRAM retention / temperature | NOT TESTED |
 

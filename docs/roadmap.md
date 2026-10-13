@@ -19,9 +19,9 @@ Status: **IN PROGRESS**
 - [x] Create STM32CubeMX project (CMake, `firmware/STM32AudioController/`)
 - [x] Review enabled peripherals — `docs/decisions/ADR-001-firmware-peripheral-set.md`
 - [ ] Verify clocks (SYSCLK currently configured at 200 MHz)
-- [ ] Initialize LCD
+- [x] Initialize LCD — SDRAM framebuffer + LTDC, issue #7
 - [ ] Initialize touch
-- [ ] Display a static test screen
+- [x] Display a static test screen — M1 test pattern, verified on the panel 2026-10-13
 - [ ] Verify touch coordinates
 - [ ] Document hardware pin/peripheral mapping
 
