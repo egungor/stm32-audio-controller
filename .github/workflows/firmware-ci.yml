@@ -7,11 +7,13 @@ on:
       - 'firmware/**'
       - 'tools/build-firmware-linux.sh'
       - '.github/workflows/firmware-ci.yml'
+      - '.gitmodules'
   pull_request:
     paths:
       - 'firmware/**'
       - 'tools/build-firmware-linux.sh'
       - '.github/workflows/firmware-ci.yml'
+      - '.gitmodules'
 
 # Toolchain versions follow docs/toolchain.md ("Linux build (secondary)").
 env:
@@ -33,6 +35,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          submodules: true
 
       - name: Cache toolchain archives
         id: cache
