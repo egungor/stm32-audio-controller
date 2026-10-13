@@ -268,7 +268,7 @@ order. Only one program can hold the COM port at a time.
 
 Reads the LTDC layer 0 framebuffer (480 × 272 × 2 B = `0x3FC00` bytes at
 `0xC0000000`) over SWD without halting the core, converts it to PNG and
-compares it with the expected M1 pattern. The pattern is only drawn by a
+compares it with the expected M1 test screen. The pattern is only drawn by a
 firmware built with `-DAPP_TEST_SCREEN=ON` (the default build shows the
 UI; its framebuffers can be dumped the same way, without `--expected`):
 
@@ -277,7 +277,19 @@ STM32_Programmer_CLI -c port=SWD mode=HOTPLUG -u 0xC0000000 0x3FC00 $env:TEMP\fb
 python ..\..\tools\fb2png.py $env:TEMP\fb.bin $env:TEMP\fb.png --expected
 ```
 
-The printed `sum=` must equal `sum=` in the `LCD PATTERN DRAWN` log line.
+`--expected` regenerates the test pattern plus the five touch-target
+crosshairs that the firmware draws on top once touch init succeeded (the
+`TOUCH TARGET` log lines) and prints `COMPARE PASS` or the mismatch count.
+If touch init failed (no `TOUCH TARGET` lines), add `--no-targets` to
+compare against the bare pattern. Dump before touching the screen: each
+touch draws a dot that shows up as mismatches.
+
+Two sums are printed. `PATTERN sum=` is the sum of the regenerated bare
+pattern and must equal `sum=` in the `LCD PATTERN DRAWN` log line, because
+the firmware takes that sum before it draws the targets
+(`0x010493A2` at 480 × 272). `PNG … sum=` is the sum of the dump itself; it
+equals the log value only when no targets or touch dots were drawn.
+
 `STM32_Programmer_CLI -r32 <addr> <size>` prints SDRAM words directly,
 which is useful when the SDRAM self-test fails. Note: `-w32` to SDRAM
 accepts only **one** word per option.
