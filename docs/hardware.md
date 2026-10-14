@@ -204,6 +204,7 @@ Observations, not failures:
   suspending the idle HID device. Plugging in logs one or two
   DISCONNECTED/CONFIGURED pairs before the list (bus resets during
   enumeration).
+  Fixed by #52, see the next entry.
 - **Long device names are cut** with "…" on the cards (two lines), and
   the protocol cuts "Kulaklık İşitme Bölümü (G435 Wireless Gaming
   Headset)" to "… (G435 Wireless Gami".
@@ -211,6 +212,31 @@ Observations, not failures:
   `CHECK(kReportBytes == 65)` raises C4127 (conditional expression is
   constant), which `/WX` turns into an error. `stm32-audio-host.exe`
   itself builds without warnings, and Host CI (newer MSVC) is green.
+
+### 2026-10-14 — USB state after unplugging the OTG FS cable (issue #52)
+
+Firmware `0bc52bf` (branch `fix/52-usb-configured-after-unplug`),
+Windows ST build (0 warnings), host `stm32-audio-host run` from main. The
+developer unplugged and replugged the OTG FS cable; log on COM4.
+
+Cause of the #48 observation: the OTG FS core runs without VBUS
+sensing, because PA9 is USART1_TX on this board. So the core never
+reports a disconnect, and an unplug is only a USB suspend; the stack
+keeps CONFIGURED as the state to resume to. About 100 ms later a wake-up
+interrupt from the floating lines restored CONFIGURED with no host
+attached. The fix watches VBUS on PJ12 (`OTG_FS_VBUS`, read high with
+the cable in and low without it) and resets the device stack when it
+drops. It also counts the device as configured only while SOFs arrive,
+because the spurious resume comes before VBUS has fallen.
+
+| Check | Result |
+|---|---|
+| Intermediate build `ec980b4` (VBUS check only), two unplugs | NOT ENOUGH — each unplug logged `USB DISCONNECTED`, `USB RESUMED`, `USB VBUS OFF`, `USB DISCONNECTED`: the spurious resume still arrives before VBUS falls (end state correct, no `USB CONFIGURED`) |
+| Unplug, `0bc52bf`, twice | VERIFIED — only `USB DISCONNECTED` then `USB VBUS OFF`; no `USB RESUMED` or `USB CONFIGURED` with the cable out |
+| Replug, `0bc52bf`, twice | VERIFIED — `USB VBUS ON`, `USB CONFIGURED`, `LINK LIST OK n=9 gen=1`, `LINK ACTIVE id=0`; the list is back on the LCD |
+| Boot with the cable plugged in | VERIFIED — `USB VBUS ON`, `USB CONFIGURED`, `LINK LIST OK n=9` |
+| Host program closed, then started again | VERIFIED — closing logs `USB DISCONNECTED` then `USB RESUMED` (Windows suspends the idle device and wakes it again, with SOFs); the restarted host gets the list (`Controller connected`, `LINK LIST OK n=9`) with no new `USB CONFIGURED`, because the device stayed configured |
+| Replug enumeration: DISCONNECTED/CONFIGURED pairs seen in #48 | Not seen in these two replugs (one `USB CONFIGURED` each) |
 
 ## Firmware peripherals in use
 
