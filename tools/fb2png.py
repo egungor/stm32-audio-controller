@@ -6,9 +6,13 @@ Typical use, after the firmware logged ``LCD PATTERN DRAWN``:
     STM32_Programmer_CLI -c port=SWD mode=HOTPLUG -u 0xC0000000 0x3FC00 fb.bin
     python tools/fb2png.py fb.bin fb.png --expected
 
-``--expected`` regenerates the M1 test pattern (App/Src/lcd_test.c) and
-compares it pixel by pixel with the dump. The script also prints the
-32-bit pixel sum, which must match ``sum=`` in the firmware log line.
+``--expected`` regenerates the M1 test screen (App/Src/lcd_test.c): the
+test pattern plus the five touch-target crosshairs that the firmware draws
+on top when touch init succeeded (``TOUCH TARGET`` log lines). It compares
+that pixel by pixel with the dump and prints the 32-bit sum of the bare
+pattern, which must match ``sum=`` in the ``LCD PATTERN DRAWN`` log line
+(the firmware takes it before drawing the targets). ``--no-targets``
+compares against the bare pattern, for a run where touch init failed.
 """
 
 import argparse
@@ -46,6 +50,35 @@ def expected_pattern(w, h):
     return px
 
 
+TARGET_INSET = 20
+TARGET_ARM = 10
+TARGET_COUNT = 5
+
+
+def touch_target(i, w, h):
+    """Mirror of LcdTest_TouchTarget() in App/Src/lcd_test.c."""
+    right, bottom = w - 1 - TARGET_INSET, h - 1 - TARGET_INSET
+    corners = [(TARGET_INSET, TARGET_INSET), (right, TARGET_INSET),
+               (TARGET_INSET, bottom), (right, bottom)]
+    return corners[i] if i < len(corners) else (w // 2, h // 2)
+
+
+def draw_touch_targets(px, w, h):
+    """Mirror of LcdTest_DrawTouchTargets() in App/Src/lcd_test.c."""
+    def fill(x0, y0, x1, y1, color):
+        for y in range(max(y0, 0), min(y1, h - 1) + 1):
+            for x in range(max(x0, 0), min(x1, w - 1) + 1):
+                px[y * w + x] = color
+
+    white, black, arm = rgb565(255, 255, 255), rgb565(0, 0, 0), TARGET_ARM
+    for i in range(TARGET_COUNT):
+        cx, cy = touch_target(i, w, h)
+        fill(cx - arm, cy - 1, cx + arm, cy + 1, white)
+        fill(cx - 1, cy - arm, cx + 1, cy + arm, white)
+        fill(cx - arm, cy, cx + arm, cy, black)
+        fill(cx, cy - arm, cx, cy + arm, black)
+
+
 def write_png(path, pixels, w, h):
     raw = bytearray()
     for y in range(h):
@@ -74,7 +107,10 @@ def main():
     ap.add_argument('--width', type=int, default=480)
     ap.add_argument('--height', type=int, default=272)
     ap.add_argument('--expected', action='store_true',
-                    help='compare against the M1 test pattern')
+                    help='compare against the M1 test screen (pattern + touch targets)')
+    ap.add_argument('--no-targets', action='store_true',
+                    help='with --expected: compare against the bare pattern '
+                         '(touch init failed, no TOUCH TARGET log lines)')
     args = ap.parse_args()
 
     w, h = args.width, args.height
@@ -89,6 +125,9 @@ def main():
 
     if args.expected:
         exp = expected_pattern(w, h)
+        print(f'PATTERN sum=0x{sum(exp) & 0xFFFFFFFF:08X} (= LCD PATTERN DRAWN sum=)')
+        if not args.no_targets:
+            draw_touch_targets(exp, w, h)
         bad = [i for i in range(w * h) if pixels[i] != exp[i]]
         if bad:
             i = bad[0]
