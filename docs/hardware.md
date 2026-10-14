@@ -204,6 +204,7 @@ Observations, not failures:
   suspending the idle HID device. Plugging in logs one or two
   DISCONNECTED/CONFIGURED pairs before the list (bus resets during
   enumeration).
+  Fixed by #52, see the next entry.
 - **Long device names are cut** with "…" on the cards (two lines), and
   the protocol cuts "Kulaklık İşitme Bölümü (G435 Wireless Gaming
   Headset)" to "… (G435 Wireless Gami".
@@ -212,26 +213,30 @@ Observations, not failures:
   constant), which `/WX` turns into an error. `stm32-audio-host.exe`
   itself builds without warnings, and Host CI (newer MSVC) is green.
 
-### 2026-10-14 — 180° frame copy speed (issue #51)
+### 2026-10-14 — USB state after unplugging the OTG FS cable (issue #52)
 
-Firmware: `fix/51-flip-copy-speed` at `593747e`, Debug build (default
-variant) with the Windows ST toolchain, flashed with
-`STM32_Programmer_CLI`, log read from `COM4`.
+Firmware `0bc52bf` (branch `fix/52-usb-configured-after-unplug`),
+Windows ST build (0 warnings), host `stm32-audio-host run` from main. The
+developer unplugged and replugged the OTG FS cable; log on COM4.
 
-Cause of the 23–25 ms copy: the D-cache is off and the SDRAM is
-non-cacheable (ADR-001), and all four framebuffers are in the same SDRAM
-internal bank. The old loop read one word from FB0/FB1, then wrote one
-word to FB2/FB3, so the SDRAM kept switching rows. The new copy reads
-1 KB at a time in LDM bursts into SRAM, then writes it to SDRAM turned
-in STM bursts.
+Cause of the #48 observation: the OTG FS core runs without VBUS
+sensing, because PA9 is USART1_TX on this board. So the core never
+reports a disconnect, and an unplug is only a USB suspend; the stack
+keeps CONFIGURED as the state to resume to. About 100 ms later a wake-up
+interrupt from the floating lines restored CONFIGURED with no host
+attached. The fix watches VBUS on PJ12 (`OTG_FS_VBUS`, read high with
+the cable in and low without it) and resets the device stack when it
+drops. It also counts the device as configured only while SOFs arrive,
+because the spurious resume comes before VBUS has fallen.
 
 | Check | Result |
 |---|---|
-| Copy time, one-off benchmark at boot (not committed; DWT cycle counter, LTDC scanning out, 3 runs) | VERIFIED — old loop 22.3 ms, new copy 4.78 ms, plain forward SDRAM→SDRAM burst copy without turning 4.44 ms. The new copy's output is word-for-word identical to the old loop's (0 mismatches) |
-| `UI FLIP off copy_max_ms` after dragging the slider while flipped | VERIFIED — `copy_max_ms=5` (was 23 in the same build variant) |
-| Touch while flipped | VERIFIED — slider (`UI VOLUME value=63/67/57`), mute on and off, flip back with the button |
-| Image upright, no tearing or flicker while flipped | VERIFIED — developer visual check |
-| Release build (`-Os`) | Built with 0 warnings; not flashed |
+| Intermediate build `ec980b4` (VBUS check only), two unplugs | NOT ENOUGH — each unplug logged `USB DISCONNECTED`, `USB RESUMED`, `USB VBUS OFF`, `USB DISCONNECTED`: the spurious resume still arrives before VBUS falls (end state correct, no `USB CONFIGURED`) |
+| Unplug, `0bc52bf`, twice | VERIFIED — only `USB DISCONNECTED` then `USB VBUS OFF`; no `USB RESUMED` or `USB CONFIGURED` with the cable out |
+| Replug, `0bc52bf`, twice | VERIFIED — `USB VBUS ON`, `USB CONFIGURED`, `LINK LIST OK n=9 gen=1`, `LINK ACTIVE id=0`; the list is back on the LCD |
+| Boot with the cable plugged in | VERIFIED — `USB VBUS ON`, `USB CONFIGURED`, `LINK LIST OK n=9` |
+| Host program closed, then started again | VERIFIED — closing logs `USB DISCONNECTED` then `USB RESUMED` (Windows suspends the idle device and wakes it again, with SOFs); the restarted host gets the list (`Controller connected`, `LINK LIST OK n=9`) with no new `USB CONFIGURED`, because the device stayed configured |
+| Replug enumeration: DISCONNECTED/CONFIGURED pairs seen in #48 | Not seen in these two replugs (one `USB CONFIGURED` each) |
 
 ## Firmware peripherals in use
 

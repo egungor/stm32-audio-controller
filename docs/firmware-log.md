@@ -59,8 +59,10 @@ Then, as the USB host link works (`App/Src/link_port.c`, `protocol.md`):
 
 | Line | Meaning |
 |---|---|
-| `USB CONFIGURED` | The PC configured the HID interface; `GET_DEVICE_LIST` is sent (and repeated every 1 s) |
-| `USB DISCONNECTED` | Unplugged, reset or suspended; waiting screen |
+| `USB VBUS ON\|OFF` | 5 V from the OTG FS cable (PJ12) appeared or went away. `ON` is the first USB line after boot with the cable plugged in. `OFF` resets the USB device stack, because the OTG FS core has no VBUS sensing on this board (#52) |
+| `USB CONFIGURED` | The PC sent SET_CONFIGURATION, i.e. it configured the HID interface; `GET_DEVICE_LIST` is sent (and repeated every 1 s) |
+| `USB RESUMED` | The PC woke the device from suspend without configuring it again (for example Windows selective suspend after the host program closed); `GET_DEVICE_LIST` is sent as after `USB CONFIGURED` |
+| `USB DISCONNECTED` | Unplugged (after or before `USB VBUS OFF`), bus reset or suspended; waiting screen |
 | `LINK LIST OK n=<n> gen=<g>` | A complete device list arrived and is shown |
 | `LINK ACTIVE id=<id>` | The host reported a new default device (`DEVICE_CHANGED`) |
 | `UI SELECT id=<id>` | User tapped a device that is not active; `SELECT_DEVICE` sent |

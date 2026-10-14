@@ -21,6 +21,9 @@
 #define EP_SIZE           PROTO_FRAME_SIZE
 #define EP_INTERVAL_MS    5U
 
+/* A host that is not suspending the bus sends an SOF every 1 ms. */
+#define SOF_TIMEOUT_MS    20U
+
 #define HID_DESC_TYPE     0x21U
 #define HID_REPORT_TYPE   0x22U
 #define HID_DESC_SIZE     9U
@@ -112,6 +115,10 @@ static QueueHandle_t s_rx_queue;
 static StaticQueue_t s_rx_queue_storage;
 static uint8_t s_rx_queue_buf[USB_LINK_RX_DEPTH * EP_SIZE];
 static volatile UsbLinkStats s_stats;
+static volatile uint32_t s_config_count; /* SET_CONFIGURATION requests */
+static bool s_vbus;
+static uint32_t s_frame;          /* last SOF frame number seen by UsbLink_Poll */
+static uint32_t s_frame_tick;     /* HAL tick when it last changed */
 
 /* ------------------------------------------------------------- class */
 
@@ -122,6 +129,7 @@ static uint8_t link_init(USBD_HandleTypeDef *pdev, uint8_t cfgidx)
     pdev->pClassDataCmsit[pdev->classId] = &s_class;
     pdev->pClassData = &s_class;
     s_class.tx_busy = false;
+    s_config_count++;
 
     pdev->ep_in[EP_IN_ADDR & 0xFU].bInterval = EP_INTERVAL_MS;
     (void)USBD_LL_OpenEP(pdev, EP_IN_ADDR, USBD_EP_TYPE_INTR, EP_SIZE);
@@ -288,9 +296,23 @@ static USBD_ClassTypeDef s_link_class = {
 
 /* --------------------------------------------------------------- API */
 
+static bool read_vbus(void)
+{
+    return HAL_GPIO_ReadPin(OTG_FS_VBUS_GPIO_Port, OTG_FS_VBUS_Pin) == GPIO_PIN_SET;
+}
+
+static uint32_t read_frame(void)
+{
+    const USB_OTG_DeviceTypeDef *dev =
+        (const USB_OTG_DeviceTypeDef *)((uint32_t)USB_OTG_FS_PERIPH_BASE + USB_OTG_DEVICE_BASE);
+
+    return (dev->DSTS & USB_OTG_DSTS_FNSOF) >> USB_OTG_DSTS_FNSOF_Pos;
+}
+
 void UsbLink_DeviceInit(USBD_HandleTypeDef *pdev)
 {
     s_pdev = pdev;
+    s_vbus = read_vbus();
     s_rx_queue = xQueueCreateStatic(USB_LINK_RX_DEPTH, EP_SIZE, s_rx_queue_buf, &s_rx_queue_storage);
 
     if ((USBD_Init(pdev, &FS_Desc, DEVICE_FS) != USBD_OK) ||
@@ -300,9 +322,51 @@ void UsbLink_DeviceInit(USBD_HandleTypeDef *pdev)
     }
 }
 
+/* The OTG FS core runs without VBUS sensing (PA9 is USART1_TX on this
+ * board), so it never reports a disconnect: an unplugged cable is only a
+ * suspend, and the stack keeps CONFIGURED as the state to resume to. A
+ * wake-up interrupt from the floating lines then restores CONFIGURED with
+ * no host attached (issue #52). VBUS is wired to the GPIO PJ12 instead;
+ * losing it is handled here as the HAL would handle a session end.
+ * VBUS takes longer to fall than the spurious resume takes to arrive, so
+ * the device also counts as configured only while SOFs arrive: a real
+ * resume is followed by SOFs, a spurious one is not. */
+void UsbLink_Poll(void)
+{
+    const bool vbus = read_vbus();
+    const uint32_t frame = read_frame();
+
+    if (frame != s_frame)
+    {
+        s_frame = frame;
+        s_frame_tick = HAL_GetTick();
+    }
+
+    if ((s_pdev != NULL) && s_vbus && !vbus)
+    {
+        /* Same path as HAL_PCD_DisconnectCallback, but from the task: keep
+         * the USB interrupt out while the class is de-initialised. */
+        HAL_NVIC_DisableIRQ(OTG_FS_IRQn);
+        (void)USBD_LL_DevDisconnected(s_pdev);
+        HAL_NVIC_EnableIRQ(OTG_FS_IRQn);
+    }
+    s_vbus = vbus;
+}
+
+bool UsbLink_VbusPresent(void)
+{
+    return s_vbus;
+}
+
 bool UsbLink_IsConfigured(void)
 {
-    return (s_pdev != NULL) && (s_pdev->dev_state == USBD_STATE_CONFIGURED);
+    return (s_pdev != NULL) && s_vbus && (s_pdev->dev_state == USBD_STATE_CONFIGURED) &&
+           ((HAL_GetTick() - s_frame_tick) < SOF_TIMEOUT_MS);
+}
+
+uint32_t UsbLink_ConfigCount(void)
+{
+    return s_config_count;
 }
 
 bool UsbLink_Receive(uint8_t frame[PROTO_FRAME_SIZE], uint32_t timeout_ms)
