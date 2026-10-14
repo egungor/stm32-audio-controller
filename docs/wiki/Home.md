@@ -13,15 +13,16 @@ switches to it. Change the device in Windows; the LCD follows.
 
 | Part | State |
 |---|---|
-| Board bring-up: boot, log, SDRAM, LCD test pattern | VERIFIED on the board |
-| Clock check, touch, UI on the LCD, USB HID | Code done, CI green, **REQUIRES HARDWARE** |
-| Windows host: audio, default switching, HID | Code done, CI green, **REQUIRES WINDOWS** |
-| Firmware ↔ host together | Simulated in CI; end to end **REQUIRES HARDWARE + WINDOWS** |
-| Volume/mute on the touchscreen (M6) | Code done, CI green, **REQUIRES HARDWARE + WINDOWS** |
-| Polish (M7) | Not started; display flip (180°) coded, **REQUIRES HARDWARE** |
+| Board bring-up: boot, log, clock, SDRAM, LCD | VERIFIED on the board |
+| Touch, UI on the LCD, USB HID, display flip | VERIFIED on the board |
+| Windows host: audio, default switching, HID | VERIFIED on Windows |
+| Firmware ↔ host together | Simulated in CI; end to end VERIFIED |
+| Volume/mute on the touchscreen (M6) | VERIFIED on the board and Windows |
+| Polish (M7) | In progress: aliases, ordering, favorites, layouts and themes, settings page (protocol v2) |
 
-The open hardware and Windows checks are collected in
-[Hardware Test Checklist](Hardware-Test-Checklist).
+The board and Windows checks ran on 2026-10-14; see
+[Hardware Test Checklist](Hardware-Test-Checklist) and the bring-up log
+in `docs/hardware.md`.
 
 ## Pages
 

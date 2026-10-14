@@ -94,10 +94,11 @@ The enabled peripheral set is defined in
 
 ## Hardware status
 
-Boot, the VCP log, SDRAM and the LCD test pattern are verified on the
-board. The clock measurement, touch, the UI on the LCD and USB HID are
-written and build in CI but REQUIRE HARDWARE; the list is in
-`docs/hardware.md`, "Pending hardware and Windows tests".
+Boot, the VCP log, the clock measurement, SDRAM (also after a power
+cycle), the LCD, touch, the UI, the display flip and USB HID are
+verified on the board (2026-10-14). Results and open items:
+`docs/hardware.md`, bring-up log and "Pending hardware and Windows
+tests".
 
 GPIO and peripheral assignments come from the STM32F746G-DISCO
 documentation (UM1907, MB1191 schematic) and the STM32CubeF7 BSP, never

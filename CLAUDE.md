@@ -13,16 +13,19 @@ The system has three major parts:
 
 ## Current milestone
 
-M0 is done. M1–M5 are coded; what remains of them is verification on the
-physical board and on Windows (clocks, touch, UI on the LCD, USB HID,
-Windows audio, end to end). The list of open hardware/Windows checks is
-in `docs/hardware.md`, "Pending hardware and Windows tests"; milestone
-status is in `docs/roadmap.md`. M6 (volume and mute on the touchscreen) is
-coded too. M7 (polish) has not started, except the display flip button
-(#42, coded).
+M0–M6 are done and verified on the board and on Windows (2026-10-14,
+bring-up log in `docs/hardware.md`; milestone status in
+`docs/roadmap.md`). M7 (polish) is in progress, in this order:
 
-Do not start new product features (M7) unless the current task
-explicitly asks for it.
+1. Protocol version 2: device preferences and UI settings
+   (`docs/decisions/ADR-004-device-preferences-and-settings.md`, #58).
+2. Host: preference store, alias command, startup volume limit (#59).
+3. Firmware UI: three layouts (A cards, B list, C large tile), dark/light
+   themes, accent colours, favorites, ordering, alias keyboard, settings
+   page (#60; designs from #57).
+
+The display flip (#42, #51) is done. Do not start other new product
+features unless the current task explicitly asks for it.
 
 ## Target hardware
 

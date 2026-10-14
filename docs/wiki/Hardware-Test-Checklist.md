@@ -1,9 +1,12 @@
 # Hardware Test Checklist
 
-Everything here is written and green in CI but has **not** run on the
-board or on Windows yet. Work top to bottom; each step needs the previous
-one. Record each result (date, firmware commit, PASS/FAIL, the log line)
-in [docs/hardware.md](https://github.com/egungor/stm32-audio-controller/blob/main/docs/hardware.md) and in the issue.
+All of these checks ran on the board and on Windows on 2026-10-14 (#48);
+the results are in the bring-up log of
+[docs/hardware.md](https://github.com/egungor/stm32-audio-controller/blob/main/docs/hardware.md).
+Keep this list as the procedure for re-testing after firmware or host
+changes. Work top to bottom; each step needs the previous one. Record
+each result (date, firmware commit, PASS/FAIL, the log line) in
+`docs/hardware.md` and in the issue.
 
 How to build, flash and read the log: [Getting Started](Getting-Started).
 
