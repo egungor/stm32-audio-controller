@@ -331,9 +331,11 @@ void UsbLink_DeviceInit(USBD_HandleTypeDef *pdev)
  * VBUS takes longer to fall than the spurious resume takes to arrive, so
  * the device also counts as configured only while SOFs arrive: a real
  * resume is followed by SOFs, a spurious one is not. */
-void UsbLink_Poll(void)
+/* Note when the frame number last changed, i.e. when SOFs last arrived.
+ * Called whenever the state is asked for, not only once per UI loop: a
+ * long LVGL redraw between two loops must not look like a silent bus. */
+static void sample_sof(void)
 {
-    const bool vbus = read_vbus();
     const uint32_t frame = read_frame();
 
     if (frame != s_frame)
@@ -341,7 +343,13 @@ void UsbLink_Poll(void)
         s_frame = frame;
         s_frame_tick = HAL_GetTick();
     }
+}
 
+void UsbLink_Poll(void)
+{
+    const bool vbus = read_vbus();
+
+    sample_sof();
     if ((s_pdev != NULL) && s_vbus && !vbus)
     {
         /* Same path as HAL_PCD_DisconnectCallback, but from the task: keep
@@ -360,6 +368,7 @@ bool UsbLink_VbusPresent(void)
 
 bool UsbLink_IsConfigured(void)
 {
+    sample_sof();
     return (s_pdev != NULL) && s_vbus && (s_pdev->dev_state == USBD_STATE_CONFIGURED) &&
            ((HAL_GetTick() - s_frame_tick) < SOF_TIMEOUT_MS);
 }
