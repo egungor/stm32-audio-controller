@@ -126,7 +126,9 @@ struct FirmwareScreen {
     std::uint8_t active = UI_NO_DEVICE;
     std::uint8_t pending = UI_NO_DEVICE;
     int listsShown = 0;
-    int notices[2] = {0, 0};
+    int notices[3] = {0, 0, 0};
+    ProtoSettings settings{};
+    int settingsApplied = 0;
     std::uint8_t volume = UI_VOLUME_UNKNOWN;
     std::uint8_t muted = UI_VOLUME_UNKNOWN;
     std::vector<std::uint8_t> volumeShown;  // every value the slider was set to
@@ -164,7 +166,7 @@ public:
     {
         static const LinkCallbacks callbacks = {
             &Rig::fwSend, &Rig::fwWaiting, &Rig::fwDevices, &Rig::fwActive, &Rig::fwPending, &Rig::fwNotice,
-            &Rig::fwVolume, &Rig::fwMuted, nullptr,
+            &Rig::fwVolume, &Rig::fwMuted, nullptr, &Rig::fwSettings,
         };
         LinkCallbacks cb = callbacks;
         cb.ctx = this;
@@ -280,6 +282,10 @@ public:
         Link_SetVolume(&link, volume, now);
     }
     void tapMute(bool m) { Link_SetMute(&link, m); }
+    bool setAlias(std::uint8_t id, const char* alias) { return Link_SetAlias(&link, id, alias, now); }
+    bool setFavorite(std::uint8_t id, bool fav) { return Link_SetFavorite(&link, id, fav, now); }
+    bool move(std::uint8_t id, std::uint8_t position) { return Link_MoveDevice(&link, id, position, now); }
+    void changeSettings(const ProtoSettings& s) { Link_SetSettings(&link, &s, now); }
 
     std::optional<std::uint8_t> shownIdOf(const std::string& name) const
     {
@@ -318,7 +324,8 @@ public:
         for (std::size_t i = 0; i < devices.size(); ++i) {
             const UiDevice& shown = screen.devices[i];
             if (shown.id != devices[i].index || shown.icon != iconFor(devices[i].endpoint.formFactor) ||
-                devices[i].displayName != shown.name) {
+                devices[i].displayName != shown.name || devices[i].alias != shown.alias ||
+                (devices[i].favorite ? 1U : 0U) != shown.favorite) {
                 return false;
             }
         }
@@ -382,6 +389,12 @@ private:
         s.volumeShown.push_back(v);
     }
     static void fwMuted(std::uint8_t m, void* ctx) { self(ctx).screen.muted = m; }
+    static void fwSettings(const ProtoSettings* s, void* ctx)
+    {
+        FirmwareScreen& screen = self(ctx).screen;
+        screen.settings = *s;
+        ++screen.settingsApplied;
+    }
 
     static bool reached(std::uint32_t now, std::uint32_t at)
     {
@@ -986,6 +999,139 @@ void testBoardBusyDuringLongList()
 
 }  // namespace
 
+
+// ---------------------------------------------- protocol v2 (ADR-004)
+
+std::vector<std::string> shownNames(const Rig& r)
+{
+    std::vector<std::string> out;
+    for (const UiDevice& d : r.screen.devices) {
+        out.push_back(d.alias[0] != '\0' ? d.alias : d.name);
+    }
+    return out;
+}
+
+void testEditsFromBoard()
+{
+    g_scenario = "alias, favorite and order from the board";
+    Rig r;
+    addHomeSetup(r.audio);
+    connect(r);
+    CHECK(r.inSync());
+
+    // Alias for the monitor.
+    CHECK(r.setAlias(*r.shownIdOf("LG HDR 4K"), "TV"));
+    CHECK(!r.setFavorite(*r.shownIdOf("LG HDR 4K"), true));  // one edit at a time
+    r.run(200);
+    CHECK(!Link_EditPending(&r.link));
+    CHECK(r.inSync());
+    CHECK(shownNames(r) == std::vector<std::string>({"Hoparl\xC3\xB6r", "Kulakl\xC4\xB1k", "TV"}));
+    CHECK(r.host->preferences().device("{hdmi}")->alias == "TV");
+
+    // Favorite, then move the monitor to the front.
+    CHECK(r.setFavorite(*r.shownIdOf("LG HDR 4K"), true));
+    r.run(200);
+    CHECK(r.inSync());
+    CHECK(r.screen.devices[2].favorite == 1);
+    CHECK(r.move(*r.shownIdOf("LG HDR 4K"), 0));
+    r.run(200);
+    CHECK(r.inSync());
+    CHECK(shownNames(r) == std::vector<std::string>({"TV", "Hoparl\xC3\xB6r", "Kulakl\xC4\xB1k"}));
+
+    // Removing the alias shows the Windows name again.
+    CHECK(r.setAlias(*r.shownIdOf("LG HDR 4K"), ""));
+    r.run(200);
+    CHECK(r.inSync());
+    CHECK(shownNames(r).front() == "LG HDR 4K");
+
+    // Selection still works with the newer list generation.
+    r.tap(*r.shownIdOf("LG HDR 4K"));
+    r.run(100);
+    CHECK(r.audio.defaultId == "{hdmi}");
+    CHECK(r.inSync());
+
+    // The order survives an unplug.
+    r.unplug();
+    r.run(500);
+    r.plugIn();
+    r.run(3000);
+    CHECK(r.inSync());
+    CHECK(shownNames(r).front() == "LG HDR 4K");
+    CHECK(r.wire.errorCodesToHost.empty() && r.wire.errorCodesToDevice.empty());
+    CHECK(r.screen.notices[LINK_NOTICE_EDIT_FAILED] == 0 && r.screen.notices[LINK_NOTICE_HOST_TIMEOUT] == 0);
+}
+
+void testEditCrossesWindowsChange()
+{
+    g_scenario = "edit crosses a Windows device change";
+    Rig r;
+    addHomeSetup(r.audio);
+    connect(r);
+
+    // The board's request still names the old list when it reaches the
+    // host: refused, the board fetches the list again.
+    CHECK(r.setFavorite(*r.shownIdOf("Hoparl\xC3\xB6r"), true));
+    r.windowsAdd(endpoint("{usb}", "USB DAC", FormFactor::DigitalOutput));
+    r.run(3000);
+    CHECK(r.inSync());
+    CHECK(r.screen.devices.size() == 4);
+    CHECK(r.host->preferences().device("{spk}") == nullptr);  // not applied
+    CHECK(r.wire.count(r.wire.errorCodesToDevice, PROTO_ERROR_UNKNOWN_DEVICE) == 1);
+    CHECK(!Link_EditPending(&r.link));
+
+    // Done again on the new list, it works.
+    CHECK(r.setFavorite(*r.shownIdOf("Hoparl\xC3\xB6r"), true));
+    r.run(200);
+    CHECK(r.inSync());
+    CHECK(r.host->preferences().device("{spk}")->favorite);
+}
+
+void testSettingsRoundTrip()
+{
+    g_scenario = "settings";
+    Rig r;
+    addHomeSetup(r.audio);
+    connect(r);
+
+    ProtoSettings defaults{};
+    Proto_DefaultSettings(&defaults);
+    CHECK(std::memcmp(&r.screen.settings, &defaults, sizeof(defaults)) == 0 || r.screen.settingsApplied == 0);
+
+    // Changed on the board: applied at once, stored by the host.
+    ProtoSettings s = *Link_Settings(&r.link);
+    s.theme = 1;
+    s.layout = 2;
+    r.changeSettings(s);
+    CHECK(r.screen.settings.theme == 1);
+    r.run(100);
+    CHECK(r.host->preferences().settings().theme == 1 && r.host->preferences().settings().layout == 2);
+    CHECK(r.wire.count(r.wire.toHost, PROTO_CMD_SET_SETTINGS) == 1);
+
+    // Flipped while unplugged: the board's change wins when it reconnects.
+    r.unplug();
+    r.run(200);
+    s.flipped = 1;
+    r.changeSettings(s);
+    CHECK(r.screen.settings.flipped == 1);
+    r.plugIn();
+    r.run(3000);
+    CHECK(r.inSync());
+    CHECK(r.screen.settings.flipped == 1);
+    CHECK(r.host->preferences().settings().flipped == 1);
+    CHECK(r.host->preferences().settings().theme == 1);
+
+    // Host program restarted with no stored settings (until #59 saves
+    // them): the board applies the host's record.
+    r.stopHost();
+    r.run(100);
+    r.startHost();
+    r.run(3000);
+    CHECK(r.inSync());
+    CHECK(r.screen.settings.theme == 0 && r.screen.settings.flipped == 0);
+    CHECK(r.wire.errorCodesToHost.empty() && r.wire.errorCodesToDevice.empty());
+    CHECK(r.screen.notices[LINK_NOTICE_EDIT_FAILED] == 0);
+}
+
 int main()
 {
     testConnect();
@@ -1004,6 +1150,9 @@ int main()
     testManyDevicesAndLongNames();
     testVolumeFramesIgnoredByBoard();
     testBoardBusyDuringLongList();
+    testEditsFromBoard();
+    testEditCrossesWindowsChange();
+    testSettingsRoundTrip();
     testVolumeFromWindows();
     testVolumeDragOnBoard();
     testMuteFromBoard();
