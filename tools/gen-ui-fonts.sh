@@ -19,8 +19,11 @@ CONV=(npx --yes lv_font_conv@1.5.3)
 # Basic Latin, Latin-1 Supplement, Latin Extended-A (covers Turkish).
 TEXT_RANGE="0x20-0x7E,0xA0-0x17F"
 # check, warning, chevron-left, chevron-right, plug, hourglass, volume-up,
-# volume-mute, sync-alt (display flip)
-TEXT_SYMBOLS="0xF00C,0xF071,0xF053,0xF054,0xF1E6,0xF254,0xF028,0xF6A9,0xF2F1"
+# volume-mute, sync-alt (display flip); M7 (#60): star, cog, pencil-alt,
+# list, th-large, arrow-up, arrow-down, backspace, times, and the device
+# icons for the smaller cards and list rows: music, headphones, headset,
+# desktop, usb
+TEXT_SYMBOLS="0xF00C,0xF071,0xF053,0xF054,0xF1E6,0xF254,0xF028,0xF6A9,0xF2F1,0xF005,0xF013,0xF303,0xF03A,0xF009,0xF062,0xF063,0xF55A,0xF00D,0xF001,0xF025,0xF590,0xF108,0xF287"
 # music (generic), volume-up (speakers), headphones, headset, desktop
 # (display), usb (digital output), plug, hourglass, warning
 ICON_SYMBOLS="0xF001,0xF028,0xF025,0xF590,0xF108,0xF287,0xF1E6,0xF254,0xF071"
@@ -32,6 +35,7 @@ text_font() { # <size>
         -o "$OUT/ui_font_$1.c"
 }
 
+text_font 14
 text_font 16
 text_font 22
 "${CONV[@]}" --bpp 4 --size 40 --no-compress --format lvgl --lv-include lvgl.h \
