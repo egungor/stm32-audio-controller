@@ -1,6 +1,6 @@
 /**
  * @file    protocol.h
- * @brief   STM32 <-> Windows host protocol, version 1 (see protocol/protocol.md).
+ * @brief   STM32 <-> Windows host protocol, version 2 (see protocol/protocol.md).
  *
  * Portable C99 codec shared by the firmware and the host. Every message is
  * one fixed-size frame of PROTO_FRAME_SIZE bytes:
@@ -30,7 +30,7 @@ extern "C" {
 
 #define PROTO_FRAME_SIZE   64U
 #define PROTO_MAGIC        0xA5U
-#define PROTO_VERSION      1U
+#define PROTO_VERSION      2U
 #define PROTO_HEADER_SIZE  5U
 #define PROTO_CRC_OFFSET   62U
 #define PROTO_MAX_PAYLOAD  (PROTO_CRC_OFFSET - PROTO_HEADER_SIZE) /* 57 */
@@ -43,6 +43,8 @@ extern "C" {
 #define PROTO_NO_DEVICE        0xFFU
 /** Largest volume value (percent). */
 #define PROTO_MAX_VOLUME       100U
+/** Largest device alias, in bytes of UTF-8, without terminator. */
+#define PROTO_MAX_ALIAS_BYTES  32U
 
 typedef enum
 {
@@ -54,6 +56,12 @@ typedef enum
     PROTO_CMD_VOLUME_CHANGED  = 0x06, /**< host -> STM32 */
     PROTO_CMD_SET_MUTE        = 0x07, /**< STM32 -> host */
     PROTO_CMD_MUTE_CHANGED    = 0x08, /**< host -> STM32 */
+    PROTO_CMD_DEVICE_ALIAS    = 0x09, /**< host -> STM32, part of a device list */
+    PROTO_CMD_SET_ALIAS       = 0x0A, /**< STM32 -> host */
+    PROTO_CMD_SET_FAVORITE    = 0x0B, /**< STM32 -> host */
+    PROTO_CMD_MOVE_DEVICE     = 0x0C, /**< STM32 -> host */
+    PROTO_CMD_SETTINGS        = 0x0D, /**< host -> STM32 */
+    PROTO_CMD_SET_SETTINGS    = 0x0E, /**< STM32 -> host */
     PROTO_CMD_ERROR           = 0x7F  /**< either direction */
 } ProtoCommand;
 
@@ -70,8 +78,22 @@ typedef enum
 #define PROTO_ICON_COUNT 6U
 
 /** DEVICE_LIST flags. */
-#define PROTO_DEVICE_FLAG_DEFAULT 0x01U /**< current default playback device */
-#define PROTO_DEVICE_FLAGS_MASK   0x01U
+#define PROTO_DEVICE_FLAG_DEFAULT  0x01U /**< current default playback device */
+#define PROTO_DEVICE_FLAG_FAVORITE 0x02U /**< marked as favorite by the user */
+#define PROTO_DEVICE_FLAG_ALIAS    0x04U /**< a DEVICE_ALIAS frame follows for this entry */
+#define PROTO_DEVICE_FLAGS_MASK    0x07U
+
+/** Settings record field values (SETTINGS, SET_SETTINGS). */
+#define PROTO_LAYOUT_COUNT       3U  /**< 0 cards, 1 list, 2 large tile */
+#define PROTO_THEME_COUNT        2U  /**< 0 dark, 1 light */
+#define PROTO_ACCENT_COUNT       6U  /**< 0 orange .. 5 yellow */
+#define PROTO_GRID_COUNT         4U  /**< 0 2x2, 1 2x3, 2 3x3, 3 list */
+#define PROTO_STARTUP_TAB_COUNT  3U  /**< 0 last used, 1 all, 2 favorites */
+#define PROTO_TAB_COUNT          2U  /**< 0 all, 1 favorites */
+#define PROTO_MAX_SCREEN_TIMEOUT 60U /**< minutes; 0 = never */
+#define PROTO_LANGUAGE_COUNT     2U  /**< 0 Turkish, 1 English */
+#define PROTO_SETTINGS_BYTES     11U
+#define PROTO_DEFAULT_VOLUME_LIMIT 50U
 
 /** ERROR codes. */
 typedef enum
@@ -111,6 +133,43 @@ typedef struct
     char    name[PROTO_MAX_NAME_BYTES + 1U]; /**< UTF-8, NUL-terminated after decode */
 } ProtoDeviceEntry;
 
+/** DEVICE_ALIAS payload: the alias of one entry of the list being sent. */
+typedef struct
+{
+    uint8_t generation; /**< generation of the list it belongs to */
+    uint8_t position;   /**< entry position in that list */
+    uint8_t alias_len;  /**< 1 .. PROTO_MAX_ALIAS_BYTES */
+    char    alias[PROTO_MAX_ALIAS_BYTES + 1U]; /**< UTF-8, NUL-terminated after decode */
+} ProtoAliasEntry;
+
+/** SELECT_DEVICE, SET_FAVORITE, MOVE_DEVICE, SET_ALIAS: a request about one
+ *  device of the list with @p generation. */
+typedef struct
+{
+    uint8_t generation;
+    uint8_t device_index;
+    uint8_t value;      /**< SET_FAVORITE: 0/1; MOVE_DEVICE: new position
+                             (< PROTO_MAX_DEVICES); SELECT_DEVICE: 0 */
+    uint8_t alias_len;  /**< SET_ALIAS only: 0 (remove) .. PROTO_MAX_ALIAS_BYTES */
+    char    alias[PROTO_MAX_ALIAS_BYTES + 1U]; /**< SET_ALIAS only */
+} ProtoDeviceRequest;
+
+/** UI settings record, stored by the host (ADR-004). */
+typedef struct
+{
+    uint8_t layout;          /**< < PROTO_LAYOUT_COUNT */
+    uint8_t theme;           /**< < PROTO_THEME_COUNT */
+    uint8_t accent;          /**< < PROTO_ACCENT_COUNT */
+    uint8_t grid;            /**< < PROTO_GRID_COUNT */
+    uint8_t startup_tab;     /**< < PROTO_STARTUP_TAB_COUNT */
+    uint8_t last_tab;        /**< < PROTO_TAB_COUNT */
+    uint8_t screen_timeout;  /**< minutes, 0 .. PROTO_MAX_SCREEN_TIMEOUT */
+    uint8_t flipped;         /**< 0 or 1 */
+    uint8_t language;        /**< < PROTO_LANGUAGE_COUNT */
+    uint8_t volume_limit_on; /**< 0 or 1 */
+    uint8_t volume_limit;    /**< 0 .. PROTO_MAX_VOLUME */
+} ProtoSettings;
+
 typedef struct
 {
     uint8_t code;        /**< ProtoErrorCode */
@@ -125,11 +184,14 @@ typedef struct
     uint8_t sequence;
     union
     {
-        ProtoDeviceEntry device;       /**< DEVICE_LIST */
-        uint8_t          device_index; /**< SELECT_DEVICE, DEVICE_CHANGED */
-        uint8_t          volume;       /**< SET_VOLUME, VOLUME_CHANGED: 0 .. 100 */
-        uint8_t          muted;        /**< SET_MUTE, MUTE_CHANGED: 0 or 1 */
-        ProtoError       error;        /**< ERROR */
+        ProtoDeviceEntry   device;       /**< DEVICE_LIST */
+        ProtoAliasEntry    alias;        /**< DEVICE_ALIAS */
+        ProtoDeviceRequest request;      /**< SELECT_DEVICE, SET_ALIAS, SET_FAVORITE, MOVE_DEVICE */
+        ProtoSettings      settings;     /**< SETTINGS, SET_SETTINGS */
+        uint8_t            device_index; /**< DEVICE_CHANGED */
+        uint8_t            volume;       /**< SET_VOLUME, VOLUME_CHANGED: 0 .. 100 */
+        uint8_t            muted;        /**< SET_MUTE, MUTE_CHANGED: 0 or 1 */
+        ProtoError         error;        /**< ERROR */
     } u;
 } ProtoMessage;
 
@@ -154,6 +216,12 @@ ProtoStatus Proto_Decode(const uint8_t frame[PROTO_FRAME_SIZE], ProtoMessage *ms
 
 /** Map a decode failure to the ERROR code to send back. */
 ProtoErrorCode Proto_ErrorCodeFor(ProtoStatus status);
+
+/** The settings a board uses until the host sends its own (ADR-004). */
+void Proto_DefaultSettings(ProtoSettings *settings);
+
+/** 1 if every field of @p settings is in range, else 0. */
+int Proto_SettingsValid(const ProtoSettings *settings);
 
 #ifdef __cplusplus
 }

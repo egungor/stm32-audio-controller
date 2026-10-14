@@ -39,7 +39,9 @@ static struct
     uint8_t  active;
     int      pending_calls;
     uint8_t  pending;
-    int      notices[2];
+    int      notices[3];
+    int      settings_calls;
+    ProtoSettings settings;
     int      volume_calls;
     uint8_t  volume;
     int      muted_calls;
@@ -77,9 +79,11 @@ static void fake_pending(uint8_t id, void *ctx) { (void)ctx; g.pending_calls++; 
 static void fake_notice(LinkNotice n, void *ctx) { (void)ctx; g.notices[n]++; }
 static void fake_volume(uint8_t v, void *ctx) { (void)ctx; g.volume_calls++; g.volume = v; }
 static void fake_muted(uint8_t m, void *ctx) { (void)ctx; g.muted_calls++; g.muted = m; }
+static void fake_settings(const ProtoSettings *s, void *ctx) { (void)ctx; g.settings_calls++; g.settings = *s; }
 
 static const LinkCallbacks k_callbacks = {
     fake_send, fake_waiting, fake_devices, fake_active, fake_pending, fake_notice, fake_volume, fake_muted, NULL,
+    fake_settings,
 };
 
 static void reset(LinkClient *link)
@@ -314,7 +318,8 @@ static void test_select_confirmed(void)
 
     Link_Select(&link, 10, 500);
     CHECK(g.sent_count == before + 1);
-    CHECK(last_sent()->command == PROTO_CMD_SELECT_DEVICE && last_sent()->u.device_index == 10);
+    CHECK(last_sent()->command == PROTO_CMD_SELECT_DEVICE && last_sent()->u.request.device_index == 10);
+    CHECK(last_sent()->u.request.generation == 1); /* the list on screen */
     CHECK(g.pending == 10);
 
     e = simple(PROTO_CMD_DEVICE_CHANGED, 10);
@@ -592,6 +597,258 @@ static void test_bad_frames(void)
     CHECK(g.active == 11);
 }
 
+static ProtoMessage alias_entry(uint8_t gen, uint8_t pos, const char *alias)
+{
+    ProtoMessage m;
+    memset(&m, 0, sizeof(m));
+    m.command = PROTO_CMD_DEVICE_ALIAS;
+    m.u.alias.generation = gen;
+    m.u.alias.position = pos;
+    m.u.alias.alias_len = (uint8_t)strlen(alias);
+    memcpy(m.u.alias.alias, alias, m.u.alias.alias_len);
+    return m;
+}
+
+static ProtoMessage error_for(uint8_t code, uint8_t ref_command, uint8_t ref_sequence)
+{
+    ProtoMessage m;
+    memset(&m, 0, sizeof(m));
+    m.command = PROTO_CMD_ERROR;
+    m.u.error.code = code;
+    m.u.error.ref_command = ref_command;
+    m.u.error.ref_sequence = ref_sequence;
+    return m;
+}
+
+static ProtoMessage settings_msg(const ProtoSettings *s)
+{
+    ProtoMessage m;
+    memset(&m, 0, sizeof(m));
+    m.command = PROTO_CMD_SETTINGS;
+    m.u.settings = *s;
+    return m;
+}
+
+static void test_aliases_and_favorites(void)
+{
+    LinkClient link;
+    ProtoMessage e;
+    reset(&link);
+    Link_OnConnected(&link, 0);
+
+    e = device_entry(4, 3, 0, 10, "Hoparl\xC3\xB6r (Razer Leviathan V2 X)", false);
+    e.u.device.flags |= PROTO_DEVICE_FLAG_ALIAS | PROTO_DEVICE_FLAG_FAVORITE;
+    deliver(&link, &e, 0);
+    e = device_entry(4, 3, 1, 11, "Kulakl\xC4\xB1klar (JBL)", true);
+    e.u.device.flags |= PROTO_DEVICE_FLAG_FAVORITE;
+    deliver(&link, &e, 0);
+    e = device_entry(4, 3, 2, 12, "MAG274QRF-QD", false);
+    e.u.device.flags |= PROTO_DEVICE_FLAG_ALIAS;
+    deliver(&link, &e, 0);
+    CHECK(g.devices_calls == 0); /* two aliases still missing */
+
+    /* An alias of another list is ignored. */
+    e = alias_entry(3, 0, "Stale");
+    deliver(&link, &e, 0);
+    e = alias_entry(4, 2, "Monit\xC3\xB6r");
+    deliver(&link, &e, 0);
+    CHECK(g.devices_calls == 0);
+    e = alias_entry(4, 0, "Masa\xC3\xBCst\xC3\xBC");
+    deliver(&link, &e, 0);
+    CHECK(g.devices_calls == 1 && g.device_count == 3);
+    CHECK(strcmp(g.devices[0].alias, "Masa\xC3\xBCst\xC3\xBC") == 0);
+    CHECK(strcmp(g.devices[0].name, "Hoparl\xC3\xB6r (Razer Leviathan V2 X)") == 0);
+    CHECK(g.devices[0].favorite == 1 && g.devices[1].favorite == 1 && g.devices[2].favorite == 0);
+    CHECK(g.devices[1].alias[0] == '\0');
+    CHECK(strcmp(g.devices[2].alias, "Monit\xC3\xB6r") == 0);
+
+    /* Next list without aliases: none left over from the previous one. */
+    for (uint8_t i = 0U; i < 3U; i++)
+    {
+        e = device_entry(5, 3, i, (uint8_t)(10U + i), "N", false);
+        deliver(&link, &e, 100);
+    }
+    CHECK(g.devices_calls == 2);
+    CHECK(g.devices[0].alias[0] == '\0' && g.devices[2].alias[0] == '\0');
+
+    /* A lost alias frame: the incomplete list is requested again. */
+    {
+        const int before = g.sent_count;
+
+        e = device_entry(6, 1, 0, 10, "A", false);
+        e.u.device.flags |= PROTO_DEVICE_FLAG_ALIAS;
+        deliver(&link, &e, 200);
+        Link_Poll(&link, 200 + LINK_RETRY_MS);
+        CHECK(g.devices_calls == 2);
+        CHECK(g.sent_count == before + 1 && last_sent()->command == PROTO_CMD_GET_DEVICE_LIST);
+    }
+}
+
+static void test_edits(void)
+{
+    LinkClient link;
+    ProtoMessage e;
+    reset(&link);
+    connect_with_list(&link, 0);
+
+    /* Not in the list, out of range, too long: nothing sent. */
+    {
+        const int before = g.sent_count;
+        CHECK(!Link_SetFavorite(&link, 99, true, 0));
+        CHECK(!Link_MoveDevice(&link, 10, 3, 0));
+        CHECK(!Link_SetAlias(&link, 10, "123456789012345678901234567890123", 0)); /* 33 bytes */
+        CHECK(!Link_SetAlias(&link, 10, NULL, 0));
+        CHECK(g.sent_count == before);
+    }
+
+    CHECK(Link_SetFavorite(&link, 12, true, 100));
+    CHECK(last_sent()->command == PROTO_CMD_SET_FAVORITE);
+    CHECK(last_sent()->u.request.generation == 1 && last_sent()->u.request.device_index == 12);
+    CHECK(last_sent()->u.request.value == 1);
+    CHECK(Link_EditPending(&link));
+    /* One edit at a time. */
+    CHECK(!Link_MoveDevice(&link, 12, 0, 110));
+
+    /* The host's new list ends the edit. */
+    e = device_entry(2, 1, 0, 12, "M", false);
+    deliver(&link, &e, 150);
+    CHECK(!Link_EditPending(&link));
+    Link_Poll(&link, 100 + 10U * LINK_RESPONSE_TIMEOUT_MS);
+    CHECK(g.notices[LINK_NOTICE_HOST_TIMEOUT] == 0);
+
+    /* MOVE_DEVICE and SET_ALIAS use the new generation. */
+    reset(&link);
+    connect_with_list(&link, 0);
+    CHECK(Link_MoveDevice(&link, 12, 0, 0));
+    CHECK(last_sent()->command == PROTO_CMD_MOVE_DEVICE && last_sent()->u.request.value == 0);
+    e = error_for(PROTO_ERROR_OPERATION_FAILED, PROTO_CMD_MOVE_DEVICE, last_sent()->sequence);
+    deliver(&link, &e, 10);
+    CHECK(g.notices[LINK_NOTICE_EDIT_FAILED] == 1);
+    CHECK(!Link_EditPending(&link));
+    CHECK(link.state == LINK_STATE_READY);
+
+    CHECK(Link_SetAlias(&link, 11, "Kulakl\xC4\xB1k", 20));
+    CHECK(last_sent()->command == PROTO_CMD_SET_ALIAS);
+    CHECK(strcmp(last_sent()->u.request.alias, "Kulakl\xC4\xB1k") == 0);
+    CHECK(Link_EditPending(&link));
+    /* No answer: host timeout, back to the waiting screen. */
+    Link_Poll(&link, 20 + LINK_RESPONSE_TIMEOUT_MS);
+    CHECK(g.notices[LINK_NOTICE_HOST_TIMEOUT] == 1);
+    CHECK(link.state == LINK_STATE_REQUESTING);
+    CHECK(!Link_EditPending(&link));
+
+    /* An empty alias removes it; UNKNOWN_DEVICE requests the list. */
+    reset(&link);
+    connect_with_list(&link, 0);
+    CHECK(Link_SetAlias(&link, 11, "", 0));
+    CHECK(last_sent()->u.request.alias_len == 0);
+    e = error_for(PROTO_ERROR_UNKNOWN_DEVICE, PROTO_CMD_SET_ALIAS, last_sent()->sequence);
+    deliver(&link, &e, 10);
+    CHECK(g.notices[LINK_NOTICE_EDIT_FAILED] == 1);
+    CHECK(link.state == LINK_STATE_REQUESTING);
+    CHECK(last_sent()->command == PROTO_CMD_GET_DEVICE_LIST);
+}
+
+static void test_settings(void)
+{
+    LinkClient link;
+    ProtoMessage e;
+    ProtoSettings s;
+    ProtoSettings host;
+    reset(&link);
+
+    Proto_DefaultSettings(&s);
+    CHECK(memcmp(Link_Settings(&link), &s, sizeof(s)) == 0);
+
+    /* The host's record is applied. */
+    connect_with_list(&link, 0);
+    Proto_DefaultSettings(&host);
+    host.theme = 1U;
+    host.flipped = 1U;
+    e = settings_msg(&host);
+    deliver(&link, &e, 0);
+    CHECK(g.settings_calls == 1 && g.settings.theme == 1U && g.settings.flipped == 1U);
+    /* The same record again changes nothing. */
+    deliver(&link, &e, 0);
+    CHECK(g.settings_calls == 1);
+
+    /* A local change: applied at once, sent, confirmed by SETTINGS. */
+    s = *Link_Settings(&link);
+    s.accent = 2U;
+    Link_SetSettings(&link, &s, 100);
+    CHECK(g.settings_calls == 2 && g.settings.accent == 2U);
+    CHECK(last_sent()->command == PROTO_CMD_SET_SETTINGS && last_sent()->u.settings.accent == 2U);
+    {
+        const int before = g.sent_count;
+
+        /* Changed again before the answer: sent after it. */
+        s.accent = 3U;
+        Link_SetSettings(&link, &s, 110);
+        CHECK(g.sent_count == before);
+        host = s;
+        host.accent = 2U; /* the answer to the first SET_SETTINGS */
+        e = settings_msg(&host);
+        deliver(&link, &e, 120);
+        CHECK(g.sent_count == before + 1 && last_sent()->u.settings.accent == 3U);
+        CHECK(g.settings.accent == 3U); /* not overwritten by the older answer */
+        e = settings_msg(&s);
+        deliver(&link, &e, 130);
+        CHECK(g.sent_count == before + 1);
+    }
+    Link_Poll(&link, 130 + 10U * LINK_RESPONSE_TIMEOUT_MS);
+    CHECK(g.notices[LINK_NOTICE_HOST_TIMEOUT] == 0);
+
+    /* Out of range: ignored. */
+    {
+        const int calls = g.settings_calls;
+        ProtoSettings bad = s;
+        bad.layout = PROTO_LAYOUT_COUNT;
+        Link_SetSettings(&link, &bad, 200);
+        CHECK(g.settings_calls == calls);
+    }
+
+    /* No answer: host timeout; the change is sent again on reconnect. */
+    s.grid = 2U;
+    Link_SetSettings(&link, &s, 300);
+    Link_Poll(&link, 300 + LINK_RESPONSE_TIMEOUT_MS);
+    CHECK(g.notices[LINK_NOTICE_HOST_TIMEOUT] == 1);
+    CHECK(link.state == LINK_STATE_REQUESTING);
+    CHECK(link.settings_offline);
+}
+
+static void test_settings_changed_offline(void)
+{
+    LinkClient link;
+    ProtoMessage e;
+    ProtoSettings s;
+    ProtoSettings host;
+    reset(&link);
+
+    /* Flipped on the waiting screen, before any host. */
+    s = *Link_Settings(&link);
+    s.flipped = 1U;
+    Link_SetSettings(&link, &s, 0);
+    CHECK(g.settings_calls == 1 && g.settings.flipped == 1U);
+    CHECK(g.sent_count == 0);
+
+    /* The host's stored record arrives: the local change wins and is sent. */
+    connect_with_list(&link, 10);
+    Proto_DefaultSettings(&host);
+    host.theme = 1U;
+    e = settings_msg(&host);
+    deliver(&link, &e, 20);
+    CHECK(g.settings_calls == 1 && g.settings.flipped == 1U);
+    CHECK(last_sent()->command == PROTO_CMD_SET_SETTINGS && last_sent()->u.settings.flipped == 1U);
+    CHECK(last_sent()->u.settings.theme == 0U);
+    CHECK(!link.settings_offline);
+
+    /* An ERROR to SET_SETTINGS reports it and keeps the local record. */
+    e = error_for(PROTO_ERROR_OPERATION_FAILED, PROTO_CMD_SET_SETTINGS, last_sent()->sequence);
+    deliver(&link, &e, 30);
+    CHECK(g.notices[LINK_NOTICE_EDIT_FAILED] == 1);
+    CHECK(Link_Settings(&link)->flipped == 1U);
+}
+
 int main(void)
 {
     test_connect_requests_list();
@@ -609,6 +866,10 @@ int main(void)
     test_host_volume_waits_for_local_change();
     test_mute();
     test_bad_frames();
+    test_aliases_and_favorites();
+    test_edits();
+    test_settings();
+    test_settings_changed_offline();
 
     printf("%d checks, %d failures\n", g_checks, g_failures);
     return (g_failures == 0) ? 0 : 1;

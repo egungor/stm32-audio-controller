@@ -20,6 +20,10 @@ void LinkPort_Init(void);
 /** Handle USB state changes, received frames, retries and timeouts. */
 void LinkPort_Run(void);
 
+/** The user held the flip button: turn the image and store the new state
+ *  on the host (settings record, ADR-004). */
+void LinkPort_ToggleFlip(void);
+
 #ifdef __cplusplus
 }
 #endif

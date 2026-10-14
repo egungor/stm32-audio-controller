@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <cstring>
 
+#include "Preferences.h"
+
 namespace stm32_audio::host {
 
 namespace {
@@ -16,8 +18,8 @@ bool isContinuationByte(char c)
 
 bool sameContent(const DeviceRegistry::Device& a, const DeviceRegistry::Device& b)
 {
-    return a.index == b.index && a.endpoint.id == b.endpoint.id &&
-           a.displayName == b.displayName && a.endpoint.formFactor == b.endpoint.formFactor;
+    return a.index == b.index && a.endpoint.id == b.endpoint.id && a.displayName == b.displayName &&
+           a.endpoint.formFactor == b.endpoint.formFactor && a.alias == b.alias && a.favorite == b.favorite;
 }
 
 }  // namespace
@@ -77,7 +79,8 @@ std::uint8_t DeviceRegistry::allocateIndex(const std::map<std::string, std::uint
     return 0;
 }
 
-bool DeviceRegistry::update(const std::vector<AudioEndpoint>& endpoints, const std::string& defaultId)
+bool DeviceRegistry::update(const std::vector<AudioEndpoint>& endpoints, const std::string& defaultId,
+                            const Preferences* preferences)
 {
     std::vector<AudioEndpoint> kept(endpoints.begin(),
                                     endpoints.begin() + static_cast<std::ptrdiff_t>(std::min<std::size_t>(
@@ -107,7 +110,13 @@ bool DeviceRegistry::update(const std::vector<AudioEndpoint>& endpoints, const s
         if (newIndexById.count(e.id) == 0U) {
             newIndexById[e.id] = allocateIndex(newIndexById);
         }
-        newDevices.push_back(Device{newIndexById[e.id], e, truncateUtf8(e.name, PROTO_MAX_NAME_BYTES)});
+        Device d{newIndexById[e.id], e, truncateUtf8(e.name, PROTO_MAX_NAME_BYTES), std::string(), false};
+        const DevicePreferences* prefs = preferences != nullptr ? preferences->device(e.id) : nullptr;
+        if (prefs != nullptr) {
+            d.alias = truncateUtf8(prefs->alias, PROTO_MAX_ALIAS_BYTES);
+            d.favorite = prefs->favorite;
+        }
+        newDevices.push_back(std::move(d));
     }
 
     const bool changed = newDevices.size() != devices_.size() ||
@@ -158,12 +167,34 @@ std::vector<ProtoDeviceEntry> DeviceRegistry::entries(const std::string& default
         e.total = static_cast<std::uint8_t>(devices_.size());
         e.position = static_cast<std::uint8_t>(i);
         e.device_index = d.index;
-        e.flags = (d.endpoint.id == defaultId) ? PROTO_DEVICE_FLAG_DEFAULT : 0U;
+        e.flags = static_cast<std::uint8_t>(((d.endpoint.id == defaultId) ? PROTO_DEVICE_FLAG_DEFAULT : 0U) |
+                                            (d.favorite ? PROTO_DEVICE_FLAG_FAVORITE : 0U) |
+                                            (d.alias.empty() ? 0U : PROTO_DEVICE_FLAG_ALIAS));
         e.icon = iconFor(d.endpoint.formFactor);
         e.name_len = static_cast<std::uint8_t>(d.displayName.size());
         std::memcpy(e.name, d.displayName.data(), d.displayName.size());
         e.name[e.name_len] = '\0';
         out.push_back(e);
+    }
+    return out;
+}
+
+std::vector<ProtoAliasEntry> DeviceRegistry::aliasEntries() const
+{
+    std::vector<ProtoAliasEntry> out;
+
+    for (std::size_t i = 0; i < devices_.size(); ++i) {
+        const Device& d = devices_[i];
+        if (d.alias.empty()) {
+            continue;
+        }
+        ProtoAliasEntry a{};
+        a.generation = generation_;
+        a.position = static_cast<std::uint8_t>(i);
+        a.alias_len = static_cast<std::uint8_t>(d.alias.size());
+        std::memcpy(a.alias, d.alias.data(), d.alias.size());
+        a.alias[a.alias_len] = '\0';
+        out.push_back(a);
     }
     return out;
 }

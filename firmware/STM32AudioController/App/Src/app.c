@@ -170,11 +170,16 @@ static void run_test_screen(bool sdram_ok, bool touch_ok)
 
 #else /* !APP_TEST_SCREEN */
 
-/* Flip button on the touchscreen: turn the image by 180°. */
+/* Flip button on the touchscreen: turn the image by 180°. With the host
+ * link the state is part of the settings record the host stores. */
 static void on_ui_flip(void *user)
 {
     (void)user;
+#if APP_UI_DEMO
     UiPort_SetFlipped(!UiPort_IsFlipped());
+#else
+    LinkPort_ToggleFlip();
+#endif
 }
 
 /* LVGL UI, fed by the USB host link (or by demo data with APP_UI_DEMO). */

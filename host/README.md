@@ -28,7 +28,7 @@ host/
 │   ├── IFrameSink.h        # outgoing 64-byte protocol frames
 │   └── HidMatch.h          # which HID interface is the controller (ADR-003)
 ├── App/
-│   ├── HostController.*    # protocol v1 exchanges (protocol/protocol.md)
+│   ├── HostController.*    # protocol v2 exchanges (protocol/protocol.md)
 │   ├── EventQueue.h        # serialises Core Audio and HID events into the controller
 │   └── FrameText.*         # readable one-line form of a protocol message
 ├── Platform/Windows/       # Windows only

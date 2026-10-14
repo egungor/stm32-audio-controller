@@ -10,6 +10,7 @@
 #include "log.h"
 #include "stm32f7xx_hal.h"
 #include "ui.h"
+#include "ui_port.h"
 #include "usb_link.h"
 
 #define SEND_TIMEOUT_MS  20U
@@ -59,11 +60,26 @@ static void cb_notice(LinkNotice notice, void *ctx)
         Log_Line("LINK SELECT FAIL reason=host_error");
         Ui_ShowNotice(UI_NOTICE_SELECT_FAILED);
     }
+    else if (notice == LINK_NOTICE_EDIT_FAILED)
+    {
+        Log_Line("LINK EDIT FAIL reason=host_error");
+    }
     else
     {
         Log_Line("LINK SELECT FAIL reason=timeout");
         Ui_ShowNotice(UI_NOTICE_HOST_TIMEOUT);
     }
+}
+
+/* Settings from the host or a local change. Only the flip is applied for
+ * now; the other fields belong to the M7 UI (#60). */
+static void cb_apply_settings(const ProtoSettings *s, void *ctx)
+{
+    (void)ctx;
+    Log_Line("LINK SETTINGS layout=%u theme=%u accent=%u grid=%u flipped=%u limit=%u/%u",
+             (unsigned)s->layout, (unsigned)s->theme, (unsigned)s->accent, (unsigned)s->grid,
+             (unsigned)s->flipped, (unsigned)s->volume_limit_on, (unsigned)s->volume_limit);
+    UiPort_SetFlipped(s->flipped != 0U);
 }
 
 static void cb_set_volume(uint8_t volume, void *ctx)
@@ -110,7 +126,7 @@ void LinkPort_Init(void)
 {
     static const LinkCallbacks callbacks = {
         cb_send_frame, cb_show_waiting, cb_show_devices, cb_set_active, cb_set_pending, cb_notice,
-        cb_set_volume, cb_set_muted, NULL,
+        cb_set_volume, cb_set_muted, NULL, cb_apply_settings,
     };
 
     Ui_Init(on_ui_select, NULL);
@@ -164,4 +180,12 @@ void LinkPort_Run(void)
         }
     }
     Link_Poll(&s_link, now);
+}
+
+void LinkPort_ToggleFlip(void)
+{
+    ProtoSettings s = *Link_Settings(&s_link);
+
+    s.flipped = (s.flipped != 0U) ? 0U : 1U;
+    Link_SetSettings(&s_link, &s, HAL_GetTick());
 }
