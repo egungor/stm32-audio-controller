@@ -137,6 +137,14 @@ void HostController::onPreferencesChanged()
 
 void HostController::handleGetDeviceList()
 {
+    if (!synced()) {
+        // A board session starts: apply the startup volume limit before
+        // the volume is reported (ADR-004).
+        const std::vector<VolumeLimited> lowered = applyVolumeLimit(audio_, prefs_.settings());
+        if (!lowered.empty() && volumeLimited_) {
+            volumeLimited_(lowered);
+        }
+    }
     refreshRegistry();
     sendDeviceList();
     sendDefault(true);

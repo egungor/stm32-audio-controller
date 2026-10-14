@@ -7,6 +7,7 @@
 #include <cstring>
 #include <deque>
 #include <limits>
+#include <map>
 #include <optional>
 #include <string>
 #include <thread>
@@ -18,7 +19,10 @@
 #include "FrameText.h"
 #include "HidMatch.h"
 #include "HostController.h"
+#include "PreferenceFile.h"
+#include "PreferenceStore.h"
 #include "Preferences.h"
+#include "VolumeLimit.h"
 
 using namespace stm32_audio::host;
 
@@ -77,6 +81,50 @@ public:
         mute = m;
         return true;
     }
+
+    // Per-device volume; the default device's is `volume`.
+    std::map<std::string, unsigned> endpointVolumes;
+    std::optional<unsigned> endpointVolumePercent(const std::string& id) override
+    {
+        if (id == defaultId) {
+            return volume;
+        }
+        const auto it = endpointVolumes.find(id);
+        return it == endpointVolumes.end() ? std::nullopt : std::optional<unsigned>(it->second);
+    }
+    bool setEndpointVolumePercent(const std::string& id, unsigned percent) override
+    {
+        if (id == defaultId) {
+            return setVolumePercent(percent);
+        }
+        if (endpointVolumes.count(id) == 0U) {
+            return false;
+        }
+        endpointVolumes[id] = percent;
+        return true;
+    }
+};
+
+// In-memory preference file.
+class FakeFile : public IPreferenceFile {
+public:
+    std::optional<std::string> content;
+    std::optional<std::string> kept;
+    bool failWrite = false;
+    int writes = 0;
+
+    std::optional<std::string> read() override { return content; }
+    bool write(const std::string& c) override
+    {
+        if (failWrite) {
+            return false;
+        }
+        content = c;
+        ++writes;
+        return true;
+    }
+    void keepUnreadable(const std::string& c) override { kept = c; }
+    std::string location() const override { return "fake"; }
 };
 
 class FakeSink : public IFrameSink {
@@ -875,6 +923,200 @@ void testPreferencesReplacedFromOutside()
     CHECK(r.sink.sent.empty());
 }
 
+// ------------------------------------------- preference file (#59)
+
+void testPreferenceFileRoundTrip()
+{
+    Preferences p;
+    (void)p.setAlias("{0.0.0}.{a}", "Masa\xC3\xBCst\xC3\xBC\thoparl\xC3\xB6r\\1");  // TAB and backslash
+    (void)p.setFavorite("{0.0.0}.{a}", true);
+    (void)p.setFavorite("{0.0.0}.{b}", true);
+    (void)p.arrange({ep("{0.0.0}.{b}", "B"), ep("{0.0.0}.{a}", "A"), ep("{0.0.0}.{c}", "C")});
+    ProtoSettings s = p.settings();
+    s.layout = 2;
+    s.accent = 4;
+    s.flipped = 1;
+    s.volume_limit_on = 1;
+    s.volume_limit = 35;
+    (void)p.setSettings(s);
+
+    const std::string text = serializePreferences(p);
+    CHECK(text.rfind("# stm32-audio-controller preferences\nversion\t1\n", 0) == 0);
+    Preferences q;
+    CHECK(parsePreferences(text, q));
+    CHECK(std::memcmp(&q.settings(), &p.settings(), sizeof(ProtoSettings)) == 0);
+    CHECK(q.order() == p.order());
+    CHECK(q.device("{0.0.0}.{a}") != nullptr && q.device("{0.0.0}.{a}")->alias == p.device("{0.0.0}.{a}")->alias);
+    CHECK(q.device("{0.0.0}.{a}")->favorite && q.device("{0.0.0}.{b}")->favorite);
+    CHECK(q.device("{0.0.0}.{b}")->alias.empty());
+    CHECK(serializePreferences(q) == text);
+
+    // CR LF line ends (file edited on Windows) read the same.
+    std::string crlf;
+    for (char c : text) {
+        if (c == '\n') {
+            crlf += '\r';
+        }
+        crlf += c;
+    }
+    Preferences r;
+    CHECK(parsePreferences(crlf, r));
+    CHECK(serializePreferences(r) == text);
+}
+
+void testPreferenceFileDamaged()
+{
+    Preferences p;
+    (void)p.setAlias("x", "keep");
+
+    // Not a preference file, or an unknown version: rejected, p unchanged.
+    CHECK(!parsePreferences("", p));
+    CHECK(!parsePreferences("hello\n", p));
+    CHECK(!parsePreferences("version\t2\nsetting\ttheme\t1\n", p));
+    CHECK(p.device("x") != nullptr && p.device("x")->alias == "keep");
+
+    // Damaged lines inside a valid file are skipped.
+    const std::string text =
+        "version\t1\n"
+        "setting\ttheme\t1\n"
+        "setting\taccent\t9\n"         // out of range: default kept
+        "setting\tlayout\tabc\n"       // not a number
+        "setting\tfuture_option\t3\n"  // unknown name
+        "device\n"                     // no ID
+        "device\tid1\tfavorite\t1\talias\t" + std::string(40, 'a') + "\n"  // alias cut to 32 bytes
+        "order\tid1\norder\tid1\norder\tid2\n"                              // duplicate ID
+        "something-new\tx\n";
+    CHECK(parsePreferences(text, p));
+    CHECK(p.settings().theme == 1 && p.settings().accent == 0 && p.settings().layout == 0);
+    CHECK(p.device("x") == nullptr);
+    CHECK(p.device("id1")->favorite && p.device("id1")->alias == std::string(32, 'a'));
+    CHECK(p.order() == std::vector<std::string>({"id1", "id2"}));
+}
+
+void testPreferenceStore()
+{
+    FakeFile file;
+    Preferences prefs;
+    PreferenceStore store(file, prefs);
+
+    CHECK(store.load() == PreferenceStore::LoadResult::Missing);
+    CHECK(!store.poll(0));
+    CHECK(file.writes == 0);
+
+    // Changes are written at most once per second.
+    (void)prefs.setAlias("a", "A");
+    store.markChanged();
+    CHECK(!store.poll(100));
+    CHECK(file.writes == 1);
+    (void)prefs.setAlias("a", "B");
+    store.markChanged();
+    CHECK(!store.poll(600));
+    CHECK(file.writes == 1 && store.dirty());
+    CHECK(!store.poll(1100));
+    CHECK(file.writes == 2 && !store.dirty());
+    CHECK(file.content->find("alias\tB") != std::string::npos);
+
+    // Another program replaced the file: reloaded at the next check, and
+    // the file wins over unsaved changes.
+    Preferences other;
+    (void)other.setAlias("a", "From CLI");
+    file.content = serializePreferences(other);
+    (void)prefs.setFavorite("a", true);
+    store.markChanged();
+    CHECK(store.poll(2200));
+    CHECK(prefs.device("a")->alias == "From CLI" && !prefs.device("a")->favorite);
+    CHECK(!store.dirty());
+    CHECK(!store.poll(3300));  // no change since
+
+    // Our own writes do not count as external changes.
+    (void)prefs.setFavorite("a", true);
+    store.markChanged();
+    CHECK(!store.poll(4400));
+    CHECK(!store.poll(5500));
+    CHECK(prefs.device("a")->favorite);
+
+    // A write failure keeps the change for the next try; flush reports it.
+    file.failWrite = true;
+    (void)prefs.setFavorite("a", false);
+    store.markChanged();
+    (void)store.poll(6600);
+    CHECK(store.dirty() && store.writeFailures() == 1);
+    CHECK(!store.flush());
+    file.failWrite = false;
+    CHECK(store.flush());
+    CHECK(!store.dirty());
+
+    // An unreadable file is kept aside and replaced by defaults.
+    FakeFile bad;
+    bad.content = "garbage";
+    Preferences fresh;
+    (void)fresh.setAlias("z", "Z");
+    PreferenceStore badStore(bad, fresh);
+    CHECK(badStore.load() == PreferenceStore::LoadResult::Unreadable);
+    CHECK(bad.kept == std::string("garbage"));
+    CHECK(fresh.device("z") == nullptr);
+    // ... and is not retried every second.
+    CHECK(!badStore.poll(0));
+    CHECK(!badStore.poll(2000));
+}
+
+void testVolumeLimit()
+{
+    FakeAudio audio;
+    audio.endpoints = {ep("spk", "Speakers"), ep("hp", "Headphones"), ep("tv", "TV"), ep("x", "No volume")};
+    audio.defaultId = "hp";
+    audio.volume = 80;
+    audio.endpointVolumes = {{"spk", 30}, {"tv", 100}};  // "x" has no volume control
+
+    ProtoSettings s{};
+    Proto_DefaultSettings(&s);
+    s.volume_limit = 40;
+    CHECK(applyVolumeLimit(audio, s).empty());  // off
+    CHECK(audio.volume == 80U);
+
+    s.volume_limit_on = 1;
+    const std::vector<VolumeLimited> lowered = applyVolumeLimit(audio, s);
+    CHECK(lowered.size() == 2);
+    CHECK(lowered[0].endpointId == "hp" && lowered[0].from == 80 && lowered[0].to == 40);
+    CHECK(lowered[1].endpointId == "tv" && lowered[1].from == 100);
+    CHECK(audio.volume == 40U && audio.endpointVolumes["tv"] == 40U);
+    CHECK(audio.endpointVolumes["spk"] == 30U);  // never raised
+    CHECK(audio.mute == false);                  // mute untouched
+}
+
+void testVolumeLimitAtSessionStart()
+{
+    Rig r;
+    std::vector<VolumeLimited> logged;
+    r.controller.setVolumeLimitedHandler([&logged](const std::vector<VolumeLimited>& v) { logged = v; });
+    r.audio.volume = 90;
+    ProtoSettings s = r.controller.preferences().settings();
+    s.volume_limit_on = 1;
+    s.volume_limit = 25;
+    (void)r.controller.preferences().setSettings(s);
+
+    // The first list of a session: limited before the volume is reported.
+    r.controller.onConnected();
+    CHECK(r.audio.volume == 25U);
+    CHECK(logged.size() == 1 && logged[0].endpointId == "hp");
+    ProtoMessage m{};
+    do {
+        m = r.sink.pop();
+    } while (m.command != PROTO_CMD_VOLUME_CHANGED && !r.sink.sent.empty());
+    CHECK(m.command == PROTO_CMD_VOLUME_CHANGED && m.u.volume == 25);
+
+    // A GET_DEVICE_LIST within the same session does not limit again.
+    logged.clear();
+    r.audio.volume = 70;
+    r.controller.onFrame(frameFor(PROTO_CMD_GET_DEVICE_LIST, 1));
+    CHECK(r.audio.volume == 70U && logged.empty());
+
+    // The next session does.
+    r.controller.onDisconnected();
+    r.controller.onFrame(frameFor(PROTO_CMD_GET_DEVICE_LIST, 2));
+    CHECK(r.audio.volume == 25U && logged.size() == 1);
+}
+
 // ------------------------------------------------- helper tests
 
 void testAudioMapping()
@@ -1141,6 +1383,11 @@ int main()
     testEditsAnsweredWithNewList();
     testSettingsStoredAndEchoed();
     testPreferencesReplacedFromOutside();
+    testPreferenceFileRoundTrip();
+    testPreferenceFileDamaged();
+    testPreferenceStore();
+    testVolumeLimit();
+    testVolumeLimitAtSessionStart();
     testAudioMapping();
     testEventQueue();
     testEventQueueFrames();

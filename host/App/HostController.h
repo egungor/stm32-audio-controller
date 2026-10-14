@@ -20,6 +20,7 @@
 #include "IAudioSystem.h"
 #include "IFrameSink.h"
 #include "Preferences.h"
+#include "VolumeLimit.h"
 #include "protocol.h"
 
 namespace stm32_audio::host {
@@ -72,6 +73,13 @@ public:
     // settings), e.g. to save them.
     void setPreferencesChangedHandler(std::function<void()> handler) { prefsChanged_ = std::move(handler); }
 
+    // Called when the startup volume limit lowered devices at the start of
+    // a session (e.g. to log them).
+    void setVolumeLimitedHandler(std::function<void(const std::vector<VolumeLimited>&)> handler)
+    {
+        volumeLimited_ = std::move(handler);
+    }
+
 private:
     bool synced() const { return sentGeneration_.has_value(); }
     void forgetSent();
@@ -100,6 +108,7 @@ private:
     DeviceRegistry registry_;
     Preferences prefs_;
     std::function<void()> prefsChanged_;
+    std::function<void(const std::vector<VolumeLimited>&)> volumeLimited_;
     Stats stats_;
     std::uint8_t sequence_ = 0;
 
