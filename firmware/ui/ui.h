@@ -33,6 +33,7 @@ extern "C" {
 
 #define UI_MAX_DEVICES       32U  /**< = PROTO_MAX_DEVICES */
 #define UI_MAX_NAME_BYTES    48U  /**< = PROTO_MAX_NAME_BYTES, UTF-8 */
+#define UI_MAX_ALIAS_BYTES   32U  /**< = PROTO_MAX_ALIAS_BYTES, UTF-8 */
 #define UI_DEVICES_PER_PAGE  4U
 #define UI_NO_DEVICE         0xFFU
 #define UI_NOTICE_MS         3000U
@@ -53,7 +54,9 @@ typedef struct
 {
     uint8_t id;                            /**< host's device_index */
     uint8_t icon;                          /**< UiIcon */
-    char    name[UI_MAX_NAME_BYTES + 1U];  /**< UTF-8, NUL-terminated */
+    char    name[UI_MAX_NAME_BYTES + 1U];  /**< Windows name, UTF-8, NUL-terminated */
+    char    alias[UI_MAX_ALIAS_BYTES + 1U]; /**< user's alias, "" if none; shown instead of name */
+    uint8_t favorite;                      /**< 1 if marked as favorite */
 } UiDevice;
 
 /** Called when the user taps a device that is not already active. */

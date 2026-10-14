@@ -67,7 +67,9 @@ Then, as the USB host link works (`App/Src/link_port.c`, `protocol.md`):
 | `LINK ACTIVE id=<id>` | The host reported a new default device (`DEVICE_CHANGED`) |
 | `UI SELECT id=<id>` | User tapped a device that is not active; `SELECT_DEVICE` sent |
 | `LINK SELECT FAIL reason=host_error` | The host answered the selection with `ERROR` |
-| `LINK SELECT FAIL reason=timeout` | No answer within 2 s; waiting screen, list requested again |
+| `LINK SELECT FAIL reason=timeout` | No answer within 2 s to a selection, an edit or a settings change; waiting screen, list requested again |
+| `LINK EDIT FAIL reason=host_error` | The host answered an alias, favorite, order or settings change with `ERROR` |
+| `LINK SETTINGS layout=<n> theme=<n> accent=<n> grid=<n> flipped=<0\|1> limit=<on>/<percent>` | Settings record applied (from the host, or changed on the board); only `flipped` takes effect until the M7 UI (#60) |
 | `UI VOLUME value=<n>` | User released the volume slider at `n` percent (`SET_VOLUME` is sent while dragging, at most every 100 ms) |
 | `UI MUTE on\|off` | User tapped the mute button; `SET_MUTE` sent |
 | `LINK MUTE muted=<0\|1>` | The host reported the mute state (`MUTE_CHANGED`) |

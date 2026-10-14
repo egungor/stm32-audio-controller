@@ -166,7 +166,7 @@ static void render_button(uint32_t slot)
     lv_obj_set_style_border_width(b->btn, pending ? 2 : 0, 0);
     lv_label_set_text_static(b->icon, icon_symbol(d->icon));
     lv_obj_set_style_text_color(b->icon, lv_color_hex(active ? COLOR_ON_ACC : COLOR_MUTED), 0);
-    lv_label_set_text(b->name, d->name);
+    lv_label_set_text(b->name, (d->alias[0] != '\0') ? d->alias : d->name);
     lv_obj_set_style_text_color(b->name, lv_color_hex(fg), 0);
 
     if (active || pending)
@@ -609,6 +609,7 @@ void Ui_SetDevices(const UiDevice *devices, size_t count)
     {
         s_ui.devices[i] = devices[i];
         s_ui.devices[i].name[UI_MAX_NAME_BYTES] = '\0';
+        s_ui.devices[i].alias[UI_MAX_ALIAS_BYTES] = '\0';
     }
     s_ui.count = (uint32_t)count;
     s_ui.pending = UI_NO_DEVICE;
