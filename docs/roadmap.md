@@ -3,7 +3,10 @@
 Status legend: **DONE** — implemented and verified where hardware or
 Windows is involved; **CODE DONE** — implemented and tested in CI, the
 hardware/Windows check is open (`docs/hardware.md`, "Pending hardware and
-Windows tests"); **NOT STARTED**.
+Windows tests"); **IN PROGRESS**; **NOT STARTED**.
+
+The M1–M6 board and Windows checks ran on 2026-10-14 (issue #48; results
+in the `docs/hardware.md` bring-up log).
 
 ## M0 — AI Development Environment
 
@@ -21,91 +24,94 @@ Status: **DONE**
 
 ## M1 — Hardware Bring-up
 
-Status: **CODE DONE** — clock and touch checks REQUIRE HARDWARE
+Status: **DONE**
 
 - [x] Create STM32CubeMX project (CMake, `firmware/STM32AudioController/`)
 - [x] Review enabled peripherals — `docs/decisions/ADR-001-firmware-peripheral-set.md`
-- [ ] Verify clocks (SYSCLK configured at 200 MHz) — measurement against the LSE at boot (#16), REQUIRES HARDWARE
-- [x] Initialize LCD — SDRAM framebuffer + LTDC, issue #7
-- [ ] Initialize touch — FT5336 driver (#18), REQUIRES HARDWARE
+- [x] Verify clocks (SYSCLK configured at 200 MHz) — measurement against the LSE at boot (#16), `ppm=12` on the board
+- [x] Initialize LCD — SDRAM framebuffer + LTDC, issue #7; SDRAM also from a power cycle
+- [x] Initialize touch — FT5336 driver (#18)
 - [x] Display a static test screen — M1 test pattern, verified on the panel 2026-10-13
-- [ ] Verify touch coordinates — five targets on the test screen (#18), REQUIRES HARDWARE
+- [x] Verify touch coordinates — five targets on the test screen (#18)
 - [x] Document hardware pin/peripheral mapping — `docs/pin-mapping.md`, issue #14
 
 ## M2 — STM32 UI
 
-Status: **CODE DONE** — UI on the LCD REQUIRES HARDWARE
+Status: **DONE**
 
-- [ ] Add LVGL
+- [x] Add LVGL
   - [x] LVGL v9.5.0 submodule, `lv_conf.h`, fonts with Turkish letters (#22)
   - [x] Hardware-independent UI module and Linux simulator with screenshots (#22)
-  - [ ] Port to the board: LTDC display driver, FT5336 input, timer task — code in #24, REQUIRES HARDWARE
-- [ ] Create main screen — `firmware/ui` (#22), simulator; on the LCD REQUIRES HARDWARE
-- [ ] Create 2×2 audio device buttons — as above
-- [ ] Add active-device indication — colour and text, plus a pending mark until the host confirms; as above
-- [ ] Add pagination — four devices per page, arrows; as above
-- [ ] Create device model — device list from the host (`firmware/link`, #30), no model of its own on the STM32; as above
-- [ ] Capture LCD screenshots of the final UI into `docs/images/` and add
-      them to the project presentation (see `docs/images/README.md`)
+  - [x] Port to the board: LTDC display driver, FT5336 input, timer task (#24)
+- [x] Create main screen — `firmware/ui` (#22)
+- [x] Create 2×2 audio device buttons
+- [x] Add active-device indication — colour and text, plus a pending mark until the host confirms
+- [x] Add pagination — four devices per page, arrows
+- [x] Create device model — device list from the host (`firmware/link`, #30), no model of its own on the STM32
+- [x] Capture LCD screenshots of the UI into `docs/images/` (#48)
+- [ ] Add the screenshots to the project presentation (see `docs/images/README.md`)
 
 ## M3 — USB HID
 
-Status: **CODE DONE** — REQUIRES HARDWARE + WINDOWS
+Status: **DONE**
 
-- [ ] Configure USB Device — vendor HID class, `1209:0001` (#30, ADR-003), REQUIRES HARDWARE
+- [x] Configure USB Device — vendor HID class, `1209:0001` (#30, ADR-003)
 - [x] Define HID descriptor — ADR-003, `protocol.md` "Transport" (#30)
-- [ ] Implement HID transport — firmware side and protocol client (#30), Windows `WinHidLink` and `run` (#32); REQUIRES HARDWARE + WINDOWS
-- [ ] Test host ↔ STM32 packets — REQUIRES HARDWARE + WINDOWS
-- [ ] Handle disconnect/reconnect — firmware: waiting screen and list re-request (#30); host: rescan every second, controller reset (#32); REQUIRES HARDWARE + WINDOWS
+- [x] Implement HID transport — firmware side and protocol client (#30), Windows `WinHidLink` and `run` (#32)
+- [x] Test host ↔ STM32 packets
+- [x] Handle disconnect/reconnect — firmware: waiting screen and list re-request (#30), no false `CONFIGURED` after unplugging (#52); host: rescan every second, controller reset (#32)
 
 ## M4 — Windows Audio
 
-Status: **CODE DONE** — REQUIRES WINDOWS
+Status: **DONE**
 
 - [x] Create Windows C++17 host project — platform-independent core + tests (#26)
-- [ ] Enumerate render endpoints — code in #28, REQUIRES WINDOWS
+- [x] Enumerate render endpoints (#28)
 - [x] Build audio device model — `DeviceRegistry`, protocol controller (#26)
-- [ ] Detect current default endpoint — code in #28, REQUIRES WINDOWS
-- [ ] Implement default endpoint switching — code in #28 (ADR-002), REQUIRES WINDOWS
-- [ ] Monitor endpoint/default-device changes — code in #28, REQUIRES WINDOWS
+- [x] Detect current default endpoint (#28)
+- [x] Implement default endpoint switching (#28, ADR-002)
+- [x] Monitor endpoint/default-device changes (#28)
 
 ## M5 — Integration
 
-Status: **CODE DONE** — REQUIRES HARDWARE + WINDOWS
+Status: **DONE** — except endpoint removal while connected, NOT TESTED on hardware
 
-The firmware protocol client and the host controller run against each
-other in `tests/integration` (simulated USB link and Windows, #34). That
-covers the logic of every item below; each still needs the board and a
-Windows PC (`host/README.md`, "Manual check with the board").
+The firmware protocol client and the host controller also run against
+each other in `tests/integration` (simulated USB link and Windows, #34).
 
-- [ ] Send device list to STM32 — logic tested (#34), REQUIRES HARDWARE + WINDOWS
-- [ ] Select device from STM32 — logic tested (#34), REQUIRES HARDWARE + WINDOWS
-- [ ] Update Windows default endpoint — logic tested (#34), REQUIRES HARDWARE + WINDOWS
-- [ ] Synchronize Windows changes back to STM32 — logic tested (#34), REQUIRES HARDWARE + WINDOWS
-- [ ] Handle endpoint removal — logic tested (#34), REQUIRES HARDWARE + WINDOWS
-- [ ] Handle USB disconnect — logic tested (#34), REQUIRES HARDWARE + WINDOWS
+- [x] Send device list to STM32
+- [x] Select device from STM32
+- [x] Update Windows default endpoint
+- [x] Synchronize Windows changes back to STM32
+- [ ] Handle endpoint removal — logic tested (#34); adding or removing a Windows device while the board is connected NOT TESTED on hardware
+- [x] Handle USB disconnect
 
 ## M6 — Audio Controls
 
-Status: **CODE DONE** — REQUIRES HARDWARE + WINDOWS
+Status: **DONE**
 
-- [ ] Volume read/write — host (#26, #28), STM32 protocol client with rate limiting (#40); REQUIRES HARDWARE + WINDOWS
-- [ ] Mute — host (#26, #28), STM32 (#40); REQUIRES HARDWARE + WINDOWS
-- [ ] Volume UI — bottom strip slider and percentage (#40), simulator; on the LCD REQUIRES HARDWARE
-- [ ] Mute UI — bottom strip button (#40), simulator; on the LCD REQUIRES HARDWARE
+- [x] Volume read/write — host (#26, #28), STM32 protocol client with rate limiting (#40)
+- [x] Mute — host (#26, #28), STM32 (#40)
+- [x] Volume UI — bottom strip slider and percentage (#40)
+- [x] Mute UI — bottom strip button (#40)
 
 ## M7 — Polish
 
-Status: **NOT STARTED** (display flip coded, #42; two items partly exist)
+Status: **IN PROGRESS**
 
-- [ ] Friendly names
-- [ ] Favorites
-- [ ] Custom ordering
+Order: protocol version 2 (ADR-004, #58) → host (#59) → firmware UI
+(#60). Designs: #57.
+
+- [ ] Friendly names — aliases, edited on the touchscreen and with `stm32-audio-host alias` (#58–#60)
+- [ ] Favorites — favorite flag and a favorites tab (#58–#60)
+- [ ] Custom ordering — edit mode on the touchscreen (#58–#60)
+- [ ] Layouts and themes — A cards (2×2, 2×3, 3×3, list), B list, C large tile; dark/light; six accent colours (#57, #60)
+- [ ] Settings page — layout, theme, colour, grid, startup tab, screen timeout, flip, language, startup volume limit (#58–#60)
 - [ ] Icons — form factor icons exist (speakers, headphones, headset, display, digital, generic; #22, #26)
 - [ ] Windows startup option
 - [ ] Error UI — waiting screen, error screen and notices for a refused or unanswered selection exist (#22, #30)
 - [ ] Performance/memory review
-- [ ] Display flip (180°) — button and port coded (#42), simulator; on the LCD REQUIRES HARDWARE
+- [x] Display flip (180°) — button and port (#42), frame copy 5 ms (#51), verified on the board
 
 ## v1.0
 

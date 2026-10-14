@@ -11,22 +11,25 @@ The project consists of:
 
 ## Project status
 
-M0 is done. Firmware, host and protocol for M1–M5 are written and
-tested in CI; verification on the physical board and on Windows is the
-open part (see [`docs/hardware.md`](docs/hardware.md), "Pending hardware
-and Windows tests", and [`docs/roadmap.md`](docs/roadmap.md)).
+M0–M6 are done: firmware, host and protocol are tested in CI, and the
+board and Windows checks ran on 2026-10-14 (bring-up log in
+[`docs/hardware.md`](docs/hardware.md)). M7 (polish) is in progress:
+aliases, ordering, favorites, three layouts with themes and a settings
+page, on protocol version 2 (ADR-004). Milestones:
+[`docs/roadmap.md`](docs/roadmap.md).
 
 | Part | State |
 |---|---|
-| Board bring-up: boot, ST-LINK VCP log, SDRAM, LCD test pattern | VERIFIED on the board |
-| Clock measurement, FT5336 touch | Code done, REQUIRES HARDWARE |
-| LVGL UI (device buttons, pages, waiting screen, notices) | Linux simulator in CI; on the board REQUIRES HARDWARE |
-| USB HID interface `1209:0001` and STM32 protocol client | Unit tests in CI; REQUIRES HARDWARE |
+| Board bring-up: boot, ST-LINK VCP log, clock, SDRAM (also from a power cycle), LCD | VERIFIED on the board |
+| FT5336 touch | VERIFIED on the board |
+| LVGL UI (device buttons, pages, waiting screen, notices) | Simulator in CI; VERIFIED on the board |
+| USB HID interface `1209:0001` and STM32 protocol client | Unit tests in CI; VERIFIED on the board and Windows |
 | Protocol v1 (64-byte frames, CRC-16) | Codec tests in CI (Linux, Windows) |
-| Windows host: Core Audio, default device switching, HID transport | Builds and unit tests in CI; REQUIRES WINDOWS |
-| Firmware ↔ host together | Loopback integration test in CI; end to end REQUIRES HARDWARE + WINDOWS |
-| Volume and mute on the touchscreen (M6) | Simulator and tests in CI; REQUIRES HARDWARE + WINDOWS |
-| Polish (M7) | Not started; display flip (180°) coded (#42), REQUIRES HARDWARE |
+| Windows host: Core Audio, default device switching, HID transport | Unit tests in CI; VERIFIED on Windows |
+| Firmware ↔ host together | Loopback integration test in CI; end to end VERIFIED; adding or removing a Windows device while connected NOT TESTED |
+| Volume and mute on the touchscreen (M6) | VERIFIED on the board and Windows |
+| Display flip (180°) | VERIFIED on the board (#42, #51) |
+| Polish (M7) | In progress (#57–#60) |
 
 ## Architecture
 

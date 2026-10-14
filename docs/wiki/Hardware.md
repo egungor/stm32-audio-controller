@@ -3,11 +3,11 @@
 | Item | Value | Status |
 |---|---|---|
 | Board | STM32F746G-DISCO (32F746GDISCOVERY), MB1191 | VERIFIED |
-| MCU | STM32F746NGH6, Cortex-M7, run at 200 MHz | VERIFIED (part); clock measurement REQUIRES HARDWARE |
+| MCU | STM32F746NGH6, Cortex-M7, run at 200 MHz | VERIFIED; clock measured against the LSE (12 ppm) |
 | LCD | 4.3" 480×272, ROCKTECH RK043FN48H-CT672B, LTDC RGB565 | VERIFIED |
-| Touch | FT5336 capacitive, I²C3 | Part VERIFIED; driver REQUIRES HARDWARE |
+| Touch | FT5336 capacitive, I²C3 | VERIFIED |
 | SDRAM | 8 MB usable on FMC bank 1 (`0xC0000000`) | VERIFIED (self-test) |
-| USB to PC | USB OTG FS micro-USB connector | Enumerates; vendor HID REQUIRES HARDWARE |
+| USB to PC | USB OTG FS micro-USB connector | VERIFIED; vendor HID `1209:0001` |
 | Debug | ST-LINK/V2-1 (flash, SWD, virtual COM port) | VERIFIED |
 
 ## Peripherals in use
