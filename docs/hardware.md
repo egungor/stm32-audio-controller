@@ -238,6 +238,26 @@ because the spurious resume comes before VBUS has fallen.
 | Host program closed, then started again | VERIFIED — closing logs `USB DISCONNECTED` then `USB RESUMED` (Windows suspends the idle device and wakes it again, with SOFs); the restarted host gets the list (`Controller connected`, `LINK LIST OK n=9`) with no new `USB CONFIGURED`, because the device stayed configured |
 | Replug enumeration: DISCONNECTED/CONFIGURED pairs seen in #48 | Not seen in these two replugs (one `USB CONFIGURED` each) |
 
+### 2026-10-14 — protocol version 2 on the board (issue #58)
+
+Firmware and host from branch `feature/58-protocol-v2` (`26e6c5e`; the
+host build also has the one-line cast fix that follows it). Firmware
+built with the Windows ST toolchain (Debug, 0 warnings), host with MSVC
+(Visual Studio 2022 17.11.5). The previous v1 `stm32-audio-host run` was
+stopped first: a v1 host and a v2 board reject each other's frames.
+Taps, cable changes and the visual checks were done by the developer.
+
+| Check | Result |
+|---|---|
+| Connect: list, default, volume, mute, then `SETTINGS` | VERIFIED — host sends 9 × `DEVICE_LIST` and `SETTINGS`; `LINK LIST OK n=9 gen=1` |
+| Select with the list generation | VERIFIED — `SELECT_DEVICE gen=1 index=1` → `DEVICE_CHANGED index=1`, Windows switched |
+| Mute from the LCD | VERIFIED — `SET_MUTE` → `MUTE_CHANGED` |
+| Flip through the settings record | VERIFIED — `SET_SETTINGS flipped=1` → `SETTINGS flipped=1` → `LINK SETTINGS … flipped=1`, `UI FLIP on`; back and forth three times, `copy_max_ms=5` |
+| Unplug and replug while flipped | VERIFIED — the host sends `SETTINGS flipped=1` after the list; the display stays flipped (no `UI FLIP off`; developer visual check) |
+| Errors | None on either side; no `LINK EDIT FAIL`, no timeouts |
+| Alias, favorite, order from the board | NOT TESTED on hardware — no UI for them yet (#60); covered by the link, host and integration tests |
+| Settings after a host restart | NOT TESTED — the host keeps preferences in memory only until #59 |
+
 ## Firmware peripherals in use
 
 Pins and verification status: [`pin-mapping.md`](pin-mapping.md);
