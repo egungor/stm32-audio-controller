@@ -234,6 +234,35 @@ ComPtr<IAudioEndpointVolume> WinAudioSystem::defaultVolume()
     return volume;
 }
 
+ComPtr<IAudioEndpointVolume> WinAudioSystem::endpointVolume(const std::string& id)
+{
+    ComPtr<IMMDevice> device;
+    ComPtr<IAudioEndpointVolume> volume;
+    const std::wstring wideId = toWide(id);
+
+    if (enumerator_ && !id.empty() && SUCCEEDED(enumerator_->GetDevice(wideId.c_str(), device.GetAddressOf()))) {
+        device->Activate(__uuidof(IAudioEndpointVolume), CLSCTX_ALL, nullptr,
+                         reinterpret_cast<void**>(volume.GetAddressOf()));
+    }
+    return volume;
+}
+
+std::optional<unsigned> WinAudioSystem::endpointVolumePercent(const std::string& id)
+{
+    float scalar = 0.0F;
+    const ComPtr<IAudioEndpointVolume> volume = endpointVolume(id);
+    if (!volume || FAILED(volume->GetMasterVolumeLevelScalar(&scalar))) {
+        return std::nullopt;
+    }
+    return percentFromScalar(scalar);
+}
+
+bool WinAudioSystem::setEndpointVolumePercent(const std::string& id, unsigned percent)
+{
+    const ComPtr<IAudioEndpointVolume> volume = endpointVolume(id);
+    return volume && SUCCEEDED(volume->SetMasterVolumeLevelScalar(scalarFromPercent(percent), nullptr));
+}
+
 std::optional<unsigned> WinAudioSystem::volumePercent()
 {
     float scalar = 0.0F;
