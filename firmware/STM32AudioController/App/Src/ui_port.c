@@ -28,14 +28,60 @@ static uint32_t s_copy_max_ms;  /* longest copy since the last toggle */
 
 /* Turning a framebuffer by 180° reverses the order of its pixels. With two
  * RGB565 pixels per word (the pixel count is even): reverse the words and
- * swap the two halves of each. */
+ * swap the two halves of each.
+ *
+ * The SDRAM is not cached and all four framebuffers lie in the same SDRAM
+ * bank, so alternating single reads from FB0/FB1 with single writes to
+ * FB2/FB3 keep switching SDRAM rows (measured 22 ms per
+ * frame, #51). Instead each 1 KB chunk is read in bursts into SRAM, then
+ * written turned in bursts (4.8 ms).
+ * Both loops are assembly so their speed does not depend on the build
+ * type (Debug is -O0). r7 is left alone: it is the -O0 frame pointer. */
+#define TURN_CHUNK_WORDS 256U /* 1 KB, two SDRAM rows */
+
+_Static_assert(((FB_BYTES / 4U) % TURN_CHUNK_WORDS) == 0U, "framebuffer in whole chunks");
+
+static uint32_t s_turn_chunk[TURN_CHUNK_WORDS];
+
+/* words: multiple of 8, not 0. */
+static void copy_words(uint32_t *dst, const uint32_t *src, uint32_t words)
+{
+    __asm volatile("1:\n\t"
+                   "ldmia %[src]!, {r4-r6, r8-r12}\n\t"
+                   "stmia %[dst]!, {r4-r6, r8-r12}\n\t"
+                   "subs  %[n], %[n], #8\n\t"
+                   "bne   1b"
+                   : [src] "+r"(src), [dst] "+r"(dst), [n] "+r"(words)
+                   :
+                   : "r4", "r5", "r6", "r8", "r9", "r10", "r11", "r12", "cc", "memory");
+}
+
+/* dst[i] = ROR(src_end[-1 - i], 16); words: multiple of 4, not 0. */
+static void turn_words(uint32_t *dst, const uint32_t *src_end, uint32_t words)
+{
+    __asm volatile("1:\n\t"
+                   "ldmdb %[src]!, {r4-r6, r8}\n\t"
+                   "ror   r9, r8, #16\n\t"
+                   "ror   r10, r6, #16\n\t"
+                   "ror   r11, r5, #16\n\t"
+                   "ror   r12, r4, #16\n\t"
+                   "stmia %[dst]!, {r9-r12}\n\t"
+                   "subs  %[n], %[n], #4\n\t"
+                   "bne   1b"
+                   : [src] "+r"(src_end), [dst] "+r"(dst), [n] "+r"(words)
+                   :
+                   : "r4", "r5", "r6", "r8", "r9", "r10", "r11", "r12", "cc", "memory");
+}
+
 static void copy_turned(uint32_t *dst, const uint32_t *src)
 {
     const uint32_t words = FB_BYTES / sizeof(uint32_t);
 
-    for (uint32_t i = 0U; i < words; i++)
+    for (uint32_t done = 0U; done < words; done += TURN_CHUNK_WORDS)
     {
-        dst[words - 1U - i] = __ROR(src[i], 16U);
+        copy_words(s_turn_chunk, &src[done], TURN_CHUNK_WORDS);
+        turn_words(&dst[words - done - TURN_CHUNK_WORDS], &s_turn_chunk[TURN_CHUNK_WORDS],
+                   TURN_CHUNK_WORDS);
     }
 }
 
