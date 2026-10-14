@@ -241,7 +241,9 @@ because the spurious resume comes before VBUS has fallen.
 ### 2026-10-14 — protocol version 2 on the board (issue #58)
 
 Firmware and host from branch `feature/58-protocol-v2` (`26e6c5e`; the
-host build also has the one-line cast fix that follows it). Firmware
+host binary was built just before a one-line `static_cast` in
+`HostController.cpp` that is part of that commit, with no change in
+behaviour). Firmware
 built with the Windows ST toolchain (Debug, 0 warnings), host with MSVC
 (Visual Studio 2022 17.11.5). The previous v1 `stm32-audio-host run` was
 stopped first: a v1 host and a v2 board reject each other's frames.
