@@ -76,6 +76,9 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     ${LINK_DIR}/link_client.c
     ${PROTOCOL_DIR}/src/protocol.c
     ${UI_DIR}/ui.c
+    ${UI_DIR}/ui_text.c
+    ${UI_DIR}/ui_theme.c
+    ${UI_DIR}/fonts/ui_font_14.c
     ${UI_DIR}/fonts/ui_font_16.c
     ${UI_DIR}/fonts/ui_font_22.c
     ${UI_DIR}/fonts/ui_icons_40.c

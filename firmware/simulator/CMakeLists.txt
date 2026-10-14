@@ -30,18 +30,22 @@ add_library(lvgl STATIC ${LVGL_SOURCES})
 target_include_directories(lvgl PUBLIC ${UI_DIR})
 # SYSTEM: warnings inside LVGL's headers are not ours to fix.
 target_include_directories(lvgl SYSTEM PUBLIC ${LVGL_DIR})
-target_compile_definitions(lvgl PUBLIC LV_CONF_INCLUDE_SIMPLE)
+target_compile_definitions(lvgl PUBLIC LV_CONF_INCLUDE_SIMPLE UI_SIMULATOR)
 set_target_properties(lvgl PROPERTIES C_STANDARD ${UI_C_STANDARD})
 
 add_library(ui STATIC
     ${UI_DIR}/ui.c
+    ${UI_DIR}/ui_text.c
+    ${UI_DIR}/ui_theme.c
+    ${UI_DIR}/fonts/ui_font_14.c
     ${UI_DIR}/fonts/ui_font_16.c
     ${UI_DIR}/fonts/ui_font_22.c
     ${UI_DIR}/fonts/ui_icons_40.c)
 target_include_directories(ui PUBLIC ${UI_DIR})
 target_link_libraries(ui PUBLIC lvgl)
 set_target_properties(ui PROPERTIES C_STANDARD ${UI_C_STANDARD})
-set_source_files_properties(${UI_DIR}/ui.c PROPERTIES COMPILE_OPTIONS "${UI_WARNINGS}")
+set_source_files_properties(${UI_DIR}/ui.c ${UI_DIR}/ui_text.c ${UI_DIR}/ui_theme.c
+    PROPERTIES COMPILE_OPTIONS "${UI_WARNINGS}")
 
 add_executable(ui_simulator main.c)
 target_link_libraries(ui_simulator PRIVATE ui)

@@ -53,6 +53,12 @@ static struct
 
 static int s_flip_calls;
 
+static struct
+{
+    int        calls;
+    UiSettings last;
+} s_settings;
+
 /* ---------------------------------------------------------------- platform */
 
 static uint32_t tick_cb(void)
@@ -198,6 +204,34 @@ static void on_flip(void *user)
     s_flip_calls++;
 }
 
+static void on_settings(const UiSettings *settings, void *user)
+{
+    LV_UNUSED(user);
+    s_settings.calls++;
+    s_settings.last = *settings;
+}
+
+/* LVGL memory after the step before, and its peak so far. */
+static void report_memory(const char *when)
+{
+    uint32_t used;
+    uint32_t peak;
+
+    Ui_MemoryUse(&used, &peak);
+    printf("memory %-22s used=%lu peak=%lu of %lu\n", when, (unsigned long)used, (unsigned long)peak,
+           (unsigned long)LV_MEM_SIZE);
+    check(peak < (LV_MEM_SIZE * 9U) / 10U, "LVGL memory peak stays below 90 % of LV_MEM_SIZE");
+}
+
+/* Apply @p s, let LVGL redraw, take a screenshot and check the memory. */
+static void apply_and_snapshot(const UiSettings *s, const char *name)
+{
+    Ui_ApplySettings(s);
+    run_ms(50U);
+    snapshot(name);
+    report_memory(name);
+}
+
 static void on_mute(bool muted, void *user)
 {
     LV_UNUSED(user);
@@ -216,6 +250,110 @@ static UiDevice device(uint8_t id, uint8_t icon, const char *name)
     d.icon = icon;
     (void)snprintf(d.name, sizeof(d.name), "%s", name);
     return d;
+}
+
+/* M7 (#60): tabs, themes, accent colours, grids, language. */
+static void run_settings_script(const UiDevice *base, size_t count)
+{
+    UiDevice devices[8];
+    UiSettings s = *Ui_Settings();
+
+    memcpy(devices, base, count * sizeof(UiDevice));
+    devices[0].favorite = 1U;
+    devices[3].favorite = 1U;
+    devices[4].favorite = 1U;
+    (void)snprintf(devices[1].alias, sizeof(devices[1].alias), "%s", "Oyun kulakl\xC4\xB1\xC4\x9F\xC4\xB1");
+    Ui_SetDevices(devices, count);
+    Ui_SetActive(1U);
+    Ui_SetVolume(45U);
+    Ui_SetMuted(0U);
+    run_ms(50U);
+    snapshot("20-favorites-marked");
+    report_memory("start");
+
+    /* The first settings choose the startup tab: "last used" = favorites. */
+    s.startup_tab = UI_STARTUP_LAST;
+    s.last_tab = UI_TAB_FAVORITES;
+    Ui_ApplySettings(&s);
+    check(Ui_CurrentTab() == UI_TAB_FAVORITES, "startup tab \"last used\" opens the favorites tab");
+    run_ms(50U);
+    snapshot("21-tab-favorites");
+
+    /* Tapping "All" switches back and reports last_tab. */
+    tap(66, 18);
+    check(Ui_CurrentTab() == UI_TAB_ALL, "tapping the first tab shows all devices");
+    check((s_settings.calls == 1) && (s_settings.last.last_tab == UI_TAB_ALL),
+          "a tab change reports the settings with last_tab");
+    tap(182, 18);
+    check(Ui_CurrentTab() == UI_TAB_FAVORITES, "tapping the second tab shows the favorites");
+    check((s_settings.calls == 2) && (s_settings.last.last_tab == UI_TAB_FAVORITES), "last_tab follows the tab");
+    /* The first favorite is device 0 (top left). */
+    tap(120, 85);
+    check(s_select.last_id == 0U, "a tap in the favorites tab selects the shown device");
+    tap(66, 18);
+
+    s = *Ui_Settings();
+    s.theme = UI_THEME_LIGHT;
+    apply_and_snapshot(&s, "22-light");
+    s.accent = UI_ACCENT_BLUE;
+    apply_and_snapshot(&s, "23-light-blue");
+    s.theme = UI_THEME_DARK;
+    s.accent = UI_ACCENT_GREEN;
+    apply_and_snapshot(&s, "24-dark-green");
+    s.accent = UI_ACCENT_ORANGE;
+    s.grid = UI_GRID_3X2;
+    apply_and_snapshot(&s, "25-grid-3x2");
+    s.grid = UI_GRID_3X3;
+    apply_and_snapshot(&s, "26-grid-3x3");
+    s.grid = UI_GRID_LIST;
+    apply_and_snapshot(&s, "27-grid-list");
+    s.theme = UI_THEME_LIGHT;
+    apply_and_snapshot(&s, "28-list-light");
+    s.theme = UI_THEME_DARK;
+    s.grid = UI_GRID_2X2;
+    s.language = UI_LANGUAGE_ENGLISH;
+    apply_and_snapshot(&s, "29-english");
+    Ui_ShowNotice(UI_NOTICE_HOST_TIMEOUT);
+    run_ms(50U);
+    snapshot("30-english-notice");
+    Ui_ShowWaiting();
+    run_ms(50U);
+    snapshot("31-english-waiting");
+
+    /* A rebuild on the waiting screen stays on the waiting screen. */
+    s.language = UI_LANGUAGE_TURKISH;
+    Ui_ApplySettings(&s);
+    check(lv_screen_active() != NULL, "a screen is loaded after a rebuild");
+    Ui_SetDevices(devices, count);
+    check(Ui_CurrentPage() == 0U, "page within range after a rebuild");
+
+    /* Out-of-range settings are ignored. */
+    s.accent = UI_ACCENT_COUNT;
+    Ui_ApplySettings(&s);
+    check(Ui_Settings()->accent == UI_ACCENT_ORANGE, "an out-of-range accent is ignored");
+
+    /* Many rebuilds do not leak LVGL memory. */
+    {
+        uint32_t before;
+        uint32_t after;
+
+        s = *Ui_Settings();
+        Ui_MemoryUse(&before, NULL);
+        for (uint32_t i = 0U; i < 20U; i++)
+        {
+            s.theme = (uint8_t)(i % 2U);
+            s.grid = (uint8_t)(i % UI_GRID_COUNT);
+            Ui_ApplySettings(&s);
+            run_ms(20U);
+        }
+        s.theme = UI_THEME_DARK;
+        s.grid = UI_GRID_2X2;
+        Ui_ApplySettings(&s);
+        run_ms(20U);
+        Ui_MemoryUse(&after, NULL);
+        printf("memory after 21 rebuilds: before=%lu after=%lu\n", (unsigned long)before, (unsigned long)after);
+        check(after <= before + 512U, "rebuilding the screens does not leak memory");
+    }
 }
 
 static void run_script(void)
@@ -322,6 +460,8 @@ static void run_script(void)
     run_ms(50U);
     hold(458, 18, UI_FLIP_HOLD_MS + 100U);
     check(s_flip_calls == 2, "the flip button works on the waiting screen");
+
+    run_settings_script(devices, sizeof(devices) / sizeof(devices[0]));
 }
 
 int main(int argc, char **argv)
@@ -352,6 +492,7 @@ int main(int argc, char **argv)
     Ui_Init(on_select, NULL);
     Ui_SetAudioHandlers(on_volume, on_mute, NULL);
     Ui_SetFlipHandler(on_flip, NULL);
+    Ui_SetSettingsHandler(on_settings, NULL);
     run_ms(50U);
     run_script();
 
