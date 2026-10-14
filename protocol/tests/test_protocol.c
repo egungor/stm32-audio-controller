@@ -1,6 +1,6 @@
 /**
  * @file    test_protocol.c
- * @brief   Unit tests for the protocol v1 codec (no test framework).
+ * @brief   Unit tests for the protocol v2 codec (no test framework).
  */
 #include "protocol.h"
 
@@ -67,19 +67,20 @@ static void test_crc_check_value(void)
 static void test_header_and_golden_frame(void)
 {
     /* Byte-exact example documented in protocol.md. */
-    static const uint8_t expected_head[] = { 0xA5, 0x01, 0x03, 0x2A, 0x01, 0x02 };
+    static const uint8_t expected_head[] = { 0xA5, 0x02, 0x03, 0x2A, 0x02, 0x05, 0x02 };
     ProtoMessage m = simple(PROTO_CMD_SELECT_DEVICE, 0x2AU);
     uint8_t frame[PROTO_FRAME_SIZE];
 
-    m.u.device_index = 2U;
+    m.u.request.generation = 5U;
+    m.u.request.device_index = 2U;
     CHECK(Proto_Encode(&m, frame) == PROTO_OK);
     CHECK(memcmp(frame, expected_head, sizeof(expected_head)) == 0);
     for (size_t i = sizeof(expected_head); i < PROTO_CRC_OFFSET; i++)
     {
         CHECK(frame[i] == 0U);
     }
-    CHECK(frame[62] == 0x87U);
-    CHECK(frame[63] == 0x2BU);
+    CHECK(frame[62] == 0xDAU);
+    CHECK(frame[63] == 0x04U);
 }
 
 static void test_round_trip_simple(void)
@@ -89,7 +90,6 @@ static void test_round_trip_simple(void)
         uint8_t command;
         uint8_t value;
     } cases[] = {
-        { PROTO_CMD_SELECT_DEVICE, 0U },     { PROTO_CMD_SELECT_DEVICE, 254U },
         { PROTO_CMD_DEVICE_CHANGED, 5U },    { PROTO_CMD_DEVICE_CHANGED, PROTO_NO_DEVICE },
         { PROTO_CMD_SET_VOLUME, 0U },        { PROTO_CMD_SET_VOLUME, 100U },
         { PROTO_CMD_VOLUME_CHANGED, 42U },   { PROTO_CMD_SET_MUTE, 1U },
@@ -170,7 +170,7 @@ static void test_round_trip_device(void)
 static void test_encode_rejects(void)
 {
     uint8_t frame[PROTO_FRAME_SIZE];
-    ProtoMessage m = simple(0x09U, 0U);
+    ProtoMessage m = simple(0x0FU, 0U);
 
     CHECK(Proto_Encode(&m, frame) == PROTO_ERR_COMMAND);
     CHECK(frame[0] == 0U); /* frame cleared on error */
@@ -184,7 +184,7 @@ static void test_encode_rejects(void)
     m.u.muted = 2U;
     CHECK(Proto_Encode(&m, frame) == PROTO_ERR_PAYLOAD);
     m = simple(PROTO_CMD_SELECT_DEVICE, 0U);
-    m.u.device_index = PROTO_NO_DEVICE;
+    m.u.request.device_index = PROTO_NO_DEVICE;
     CHECK(Proto_Encode(&m, frame) == PROTO_ERR_PAYLOAD);
     m = simple(PROTO_CMD_ERROR, 0U);
     m.u.error.code = 0U;
@@ -200,7 +200,7 @@ static void test_encode_rejects(void)
     m.u.device.icon = PROTO_ICON_COUNT;
     CHECK(Proto_Encode(&m, frame) == PROTO_ERR_PAYLOAD);
     m = device(1U, 0U, 1U, "x");
-    m.u.device.flags = 0x02U;
+    m.u.device.flags = 0x08U; /* bits 3..7 are reserved */
     CHECK(Proto_Encode(&m, frame) == PROTO_ERR_PAYLOAD);
     m = device(1U, 0U, 1U, "x");
     m.u.device.name_len = PROTO_MAX_NAME_BYTES + 1U;
@@ -230,7 +230,7 @@ static void test_decode_rejects_frame(void)
     CHECK(out.sequence == 0x11U); /* header still reported */
 
     memcpy(frame, good, sizeof(frame));
-    frame[1] = 2U;
+    frame[1] = 1U; /* a version 1 frame */
     reseal(frame);
     CHECK(Proto_Decode(frame, &out) == PROTO_ERR_VERSION);
     CHECK(Proto_ErrorCodeFor(PROTO_ERR_VERSION) == PROTO_ERROR_UNSUPPORTED_VERSION);
@@ -313,6 +313,177 @@ static void test_decode_rejects_payload(void)
     CHECK(Proto_ErrorCodeFor(PROTO_ERR_CRC) == PROTO_ERROR_BAD_FRAME);
 }
 
+static void test_round_trip_select_and_requests(void)
+{
+    ProtoMessage in = simple(PROTO_CMD_SELECT_DEVICE, 1U);
+    ProtoMessage out;
+    uint8_t frame[PROTO_FRAME_SIZE];
+
+    in.u.request.generation = 200U;
+    in.u.request.device_index = 254U;
+    CHECK(Proto_Encode(&in, frame) == PROTO_OK);
+    CHECK(frame[4] == 2U);
+    CHECK(Proto_Decode(frame, &out) == PROTO_OK);
+    CHECK(out.u.request.generation == 200U && out.u.request.device_index == 254U);
+
+    in = simple(PROTO_CMD_SET_FAVORITE, 2U);
+    in.u.request.generation = 7U;
+    in.u.request.device_index = 3U;
+    in.u.request.value = 1U;
+    CHECK(Proto_Encode(&in, frame) == PROTO_OK);
+    CHECK(frame[4] == 3U);
+    CHECK(Proto_Decode(frame, &out) == PROTO_OK);
+    CHECK(out.command == PROTO_CMD_SET_FAVORITE);
+    CHECK(out.u.request.generation == 7U && out.u.request.device_index == 3U && out.u.request.value == 1U);
+
+    in = simple(PROTO_CMD_MOVE_DEVICE, 3U);
+    in.u.request.generation = 7U;
+    in.u.request.device_index = 3U;
+    in.u.request.value = PROTO_MAX_DEVICES - 1U;
+    CHECK(Proto_Encode(&in, frame) == PROTO_OK);
+    CHECK(Proto_Decode(frame, &out) == PROTO_OK);
+    CHECK(out.u.request.value == PROTO_MAX_DEVICES - 1U);
+}
+
+static void test_round_trip_aliases(void)
+{
+    /* 32 bytes of UTF-8 with Turkish letters. */
+    const char *alias = "Oyun kulakl\xC4\xB1\xC4\x9F\xC4\xB1 \xC3\xA7" "al\xC4\xB1\xC5\x9Fma 123";
+    ProtoMessage in = simple(PROTO_CMD_DEVICE_ALIAS, 4U);
+    ProtoMessage out;
+    uint8_t frame[PROTO_FRAME_SIZE];
+
+    CHECK(strlen(alias) == PROTO_MAX_ALIAS_BYTES);
+    in.u.alias.generation = 9U;
+    in.u.alias.position = 31U;
+    in.u.alias.alias_len = (uint8_t)strlen(alias);
+    memcpy(in.u.alias.alias, alias, in.u.alias.alias_len);
+    CHECK(Proto_Encode(&in, frame) == PROTO_OK);
+    CHECK(frame[4] == 3U + PROTO_MAX_ALIAS_BYTES);
+    CHECK(Proto_Decode(frame, &out) == PROTO_OK);
+    CHECK(out.u.alias.generation == 9U && out.u.alias.position == 31U);
+    CHECK(strcmp(out.u.alias.alias, alias) == 0);
+
+    in = simple(PROTO_CMD_SET_ALIAS, 5U);
+    in.u.request.generation = 9U;
+    in.u.request.device_index = 12U;
+    in.u.request.alias_len = 3U;
+    memcpy(in.u.request.alias, "DAC", 3U);
+    CHECK(Proto_Encode(&in, frame) == PROTO_OK);
+    CHECK(frame[4] == 6U);
+    CHECK(Proto_Decode(frame, &out) == PROTO_OK);
+    CHECK(out.u.request.device_index == 12U && out.u.request.alias_len == 3U);
+    CHECK(strcmp(out.u.request.alias, "DAC") == 0);
+
+    /* alias_len 0 removes the alias. */
+    in.u.request.alias_len = 0U;
+    CHECK(Proto_Encode(&in, frame) == PROTO_OK);
+    CHECK(Proto_Decode(frame, &out) == PROTO_OK);
+    CHECK(out.u.request.alias_len == 0U && out.u.request.alias[0] == '\0');
+}
+
+static void test_settings(void)
+{
+    static const uint8_t bytes[PROTO_SETTINGS_BYTES] = { 2, 1, 5, 3, 2, 1, 60, 1, 1, 1, 40 };
+    static const uint8_t first_bad[PROTO_SETTINGS_BYTES] = { 3, 2, 6, 4, 3, 2, 61, 2, 2, 2, 101 };
+    ProtoMessage in = simple(PROTO_CMD_SET_SETTINGS, 6U);
+    ProtoMessage out;
+    ProtoSettings d;
+    uint8_t frame[PROTO_FRAME_SIZE];
+
+    Proto_DefaultSettings(&d);
+    CHECK(Proto_SettingsValid(&d));
+    CHECK(d.layout == 0U && d.theme == 0U && d.accent == 0U && d.flipped == 0U);
+    CHECK(d.volume_limit_on == 0U && d.volume_limit == PROTO_DEFAULT_VOLUME_LIMIT);
+
+    in.u.settings.layout = 2U;
+    in.u.settings.theme = 1U;
+    in.u.settings.accent = 5U;
+    in.u.settings.grid = 3U;
+    in.u.settings.startup_tab = 2U;
+    in.u.settings.last_tab = 1U;
+    in.u.settings.screen_timeout = 60U;
+    in.u.settings.flipped = 1U;
+    in.u.settings.language = 1U;
+    in.u.settings.volume_limit_on = 1U;
+    in.u.settings.volume_limit = 40U;
+    CHECK(Proto_Encode(&in, frame) == PROTO_OK);
+    CHECK(frame[4] == PROTO_SETTINGS_BYTES);
+    CHECK(memcmp(&frame[5], bytes, sizeof(bytes)) == 0); /* field order of protocol.md */
+    CHECK(Proto_Decode(frame, &out) == PROTO_OK);
+    CHECK(memcmp(&out.u.settings, &in.u.settings, sizeof(ProtoSettings)) == 0);
+
+    in.command = PROTO_CMD_SETTINGS;
+    CHECK(Proto_Encode(&in, frame) == PROTO_OK);
+    CHECK(Proto_Decode(frame, &out) == PROTO_OK);
+    CHECK(out.command == PROTO_CMD_SETTINGS);
+
+    /* Each field one past its range is rejected on decode. */
+    for (size_t field = 0U; field < PROTO_SETTINGS_BYTES; field++)
+    {
+        CHECK(Proto_Encode(&in, frame) == PROTO_OK);
+        frame[5U + field] = first_bad[field];
+        reseal(frame);
+        CHECK(Proto_Decode(frame, &out) == PROTO_ERR_PAYLOAD);
+    }
+    in.u.settings.screen_timeout = PROTO_MAX_SCREEN_TIMEOUT + 1U;
+    CHECK(Proto_Encode(&in, frame) == PROTO_ERR_PAYLOAD);
+    CHECK(Proto_SettingsValid(NULL) == 0);
+}
+
+static void test_v2_rejects(void)
+{
+    ProtoMessage m;
+    ProtoMessage out;
+    uint8_t frame[PROTO_FRAME_SIZE];
+
+    m = simple(PROTO_CMD_SET_FAVORITE, 0U);
+    m.u.request.device_index = 1U;
+    m.u.request.value = 2U;
+    CHECK(Proto_Encode(&m, frame) == PROTO_ERR_PAYLOAD);
+
+    m = simple(PROTO_CMD_MOVE_DEVICE, 0U);
+    m.u.request.device_index = 1U;
+    m.u.request.value = PROTO_MAX_DEVICES;
+    CHECK(Proto_Encode(&m, frame) == PROTO_ERR_PAYLOAD);
+
+    m = simple(PROTO_CMD_SET_ALIAS, 0U);
+    m.u.request.device_index = 1U;
+    m.u.request.alias_len = PROTO_MAX_ALIAS_BYTES + 1U;
+    CHECK(Proto_Encode(&m, frame) == PROTO_ERR_PAYLOAD);
+    m.u.request.alias_len = 2U;
+    m.u.request.alias[0] = 'a'; /* alias[1] is NUL */
+    CHECK(Proto_Encode(&m, frame) == PROTO_ERR_PAYLOAD);
+
+    m = simple(PROTO_CMD_DEVICE_ALIAS, 0U);
+    m.u.alias.alias_len = 0U; /* an announced alias is never empty */
+    CHECK(Proto_Encode(&m, frame) == PROTO_ERR_PAYLOAD);
+    m.u.alias.alias_len = 1U;
+    m.u.alias.alias[0] = 'x';
+    m.u.alias.position = PROTO_MAX_DEVICES;
+    CHECK(Proto_Encode(&m, frame) == PROTO_ERR_PAYLOAD);
+
+    /* SELECT_DEVICE in the version 1 layout (one byte) is rejected. */
+    m = simple(PROTO_CMD_SELECT_DEVICE, 0U);
+    m.u.request.device_index = 1U;
+    CHECK(Proto_Encode(&m, frame) == PROTO_OK);
+    frame[4] = 1U;
+    reseal(frame);
+    CHECK(Proto_Decode(frame, &out) == PROTO_ERR_PAYLOAD);
+    CHECK(out.command == PROTO_CMD_SELECT_DEVICE);
+
+    /* SET_ALIAS whose alias_len does not match the length. */
+    m = simple(PROTO_CMD_SET_ALIAS, 0U);
+    m.u.request.device_index = 1U;
+    m.u.request.alias_len = 2U;
+    memcpy(m.u.request.alias, "ab", 2U);
+    CHECK(Proto_Encode(&m, frame) == PROTO_OK);
+    frame[5 + 2] = 3U;
+    reseal(frame);
+    CHECK(Proto_Decode(frame, &out) == PROTO_ERR_PAYLOAD);
+    CHECK(out.u.request.alias_len == 0U); /* fields cleared on error */
+}
+
 int main(void)
 {
     test_crc_check_value();
@@ -323,6 +494,10 @@ int main(void)
     test_encode_rejects();
     test_decode_rejects_frame();
     test_decode_rejects_payload();
+    test_round_trip_select_and_requests();
+    test_round_trip_aliases();
+    test_settings();
+    test_v2_rejects();
 
     printf("%d checks, %d failures\n", g_checks, g_failures);
     return (g_failures == 0) ? 0 : 1;

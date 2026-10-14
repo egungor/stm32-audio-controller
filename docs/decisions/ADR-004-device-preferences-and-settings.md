@@ -2,8 +2,15 @@
 
 ## Status
 
-Proposed (issue #58). To be accepted by the developer before protocol v2
-is implemented; the host (#59) and firmware (#60) work builds on it.
+Accepted by the developer on 2026-10-14 (issue #58). Protocol version 2
+is implemented in `protocol/`, `firmware/link` and the host controller,
+with the preferences kept in memory; saving them, the `alias` command and
+the volume limit follow in #59, the UI in #60.
+
+One addition during implementation: a settings change made on the board
+while no host is connected is sent when the host's `SETTINGS` arrive,
+instead of being replaced by them (otherwise flipping the display before
+the PC is up would be undone).
 
 ## Context
 
