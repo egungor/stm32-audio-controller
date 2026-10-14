@@ -21,7 +21,8 @@ add_library(host_core STATIC
     Audio/AudioMapping.cpp
     Audio/DeviceRegistry.cpp
     App/FrameText.cpp
-    App/HostController.cpp)
+    App/HostController.cpp
+    App/Preferences.cpp)
 target_include_directories(host_core PUBLIC Audio Hid App)
 target_link_libraries(host_core PUBLIC protocol)
 

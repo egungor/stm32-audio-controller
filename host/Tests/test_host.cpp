@@ -18,6 +18,7 @@
 #include "FrameText.h"
 #include "HidMatch.h"
 #include "HostController.h"
+#include "Preferences.h"
 
 using namespace stm32_audio::host;
 
@@ -121,6 +122,47 @@ Frame frameFor(std::uint8_t command, std::uint8_t sequence, std::uint8_t value =
     msg.command = command;
     msg.sequence = sequence;
     msg.u.volume = value;  // one-byte payloads share the union's first byte
+    (void)Proto_Encode(&msg, frame.data());
+    return frame;
+}
+
+// SELECT_DEVICE, SET_FAVORITE, MOVE_DEVICE: a request about one device of
+// the list with @p generation.
+Frame requestFrame(std::uint8_t command, std::uint8_t sequence, std::uint8_t generation, std::uint8_t index,
+                   std::uint8_t value = 0)
+{
+    ProtoMessage msg{};
+    Frame frame{};
+    msg.command = command;
+    msg.sequence = sequence;
+    msg.u.request.generation = generation;
+    msg.u.request.device_index = index;
+    msg.u.request.value = value;
+    (void)Proto_Encode(&msg, frame.data());
+    return frame;
+}
+
+Frame aliasFrame(std::uint8_t sequence, std::uint8_t generation, std::uint8_t index, const std::string& alias)
+{
+    ProtoMessage msg{};
+    Frame frame{};
+    msg.command = PROTO_CMD_SET_ALIAS;
+    msg.sequence = sequence;
+    msg.u.request.generation = generation;
+    msg.u.request.device_index = index;
+    msg.u.request.alias_len = static_cast<std::uint8_t>(alias.size());
+    std::memcpy(msg.u.request.alias, alias.data(), alias.size());
+    (void)Proto_Encode(&msg, frame.data());
+    return frame;
+}
+
+Frame settingsFrame(std::uint8_t sequence, const ProtoSettings& settings)
+{
+    ProtoMessage msg{};
+    Frame frame{};
+    msg.command = PROTO_CMD_SET_SETTINGS;
+    msg.sequence = sequence;
+    msg.u.settings = settings;
     (void)Proto_Encode(&msg, frame.data());
     return frame;
 }
@@ -251,6 +293,7 @@ struct Rig {
     }
 
     std::uint8_t index(const std::string& id) { return *controller.registry().indexOf(id); }
+    std::uint8_t gen() const { return controller.registry().generation(); }
 };
 
 void testNothingBeforeFirstRequest()
@@ -268,7 +311,7 @@ void testGetDeviceList()
     Rig r;
     r.controller.onFrame(frameFor(PROTO_CMD_GET_DEVICE_LIST, 1));
 
-    CHECK(r.sink.sent.size() == 3 + 3);
+    CHECK(r.sink.sent.size() == 3 + 4);
     for (unsigned i = 0; i < 3; ++i) {
         const ProtoMessage m = r.sink.pop();
         CHECK(m.command == PROTO_CMD_DEVICE_LIST);
@@ -280,10 +323,15 @@ void testGetDeviceList()
     CHECK(m.command == PROTO_CMD_VOLUME_CHANGED && m.u.volume == 50);
     m = r.sink.pop();
     CHECK(m.command == PROTO_CMD_MUTE_CHANGED && m.u.muted == 0);
+    m = r.sink.pop();
+    CHECK(m.command == PROTO_CMD_SETTINGS);
+    ProtoSettings defaults{};
+    Proto_DefaultSettings(&defaults);
+    CHECK(std::memcmp(&m.u.settings, &defaults, sizeof(defaults)) == 0);
 
     // A second request is answered in full again.
     r.controller.onFrame(frameFor(PROTO_CMD_GET_DEVICE_LIST, 2));
-    CHECK(r.sink.sent.size() == 6);
+    CHECK(r.sink.sent.size() == 7);
 }
 
 void testSequenceNumbers()
@@ -305,11 +353,13 @@ void testEmptyList()
     r.audio.volume.reset();
     r.audio.mute.reset();
     r.controller.onFrame(frameFor(PROTO_CMD_GET_DEVICE_LIST, 1));
-    CHECK(r.sink.sent.size() == 2);
+    CHECK(r.sink.sent.size() == 3);
     ProtoMessage m = r.sink.pop();
     CHECK(m.command == PROTO_CMD_DEVICE_LIST && m.u.device.total == 0);
     m = r.sink.pop();
     CHECK(m.command == PROTO_CMD_DEVICE_CHANGED && m.u.device_index == PROTO_NO_DEVICE);
+    m = r.sink.pop();
+    CHECK(m.command == PROTO_CMD_SETTINGS);
 }
 
 void testSelectDevice()
@@ -318,7 +368,7 @@ void testSelectDevice()
     r.controller.onFrame(frameFor(PROTO_CMD_GET_DEVICE_LIST, 1));
     r.sink.sent.clear();
 
-    r.controller.onFrame(frameFor(PROTO_CMD_SELECT_DEVICE, 5, r.index("tv")));
+    r.controller.onFrame(requestFrame(PROTO_CMD_SELECT_DEVICE, 5, r.gen(), r.index("tv")));
     CHECK(r.audio.setDefaultCalls.size() == 1 && r.audio.setDefaultCalls[0] == "tv");
     CHECK(r.sink.sent.size() == 1);
     const ProtoMessage m = r.sink.pop();
@@ -341,7 +391,7 @@ void testSelectBeforeListSent()
     r.controller.onDevicesChanged();  // the registry is filled, nothing sent
     CHECK(r.sink.sent.empty());
 
-    r.controller.onFrame(frameFor(PROTO_CMD_SELECT_DEVICE, 4, r.index("tv")));
+    r.controller.onFrame(requestFrame(PROTO_CMD_SELECT_DEVICE, 4, r.gen(), r.index("tv")));
     CHECK(r.audio.setDefaultCalls.empty());
     ProtoMessage m = r.sink.pop();
     CHECK(m.command == PROTO_CMD_ERROR && m.u.error.code == PROTO_ERROR_UNKNOWN_DEVICE);
@@ -351,7 +401,7 @@ void testSelectBeforeListSent()
     r.controller.onFrame(frameFor(PROTO_CMD_GET_DEVICE_LIST, 5));
     r.sink.sent.clear();
     r.controller.onDisconnected();
-    r.controller.onFrame(frameFor(PROTO_CMD_SELECT_DEVICE, 6, r.index("tv")));
+    r.controller.onFrame(requestFrame(PROTO_CMD_SELECT_DEVICE, 6, r.gen(), r.index("tv")));
     CHECK(r.audio.setDefaultCalls.empty());
     m = r.sink.pop();
     CHECK(m.command == PROTO_CMD_ERROR && m.u.error.code == PROTO_ERROR_UNKNOWN_DEVICE);
@@ -359,7 +409,7 @@ void testSelectBeforeListSent()
     // Once the list has been sent (requested or on connect), it works.
     r.controller.onFrame(frameFor(PROTO_CMD_GET_DEVICE_LIST, 7));
     r.sink.sent.clear();
-    r.controller.onFrame(frameFor(PROTO_CMD_SELECT_DEVICE, 8, r.index("tv")));
+    r.controller.onFrame(requestFrame(PROTO_CMD_SELECT_DEVICE, 8, r.gen(), r.index("tv")));
     CHECK(r.audio.setDefaultCalls.size() == 1 && r.audio.setDefaultCalls[0] == "tv");
 }
 
@@ -369,14 +419,14 @@ void testSelectErrors()
     r.controller.onFrame(frameFor(PROTO_CMD_GET_DEVICE_LIST, 1));
     r.sink.sent.clear();
 
-    r.controller.onFrame(frameFor(PROTO_CMD_SELECT_DEVICE, 9, 200));  // not in the list
+    r.controller.onFrame(requestFrame(PROTO_CMD_SELECT_DEVICE, 9, r.gen(), 200));  // not in the list
     ProtoMessage m = r.sink.pop();
     CHECK(m.command == PROTO_CMD_ERROR && m.u.error.code == PROTO_ERROR_UNKNOWN_DEVICE);
     CHECK(m.u.error.ref_command == PROTO_CMD_SELECT_DEVICE && m.u.error.ref_sequence == 9);
     CHECK(r.audio.setDefaultCalls.empty());
 
     r.audio.failSetDefault = true;
-    r.controller.onFrame(frameFor(PROTO_CMD_SELECT_DEVICE, 10, r.index("spk")));
+    r.controller.onFrame(requestFrame(PROTO_CMD_SELECT_DEVICE, 10, r.gen(), r.index("spk")));
     m = r.sink.pop();
     CHECK(m.command == PROTO_CMD_ERROR && m.u.error.code == PROTO_ERROR_OPERATION_FAILED);
     CHECK(m.u.error.ref_sequence == 10);
@@ -509,7 +559,7 @@ void testConnectSendsList()
 {
     Rig r;
     r.controller.onConnected();
-    CHECK(r.sink.sent.size() == 3 + 3);
+    CHECK(r.sink.sent.size() == 3 + 4);
     for (unsigned i = 0; i < 3; ++i) {
         const ProtoMessage m = r.sink.pop();
         CHECK(m.command == PROTO_CMD_DEVICE_LIST && m.u.device.total == 3 && m.u.device.position == i);
@@ -520,26 +570,28 @@ void testConnectSendsList()
     CHECK(m.command == PROTO_CMD_VOLUME_CHANGED && m.u.volume == 50);
     m = r.sink.pop();
     CHECK(m.command == PROTO_CMD_MUTE_CHANGED);
+    m = r.sink.pop();
+    CHECK(m.command == PROTO_CMD_SETTINGS);
 
     // Synced: changes are sent, and a selection is accepted.
     r.audio.volume = 70;
     r.controller.onVolumeChanged();
     m = r.sink.pop();
     CHECK(m.command == PROTO_CMD_VOLUME_CHANGED && m.u.volume == 70);
-    r.controller.onFrame(frameFor(PROTO_CMD_SELECT_DEVICE, 3, r.index("tv")));
+    r.controller.onFrame(requestFrame(PROTO_CMD_SELECT_DEVICE, 3, r.gen(), r.index("tv")));
     CHECK(r.audio.setDefaultCalls.size() == 1 && r.audio.setDefaultCalls[0] == "tv");
 
     // A GET_DEVICE_LIST that crossed the pushed list is answered in full
     // again (the board may also ask right after USB enumeration).
     r.sink.sent.clear();
     r.controller.onFrame(frameFor(PROTO_CMD_GET_DEVICE_LIST, 4));
-    CHECK(r.sink.sent.size() == 6);
+    CHECK(r.sink.sent.size() == 7);
 
     // Every connect sends the list again.
     r.sink.sent.clear();
     r.controller.onDisconnected();
     r.controller.onConnected();
-    CHECK(r.sink.sent.size() == 6);
+    CHECK(r.sink.sent.size() == 7);
 }
 
 void testBadFrames()
@@ -552,9 +604,9 @@ void testBadFrames()
     CHECK(m.command == PROTO_CMD_ERROR && m.u.error.code == PROTO_ERROR_BAD_FRAME);
     CHECK(m.u.error.ref_command == PROTO_CMD_SET_VOLUME && m.u.error.ref_sequence == 7);
 
-    // Unsupported version.
+    // Unsupported version (a version 1 board).
     frame = frameFor(PROTO_CMD_GET_DEVICE_LIST, 8);
-    frame[1] = 2;
+    frame[1] = 1;
     const std::uint16_t crc = Proto_Crc16(frame.data(), PROTO_CRC_OFFSET);
     frame[PROTO_CRC_OFFSET] = static_cast<std::uint8_t>(crc & 0xFFU);
     frame[PROTO_CRC_OFFSET + 1] = static_cast<std::uint8_t>(crc >> 8);
@@ -589,8 +641,238 @@ void testSendFailure()
     Rig r;
     r.sink.fail = true;
     r.controller.onFrame(frameFor(PROTO_CMD_GET_DEVICE_LIST, 1));
-    CHECK(r.controller.stats().sendFailures == 6);
+    CHECK(r.controller.stats().sendFailures == 7);
     CHECK(r.controller.stats().framesSent == 0);
+}
+
+
+// ------------------------------------------------ preferences (v2)
+
+void testPreferencesArrangeAndMove()
+{
+    Preferences p;
+    const std::vector<AudioEndpoint> windows = {ep("a", "A"), ep("b", "B"), ep("c", "C")};
+
+    // First sight: Windows order, remembered.
+    std::vector<AudioEndpoint> shown = p.arrange(windows);
+    CHECK(shown.size() == 3 && shown[0].id == "a" && shown[2].id == "c");
+    CHECK(p.order() == std::vector<std::string>({"a", "b", "c"}));
+
+    // Move "c" to the front.
+    CHECK(p.move({"a", "b", "c"}, "c", 0));
+    shown = p.arrange(windows);
+    CHECK(shown[0].id == "c" && shown[1].id == "a" && shown[2].id == "b");
+    CHECK(!p.move({"c", "a", "b"}, "c", 0));  // already there
+    CHECK(!p.move({"c", "a", "b"}, "x", 0));  // not shown
+    CHECK(!p.move({"c", "a", "b"}, "a", 3));  // out of range
+
+    // "a" unplugged; "b" moved before "c"; "a" returns to its own slot.
+    shown = p.arrange({ep("b", "B"), ep("c", "C")});
+    CHECK(shown.size() == 2 && shown[0].id == "c");
+    CHECK(p.move({"c", "b"}, "b", 0));
+    CHECK(p.order() == std::vector<std::string>({"b", "a", "c"}));
+    shown = p.arrange(windows);
+    CHECK(shown[0].id == "b" && shown[1].id == "a" && shown[2].id == "c");
+
+    // A new device is appended.
+    shown = p.arrange({ep("d", "D"), ep("a", "A"), ep("b", "B"), ep("c", "C")});
+    CHECK(shown.back().id == "d");
+}
+
+void testPreferencesAliasFavoriteSettings()
+{
+    Preferences p;
+    CHECK(p.device("a") == nullptr);
+    CHECK(!p.setAlias("a", ""));       // nothing to remove
+    CHECK(p.setAlias("a", "Masa\xC3\xBCst\xC3\xBC"));
+    CHECK(!p.setAlias("a", "Masa\xC3\xBCst\xC3\xBC"));
+    CHECK(p.device("a")->alias == "Masa\xC3\xBCst\xC3\xBC");
+    // Longer than 32 bytes: cut at a UTF-8 boundary.
+    CHECK(p.setAlias("b", std::string(31, 'x') + "\xC3\xB6"));
+    CHECK(p.device("b")->alias == std::string(31, 'x'));
+    CHECK(p.setFavorite("a", true));
+    CHECK(!p.setFavorite("a", true));
+    CHECK(p.device("a")->favorite && p.device("a")->alias.size() == 10);  // "ü" is two bytes
+    CHECK(p.setAlias("a", ""));
+    CHECK(p.device("a")->alias.empty() && p.device("a")->favorite);
+
+    ProtoSettings s = p.settings();
+    CHECK(s.volume_limit == PROTO_DEFAULT_VOLUME_LIMIT);
+    CHECK(!p.setSettings(s));  // unchanged
+    s.theme = 1;
+    CHECK(p.setSettings(s));
+    CHECK(p.settings().theme == 1);
+    s.accent = PROTO_ACCENT_COUNT;  // out of range: ignored
+    CHECK(!p.setSettings(s));
+    CHECK(p.settings().accent == 0);
+}
+
+void testRegistryAliasesAndFavorites()
+{
+    DeviceRegistry reg;
+    Preferences p;
+    (void)p.setAlias("B", "Kulakl\xC4\xB1k");
+    (void)p.setFavorite("A", true);
+
+    reg.update({ep("A", "Speakers"), ep("B", "Headphones")}, "B", &p);
+    std::vector<ProtoDeviceEntry> e = reg.entries("B");
+    CHECK(e[0].flags == PROTO_DEVICE_FLAG_FAVORITE);
+    CHECK(e[1].flags == (PROTO_DEVICE_FLAG_DEFAULT | PROTO_DEVICE_FLAG_ALIAS));
+    CHECK(std::strcmp(e[1].name, "Headphones") == 0);  // the Windows name stays
+    std::vector<ProtoAliasEntry> a = reg.aliasEntries();
+    CHECK(a.size() == 1 && a[0].position == 1 && a[0].generation == reg.generation());
+    CHECK(std::strcmp(a[0].alias, "Kulakl\xC4\xB1k") == 0);
+
+    // An alias change is a content change: new generation.
+    const std::uint8_t gen = reg.generation();
+    CHECK(!reg.update({ep("A", "Speakers"), ep("B", "Headphones")}, "B", &p));
+    (void)p.setAlias("B", "HP");
+    CHECK(reg.update({ep("A", "Speakers"), ep("B", "Headphones")}, "B", &p));
+    CHECK(reg.generation() != gen);
+    reg.bumpGeneration();
+    CHECK(reg.generation() == static_cast<std::uint8_t>(gen + 2U));
+}
+
+void testSelectStaleGeneration()
+{
+    Rig r;
+    r.controller.onFrame(frameFor(PROTO_CMD_GET_DEVICE_LIST, 1));
+    r.sink.sent.clear();
+
+    // An index from an older list is refused, the current one accepted.
+    r.controller.onFrame(requestFrame(PROTO_CMD_SELECT_DEVICE, 2, static_cast<std::uint8_t>(r.gen() - 1U), r.index("tv")));
+    CHECK(r.audio.setDefaultCalls.empty());
+    ProtoMessage m = r.sink.pop();
+    CHECK(m.command == PROTO_CMD_ERROR && m.u.error.code == PROTO_ERROR_UNKNOWN_DEVICE);
+    r.controller.onFrame(requestFrame(PROTO_CMD_SELECT_DEVICE, 3, r.gen(), r.index("tv")));
+    CHECK(r.audio.setDefaultCalls.size() == 1);
+}
+
+void testEditsAnsweredWithNewList()
+{
+    Rig r;
+    int saved = 0;
+    r.controller.setPreferencesChangedHandler([&saved] { ++saved; });
+    r.controller.onFrame(frameFor(PROTO_CMD_GET_DEVICE_LIST, 1));
+    r.sink.sent.clear();
+
+    // Alias for "tv": new list, the alias frame, DEVICE_CHANGED.
+    std::uint8_t gen = r.gen();
+    r.controller.onFrame(aliasFrame(2, gen, r.index("tv"), "Televizyon"));
+    CHECK(saved == 1);
+    CHECK(r.sink.sent.size() == 3 + 1 + 1);
+    ProtoMessage m = r.sink.pop();
+    CHECK(m.command == PROTO_CMD_DEVICE_LIST && m.u.device.generation != gen);
+    r.sink.pop();
+    m = r.sink.pop();
+    CHECK(m.command == PROTO_CMD_DEVICE_LIST && m.u.device.flags == PROTO_DEVICE_FLAG_ALIAS);
+    m = r.sink.pop();
+    CHECK(m.command == PROTO_CMD_DEVICE_ALIAS && m.u.alias.position == 2);
+    CHECK(std::strcmp(m.u.alias.alias, "Televizyon") == 0);
+    m = r.sink.pop();
+    CHECK(m.command == PROTO_CMD_DEVICE_CHANGED);
+
+    // The old generation is now stale.
+    r.controller.onFrame(requestFrame(PROTO_CMD_SET_FAVORITE, 3, gen, r.index("tv"), 1));
+    m = r.sink.pop();
+    CHECK(m.command == PROTO_CMD_ERROR && m.u.error.code == PROTO_ERROR_UNKNOWN_DEVICE);
+    CHECK(saved == 1);
+
+    // Favorite, then move "tv" to the front.
+    r.controller.onFrame(requestFrame(PROTO_CMD_SET_FAVORITE, 4, r.gen(), r.index("tv"), 1));
+    CHECK(saved == 2);
+    r.sink.sent.clear();
+    r.controller.onFrame(requestFrame(PROTO_CMD_MOVE_DEVICE, 5, r.gen(), r.index("tv"), 0));
+    CHECK(saved == 3);
+    m = r.sink.pop();
+    CHECK(m.command == PROTO_CMD_DEVICE_LIST && m.u.device.position == 0);
+    CHECK(m.u.device.device_index == r.index("tv"));
+    CHECK(m.u.device.flags == (PROTO_DEVICE_FLAG_FAVORITE | PROTO_DEVICE_FLAG_ALIAS));
+    CHECK(r.controller.registry().devices()[0].endpoint.id == "tv");
+
+    // An edit that changes nothing still gets a new list, but is not saved.
+    r.sink.sent.clear();
+    gen = r.gen();
+    r.controller.onFrame(requestFrame(PROTO_CMD_SET_FAVORITE, 6, gen, r.index("tv"), 1));
+    CHECK(saved == 3);
+    m = r.sink.pop();
+    CHECK(m.command == PROTO_CMD_DEVICE_LIST && m.u.device.generation != gen);
+
+    // A position beyond the list.
+    r.sink.sent.clear();
+    r.controller.onFrame(requestFrame(PROTO_CMD_MOVE_DEVICE, 7, r.gen(), r.index("tv"), 3));
+    m = r.sink.pop();
+    CHECK(m.command == PROTO_CMD_ERROR && m.u.error.code == PROTO_ERROR_BAD_PAYLOAD);
+    CHECK(r.sink.sent.empty());
+
+    // The order and alias survive a reconnect (same Preferences).
+    r.controller.onDisconnected();
+    r.sink.sent.clear();
+    r.controller.onConnected();
+    m = r.sink.pop();
+    CHECK(m.command == PROTO_CMD_DEVICE_LIST && m.u.device.device_index == r.index("tv"));
+}
+
+void testSettingsStoredAndEchoed()
+{
+    Rig r;
+    int saved = 0;
+    r.controller.setPreferencesChangedHandler([&saved] { ++saved; });
+    r.controller.onFrame(frameFor(PROTO_CMD_GET_DEVICE_LIST, 1));
+    r.sink.sent.clear();
+
+    ProtoSettings s = r.controller.preferences().settings();
+    s.layout = 1;
+    s.flipped = 1;
+    s.volume_limit_on = 1;
+    s.volume_limit = 30;
+    r.controller.onFrame(settingsFrame(2, s));
+    CHECK(saved == 1);
+    ProtoMessage m = r.sink.pop();
+    CHECK(m.command == PROTO_CMD_SETTINGS && std::memcmp(&m.u.settings, &s, sizeof(s)) == 0);
+    CHECK(r.sink.sent.empty());
+    CHECK(r.controller.preferences().settings().flipped == 1);
+
+    // The same record again: echoed, not saved.
+    r.controller.onFrame(settingsFrame(3, s));
+    CHECK(saved == 1);
+    CHECK(r.sink.pop().command == PROTO_CMD_SETTINGS);
+
+    // Sent with every list at the start of a session.
+    r.sink.sent.clear();
+    r.controller.onConnected();
+    while (r.sink.sent.size() > 1U) {
+        r.sink.pop();
+    }
+    m = r.sink.pop();
+    CHECK(m.command == PROTO_CMD_SETTINGS && m.u.settings.layout == 1);
+}
+
+void testPreferencesReplacedFromOutside()
+{
+    Rig r;
+    r.controller.onFrame(frameFor(PROTO_CMD_GET_DEVICE_LIST, 1));
+    r.sink.sent.clear();
+
+    // Nothing changed: only the settings are sent.
+    r.controller.onPreferencesChanged();
+    CHECK(r.sink.sent.size() == 1 && r.sink.pop().command == PROTO_CMD_SETTINGS);
+
+    // An alias set from the command line reaches the board.
+    (void)r.controller.preferences().setAlias("spk", "Hoparl\xC3\xB6r");
+    r.controller.onPreferencesChanged();
+    CHECK(r.sink.sent.size() == 3 + 1 + 1 + 1);
+    CHECK(r.sink.pop().command == PROTO_CMD_DEVICE_LIST);
+    r.sink.pop();
+    r.sink.pop();
+    ProtoMessage m = r.sink.pop();
+    CHECK(m.command == PROTO_CMD_DEVICE_ALIAS && m.u.alias.position == 0);
+
+    // Not synced: nothing.
+    r.controller.onDisconnected();
+    r.sink.sent.clear();
+    r.controller.onPreferencesChanged();
+    CHECK(r.sink.sent.empty());
 }
 
 // ------------------------------------------------- helper tests
@@ -802,6 +1084,30 @@ void testFrameText()
     m.command = PROTO_CMD_MUTE_CHANGED;
     m.u.muted = 1;
     CHECK(describeMessage(m) == "MUTE_CHANGED seq=0 muted=1");
+
+    m = ProtoMessage{};
+    m.command = PROTO_CMD_SELECT_DEVICE;
+    m.u.request.generation = 4;
+    m.u.request.device_index = 2;
+    CHECK(describeMessage(m) == "SELECT_DEVICE seq=0 gen=4 index=2");
+
+    m.command = PROTO_CMD_MOVE_DEVICE;
+    m.u.request.value = 0;
+    CHECK(describeMessage(m) == "MOVE_DEVICE seq=0 gen=4 index=2 to=1");
+
+    m = ProtoMessage{};
+    m.command = PROTO_CMD_DEVICE_ALIAS;
+    m.u.alias.generation = 4;
+    m.u.alias.position = 1;
+    m.u.alias.alias_len = 3;
+    std::memcpy(m.u.alias.alias, "DAC", 3);
+    CHECK(describeMessage(m) == "DEVICE_ALIAS seq=0 gen=4 position=2 \"DAC\"");
+
+    m = ProtoMessage{};
+    m.command = PROTO_CMD_SETTINGS;
+    Proto_DefaultSettings(&m.u.settings);
+    CHECK(describeMessage(m) ==
+          "SETTINGS seq=0 layout=0 theme=0 accent=0 grid=0 startup_tab=0 last_tab=0 timeout=0 flipped=0 language=0 limit=off");
 }
 
 }  // namespace
@@ -828,6 +1134,13 @@ int main()
     testConnectSendsList();
     testBadFrames();
     testSendFailure();
+    testPreferencesArrangeAndMove();
+    testPreferencesAliasFavoriteSettings();
+    testRegistryAliasesAndFavorites();
+    testSelectStaleGeneration();
+    testEditsAnsweredWithNewList();
+    testSettingsStoredAndEchoed();
+    testPreferencesReplacedFromOutside();
     testAudioMapping();
     testEventQueue();
     testEventQueueFrames();

@@ -26,6 +26,18 @@ const char* commandName(std::uint8_t command)
         return "SET_MUTE";
     case PROTO_CMD_MUTE_CHANGED:
         return "MUTE_CHANGED";
+    case PROTO_CMD_DEVICE_ALIAS:
+        return "DEVICE_ALIAS";
+    case PROTO_CMD_SET_ALIAS:
+        return "SET_ALIAS";
+    case PROTO_CMD_SET_FAVORITE:
+        return "SET_FAVORITE";
+    case PROTO_CMD_MOVE_DEVICE:
+        return "MOVE_DEVICE";
+    case PROTO_CMD_SETTINGS:
+        return "SETTINGS";
+    case PROTO_CMD_SET_SETTINGS:
+        return "SET_SETTINGS";
     case PROTO_CMD_ERROR:
         return "ERROR";
     default:
@@ -86,6 +98,12 @@ std::string describeMessage(const ProtoMessage& msg)
         if ((d.flags & PROTO_DEVICE_FLAG_DEFAULT) != 0U) {
             out += " default";
         }
+        if ((d.flags & PROTO_DEVICE_FLAG_FAVORITE) != 0U) {
+            out += " favorite";
+        }
+        if ((d.flags & PROTO_DEVICE_FLAG_ALIAS) != 0U) {
+            out += " alias";
+        }
         out += " icon=";
         out += iconName(d.icon);
         out += " \"";
@@ -93,7 +111,41 @@ std::string describeMessage(const ProtoMessage& msg)
         out += "\"";
         break;
     }
+    case PROTO_CMD_DEVICE_ALIAS:
+        out += " gen=" + std::to_string(msg.u.alias.generation);
+        out += " position=" + std::to_string(msg.u.alias.position + 1U);
+        out += " \"";
+        out.append(msg.u.alias.alias, msg.u.alias.alias_len);
+        out += "\"";
+        break;
     case PROTO_CMD_SELECT_DEVICE:
+    case PROTO_CMD_SET_ALIAS:
+    case PROTO_CMD_SET_FAVORITE:
+    case PROTO_CMD_MOVE_DEVICE: {
+        const ProtoDeviceRequest& r = msg.u.request;
+        out += " gen=" + std::to_string(r.generation) + " index=" + indexText(r.device_index);
+        if (msg.command == PROTO_CMD_SET_FAVORITE) {
+            out += r.value != 0U ? " favorite=1" : " favorite=0";
+        } else if (msg.command == PROTO_CMD_MOVE_DEVICE) {
+            out += " to=" + std::to_string(r.value + 1U);
+        } else if (msg.command == PROTO_CMD_SET_ALIAS) {
+            out += " \"";
+            out.append(r.alias, r.alias_len);
+            out += "\"";
+        }
+        break;
+    }
+    case PROTO_CMD_SETTINGS:
+    case PROTO_CMD_SET_SETTINGS: {
+        const ProtoSettings& s = msg.u.settings;
+        out += " layout=" + std::to_string(s.layout) + " theme=" + std::to_string(s.theme) +
+               " accent=" + std::to_string(s.accent) + " grid=" + std::to_string(s.grid) +
+               " startup_tab=" + std::to_string(s.startup_tab) + " last_tab=" + std::to_string(s.last_tab) +
+               " timeout=" + std::to_string(s.screen_timeout) + " flipped=" + std::to_string(s.flipped) +
+               " language=" + std::to_string(s.language) + " limit=" +
+               (s.volume_limit_on != 0U ? std::to_string(s.volume_limit) : std::string("off"));
+        break;
+    }
     case PROTO_CMD_DEVICE_CHANGED:
         out += " index=" + indexText(msg.u.device_index);
         break;

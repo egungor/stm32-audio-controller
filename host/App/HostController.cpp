@@ -1,5 +1,8 @@
 #include "HostController.h"
 
+#include <utility>
+#include <vector>
+
 namespace stm32_audio::host {
 
 namespace {
@@ -64,6 +67,14 @@ void HostController::onFrame(const Frame& frame)
     case PROTO_CMD_SET_MUTE:
         handleSetMute(msg);
         break;
+    case PROTO_CMD_SET_ALIAS:
+    case PROTO_CMD_SET_FAVORITE:
+    case PROTO_CMD_MOVE_DEVICE:
+        handleEdit(msg);
+        break;
+    case PROTO_CMD_SET_SETTINGS:
+        handleSetSettings(msg);
+        break;
     case PROTO_CMD_ERROR:
         ++stats_.errorsReceived;
         break;
@@ -111,24 +122,51 @@ void HostController::onVolumeChanged()
     sendVolumeAndMute(false);
 }
 
+void HostController::onPreferencesChanged()
+{
+    refreshRegistry();
+    if (!synced()) {
+        return;
+    }
+    if (*sentGeneration_ != registry_.generation()) {
+        sendDeviceList();
+        sendDefault(true);
+    }
+    sendSettings();
+}
+
 void HostController::handleGetDeviceList()
 {
     refreshRegistry();
     sendDeviceList();
     sendDefault(true);
     sendVolumeAndMute(true);
+    sendSettings();
+}
+
+const DeviceRegistry::Device* HostController::requestedDevice(const ProtoMessage& msg)
+{
+    // Indices are only valid within the list they were sent in. Before the
+    // list has been sent since the last connect, an index may come from an
+    // earlier session (host program restarted while the board stayed
+    // plugged in) and could name another device now; after a newer list,
+    // the board's index may be stale.
+    const DeviceRegistry::Device* device = nullptr;
+
+    if (synced() && msg.u.request.generation == *sentGeneration_) {
+        device = registry_.findByIndex(msg.u.request.device_index);
+    }
+    if (device == nullptr) {
+        sendError(PROTO_ERROR_UNKNOWN_DEVICE, msg.command, msg.sequence);
+    }
+    return device;
 }
 
 void HostController::handleSelectDevice(const ProtoMessage& msg)
 {
-    // Indices are only valid within the session they were sent in. Before
-    // the list has been sent since the last connect, an index may come
-    // from an earlier session (host program restarted while the board
-    // stayed plugged in) and could name another device now.
-    const DeviceRegistry::Device* device = synced() ? registry_.findByIndex(msg.u.device_index) : nullptr;
+    const DeviceRegistry::Device* device = requestedDevice(msg);
 
     if (device == nullptr) {
-        sendError(PROTO_ERROR_UNKNOWN_DEVICE, msg.command, msg.sequence);
         return;
     }
     if (!audio_.setDefaultEndpoint(device->endpoint.id)) {
@@ -138,6 +176,71 @@ void HostController::handleSelectDevice(const ProtoMessage& msg)
     // Confirm now; the Windows notification that follows is deduplicated.
     sendDefault(false);
     sendVolumeAndMute(false);
+}
+
+void HostController::handleEdit(const ProtoMessage& msg)
+{
+    const DeviceRegistry::Device* device = requestedDevice(msg);
+
+    if (device == nullptr) {
+        return;
+    }
+    const std::string id = device->endpoint.id;
+    bool changed = false;
+
+    switch (msg.command) {
+    case PROTO_CMD_SET_ALIAS:
+        changed = prefs_.setAlias(id, std::string(msg.u.request.alias, msg.u.request.alias_len));
+        break;
+    case PROTO_CMD_SET_FAVORITE:
+        changed = prefs_.setFavorite(id, msg.u.request.value != 0U);
+        break;
+    default: {  // PROTO_CMD_MOVE_DEVICE
+        std::vector<std::string> shown;
+        for (const DeviceRegistry::Device& d : registry_.devices()) {
+            shown.push_back(d.endpoint.id);
+        }
+        if (static_cast<std::size_t>(msg.u.request.value) >= shown.size()) {
+            sendError(PROTO_ERROR_BAD_PAYLOAD, msg.command, msg.sequence);
+            return;
+        }
+        changed = prefs_.move(shown, id, msg.u.request.value);
+        break;
+    }
+    }
+    sendEditedList();
+    if (changed && prefsChanged_) {
+        prefsChanged_();
+    }
+}
+
+void HostController::handleSetSettings(const ProtoMessage& msg)
+{
+    const bool changed = prefs_.setSettings(msg.u.settings);
+
+    sendSettings();
+    if (changed && prefsChanged_) {
+        prefsChanged_();
+    }
+}
+
+void HostController::sendEditedList()
+{
+    // Every edit is answered with a new list (new generation), even if
+    // nothing changed, so the board's request completes.
+    refreshRegistry();
+    if (*sentGeneration_ == registry_.generation()) {
+        registry_.bumpGeneration();
+    }
+    sendDeviceList();
+    sendDefault(true);
+}
+
+void HostController::sendSettings()
+{
+    ProtoMessage msg = makeMessage(PROTO_CMD_SETTINGS);
+    msg.u.settings = prefs_.settings();
+    send(msg);
 }
 
 void HostController::handleSetVolume(const ProtoMessage& msg)
@@ -160,7 +263,7 @@ void HostController::handleSetMute(const ProtoMessage& msg)
 
 void HostController::refreshRegistry()
 {
-    (void)registry_.update(audio_.renderEndpoints(), audio_.defaultEndpointId());
+    (void)registry_.update(prefs_.arrange(audio_.renderEndpoints()), audio_.defaultEndpointId(), &prefs_);
 }
 
 void HostController::sendDeviceList()
@@ -168,6 +271,11 @@ void HostController::sendDeviceList()
     for (const ProtoDeviceEntry& entry : registry_.entries(audio_.defaultEndpointId())) {
         ProtoMessage msg = makeMessage(PROTO_CMD_DEVICE_LIST);
         msg.u.device = entry;
+        send(msg);
+    }
+    for (const ProtoAliasEntry& alias : registry_.aliasEntries()) {
+        ProtoMessage msg = makeMessage(PROTO_CMD_DEVICE_ALIAS);
+        msg.u.alias = alias;
         send(msg);
     }
     sentGeneration_ = registry_.generation();

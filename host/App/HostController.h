@@ -1,5 +1,5 @@
-// Protocol v1 controller of the host application (protocol/protocol.md,
-// "Exchanges").
+// Protocol v2 controller of the host application (protocol/protocol.md,
+// "Exchanges"; ADR-004 for preferences and settings).
 //
 // Glues the STM32 (frames in through onFrame, out through IFrameSink) to
 // the audio system (IAudioSystem). Platform independent; the Windows layer
@@ -12,12 +12,14 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <string>
 
 #include "DeviceRegistry.h"
 #include "IAudioSystem.h"
 #include "IFrameSink.h"
+#include "Preferences.h"
 #include "protocol.h"
 
 namespace stm32_audio::host {
@@ -57,6 +59,19 @@ public:
     const DeviceRegistry& registry() const { return registry_; }
     const Stats& stats() const { return stats_; }
 
+    // Aliases, order, favorites and settings. After changing them from
+    // outside (e.g. loaded from a file), call onPreferencesChanged().
+    Preferences& preferences() { return prefs_; }
+    const Preferences& preferences() const { return prefs_; }
+
+    // The preferences were replaced from outside: send a new list and the
+    // settings if the STM32 is synced.
+    void onPreferencesChanged();
+
+    // Called after the STM32 changed a preference (alias, favorite, order,
+    // settings), e.g. to save them.
+    void setPreferencesChangedHandler(std::function<void()> handler) { prefsChanged_ = std::move(handler); }
+
 private:
     bool synced() const { return sentGeneration_.has_value(); }
     void forgetSent();
@@ -64,6 +79,14 @@ private:
     void handleSelectDevice(const ProtoMessage& msg);
     void handleSetVolume(const ProtoMessage& msg);
     void handleSetMute(const ProtoMessage& msg);
+    void handleEdit(const ProtoMessage& msg);
+    void handleSetSettings(const ProtoMessage& msg);
+
+    // The device named by a request, if its generation is the list sent
+    // last in this session; otherwise answers ERROR UNKNOWN_DEVICE.
+    const DeviceRegistry::Device* requestedDevice(const ProtoMessage& msg);
+    void sendEditedList();
+    void sendSettings();
 
     void refreshRegistry();
     void sendDeviceList();
@@ -75,6 +98,8 @@ private:
     IAudioSystem& audio_;
     IFrameSink& sink_;
     DeviceRegistry registry_;
+    Preferences prefs_;
+    std::function<void()> prefsChanged_;
     Stats stats_;
     std::uint8_t sequence_ = 0;
 
