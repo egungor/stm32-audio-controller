@@ -15,6 +15,15 @@ git submodule update --init          # once: fetches LVGL
 tools/run-ui-simulator.sh            # build, run, convert to PNG
 ```
 
+On Windows (Visual Studio 2022 with C++ tools, CMake, Python 3):
+
+```text
+powershell -ExecutionPolicy Bypass -File tools\run-ui-simulator.ps1
+```
+
+`-CMake <path>` selects a CMake that is not on the PATH; `-OutDir`
+changes the output directory.
+
 Screenshots land in `build/ui-sim/` (or the directory given as the first
 argument):
 
@@ -33,6 +42,18 @@ argument):
 | `11-empty.png` | Host reports no playback devices |
 | `12-flip-armed.png` | Flip button held for 1 s (icon orange, not yet released) |
 | `13-flipped.png` | After release, as the panel shows it with the board upside down |
+| `20-favorites-marked.png` | Favorite stars and an alias ("Oyun kulaklığı") |
+| `21-tab-favorites.png` | Favorites tab, chosen by the startup tab "last used" |
+| `22-light.png`, `23-light-blue.png` | Light theme, orange and blue accent |
+| `24-dark-green.png` | Dark theme, green accent |
+| `25-grid-3x2.png`, `26-grid-3x3.png`, `27-grid-list.png` | Card grids and the list |
+| `28-list-light.png` | List on the light theme |
+| `29-english.png` … `31-english-waiting.png` | English text: main screen, notice, waiting screen |
+
+The script prints the LVGL memory in use after each rebuild and fails if
+the peak passes 90 % of `LV_MEM_SIZE` or repeated rebuilds leak. LVGL
+asserts abort the simulator (`UI_SIMULATOR` in `lv_conf.h`) instead of
+hanging.
 
 The script also checks behaviour: a tap calls the selection callback with
 the right device, a tap on the active device does nothing, the page

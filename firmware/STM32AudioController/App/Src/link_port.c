@@ -63,6 +63,7 @@ static void cb_notice(LinkNotice notice, void *ctx)
     else if (notice == LINK_NOTICE_EDIT_FAILED)
     {
         Log_Line("LINK EDIT FAIL reason=host_error");
+        Ui_ShowNotice(UI_NOTICE_EDIT_FAILED);
     }
     else
     {
@@ -71,15 +72,62 @@ static void cb_notice(LinkNotice notice, void *ctx)
     }
 }
 
-/* Settings from the host or a local change. Only the flip is applied for
- * now; the other fields belong to the M7 UI (#60). */
+/* The protocol's settings record and the UI's have the same fields and
+ * values (ui.h); the UI does not depend on protocol.h. */
+static void to_ui(const ProtoSettings *p, UiSettings *u)
+{
+    u->layout = p->layout;
+    u->theme = p->theme;
+    u->accent = p->accent;
+    u->grid = p->grid;
+    u->startup_tab = p->startup_tab;
+    u->last_tab = p->last_tab;
+    u->screen_timeout = p->screen_timeout;
+    u->flipped = p->flipped;
+    u->language = p->language;
+    u->volume_limit_on = p->volume_limit_on;
+    u->volume_limit = p->volume_limit;
+}
+
+static void to_proto(const UiSettings *u, ProtoSettings *p)
+{
+    p->layout = u->layout;
+    p->theme = u->theme;
+    p->accent = u->accent;
+    p->grid = u->grid;
+    p->startup_tab = u->startup_tab;
+    p->last_tab = u->last_tab;
+    p->screen_timeout = u->screen_timeout;
+    p->flipped = u->flipped;
+    p->language = u->language;
+    p->volume_limit_on = u->volume_limit_on;
+    p->volume_limit = u->volume_limit;
+}
+
+/* Settings from the host or a local change: the UI applies its fields,
+ * the display port the flip. */
 static void cb_apply_settings(const ProtoSettings *s, void *ctx)
 {
+    UiSettings u;
+
     (void)ctx;
-    Log_Line("LINK SETTINGS layout=%u theme=%u accent=%u grid=%u flipped=%u limit=%u/%u",
+    Log_Line("LINK SETTINGS layout=%u theme=%u accent=%u grid=%u tab=%u/%u lang=%u flipped=%u limit=%u/%u",
              (unsigned)s->layout, (unsigned)s->theme, (unsigned)s->accent, (unsigned)s->grid,
-             (unsigned)s->flipped, (unsigned)s->volume_limit_on, (unsigned)s->volume_limit);
+             (unsigned)s->startup_tab, (unsigned)s->last_tab, (unsigned)s->language, (unsigned)s->flipped,
+             (unsigned)s->volume_limit_on, (unsigned)s->volume_limit);
+    to_ui(s, &u);
+    Ui_ApplySettings(&u);
     UiPort_SetFlipped(s->flipped != 0U);
+}
+
+/* The user changed a setting in the UI (e.g. the tab). */
+static void on_ui_settings(const UiSettings *settings, void *user)
+{
+    ProtoSettings p;
+
+    (void)user;
+    to_proto(settings, &p);
+    Link_SetSettings(&s_link, &p, HAL_GetTick());
 }
 
 static void cb_set_volume(uint8_t volume, void *ctx)
@@ -131,6 +179,7 @@ void LinkPort_Init(void)
 
     Ui_Init(on_ui_select, NULL);
     Ui_SetAudioHandlers(on_ui_volume, on_ui_mute, NULL);
+    Ui_SetSettingsHandler(on_ui_settings, NULL);
     Link_Init(&s_link, &callbacks);
 }
 

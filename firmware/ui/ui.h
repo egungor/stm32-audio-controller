@@ -10,12 +10,16 @@
  *
  * Screens:
  *   - waiting: no host connected;
- *   - main: up to UI_DEVICES_PER_PAGE device buttons per page, the active
- *     device marked by colour and by the text "Etkin çıkış", page buttons
- *     when there are more devices than fit on one page;
+ *   - main: two tabs, all devices and favorites; the devices as cards in a
+ *     2x2, 3x2 or 3x3 grid or as a list (UiSettings.grid), the active
+ *     device marked by colour and text, page buttons when there are more
+ *     devices than fit on one page;
  *   - error notice: shown over any screen for UI_NOTICE_MS;
  *   - flip button (top right corner of both screens): held for
  *     UI_FLIP_HOLD_MS, it asks to turn the image by 180° when released.
+ *
+ * Appearance (theme, accent colour, language, grid) follows UiSettings
+ * (Ui_ApplySettings); a change of these rebuilds the screens.
  *
  * Call everything from the task that runs lv_timer_handler(). No dynamic
  * allocation besides the LVGL objects created once in Ui_Init().
@@ -34,7 +38,7 @@ extern "C" {
 #define UI_MAX_DEVICES       32U  /**< = PROTO_MAX_DEVICES */
 #define UI_MAX_NAME_BYTES    48U  /**< = PROTO_MAX_NAME_BYTES, UTF-8 */
 #define UI_MAX_ALIAS_BYTES   32U  /**< = PROTO_MAX_ALIAS_BYTES, UTF-8 */
-#define UI_DEVICES_PER_PAGE  4U
+#define UI_MAX_PER_PAGE      9U   /**< 3x3 grid */
 #define UI_NO_DEVICE         0xFFU
 #define UI_NOTICE_MS         3000U
 #define UI_FLIP_HOLD_MS      1000U
@@ -107,6 +111,7 @@ typedef enum
 {
     UI_NOTICE_SELECT_FAILED,  /**< the computer could not switch the device */
     UI_NOTICE_HOST_TIMEOUT,   /**< the computer did not answer */
+    UI_NOTICE_EDIT_FAILED,    /**< the computer did not store a change */
 } UiNotice;
 
 /** Show one of the fixed notices (Ui_ShowError with the UI's own text). */
@@ -135,8 +140,66 @@ typedef void (*UiFlipCallback)(void *user);
 /** Set the flip handler (optional; without it the button does nothing). */
 void Ui_SetFlipHandler(UiFlipCallback on_flip, void *user);
 
+/* ------------------------------------------------------------- settings */
+
+/** UiSettings values; the same fields and values as the protocol's
+ *  settings record (protocol/protocol.md, "Preferences"). */
+enum
+{
+    UI_LAYOUT_CARDS = 0, UI_LAYOUT_LIST = 1, UI_LAYOUT_TILES = 2, UI_LAYOUT_COUNT = 3,
+    UI_THEME_DARK = 0, UI_THEME_LIGHT = 1, UI_THEME_COUNT = 2,
+    UI_ACCENT_ORANGE = 0, UI_ACCENT_BLUE = 1, UI_ACCENT_GREEN = 2, UI_ACCENT_PURPLE = 3,
+    UI_ACCENT_PINK = 4, UI_ACCENT_YELLOW = 5, UI_ACCENT_COUNT = 6,
+    UI_GRID_2X2 = 0, UI_GRID_3X2 = 1, UI_GRID_3X3 = 2, UI_GRID_LIST = 3, UI_GRID_COUNT = 4,
+    UI_STARTUP_LAST = 0, UI_STARTUP_ALL = 1, UI_STARTUP_FAVORITES = 2,
+    UI_TAB_ALL = 0, UI_TAB_FAVORITES = 1,
+    UI_LANGUAGE_TURKISH = 0, UI_LANGUAGE_ENGLISH = 1, UI_LANGUAGE_COUNT = 2,
+};
+
+typedef struct
+{
+    uint8_t layout;          /**< UI_LAYOUT_* */
+    uint8_t theme;           /**< UI_THEME_* */
+    uint8_t accent;          /**< UI_ACCENT_* */
+    uint8_t grid;            /**< UI_GRID_* (cards layout) */
+    uint8_t startup_tab;     /**< UI_STARTUP_* */
+    uint8_t last_tab;        /**< UI_TAB_*, kept up to date by the UI */
+    uint8_t screen_timeout;  /**< minutes, 0 = never (display port) */
+    uint8_t flipped;         /**< 0/1 (display port) */
+    uint8_t language;        /**< UI_LANGUAGE_* */
+    uint8_t volume_limit_on; /**< 0/1 (host) */
+    uint8_t volume_limit;    /**< percent (host) */
+} UiSettings;
+
+/**
+ * @brief  Settings to use. Theme, accent, language, layout and grid are
+ *         applied by the UI (screens rebuilt if one of them changed); the
+ *         other fields are kept and passed back with the next change.
+ *
+ * The first call after Ui_Init also chooses the tab shown at startup
+ * (startup_tab; "last used" means last_tab). Out-of-range fields are
+ * ignored (the call does nothing).
+ */
+void Ui_ApplySettings(const UiSettings *settings);
+
+/** The settings currently in use. */
+const UiSettings *Ui_Settings(void);
+
+/** Called with the whole record when the user changed something in the UI
+ *  (for now: the tab, stored as last_tab). The UI has already applied it. */
+typedef void (*UiSettingsCallback)(const UiSettings *settings, void *user);
+
+/** Set the settings handler (optional). */
+void Ui_SetSettingsHandler(UiSettingsCallback on_settings, void *user);
+
 /** Currently shown page, 0-based (for tests). */
 uint32_t Ui_CurrentPage(void);
+
+/** Currently shown tab, UI_TAB_* (for tests). */
+uint32_t Ui_CurrentTab(void);
+
+/** LVGL memory in use and its peak, in bytes (for tests and the log). */
+void Ui_MemoryUse(uint32_t *used, uint32_t *peak);
 
 #ifdef __cplusplus
 }

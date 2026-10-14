@@ -63,9 +63,17 @@ static void on_mute(bool muted, void *user)
     Ui_SetMuted(muted ? 1U : 0U);
 }
 
+/* Settings changed in the UI (tab): the UI applied them already; the demo
+ * has no host to store them. */
+static void on_settings(const UiSettings *settings, void *user)
+{
+    LV_UNUSED(user);
+    Log_Line("UI SETTINGS last_tab=%u", (unsigned)settings->last_tab);
+}
+
 static void on_connect(lv_timer_t *timer)
 {
-    const UiDevice devices[] = {
+    UiDevice devices[] = {
         device(0U, UI_ICON_SPEAKERS, "Hoparl\xC3\xB6rler"),
         device(1U, UI_ICON_HEADPHONES, "Kulakl\xC4\xB1k"),
         device(2U, UI_ICON_DISPLAY, "Monit\xC3\xB6r (HDMI)"),
@@ -73,6 +81,9 @@ static void on_connect(lv_timer_t *timer)
         device(4U, UI_ICON_DIGITAL, "USB DAC"),
     };
 
+    /* Two favorites so the favorites tab has something to show. */
+    devices[0].favorite = 1U;
+    devices[3].favorite = 1U;
     lv_timer_delete(timer);
     Ui_SetDevices(devices, sizeof(devices) / sizeof(devices[0]));
     Ui_SetActive(1U);
@@ -85,6 +96,7 @@ void UiDemo_Start(void)
 {
     Ui_Init(on_select, NULL);
     Ui_SetAudioHandlers(on_volume, on_mute, NULL);
+    Ui_SetSettingsHandler(on_settings, NULL);
     s_confirm_timer = lv_timer_create(on_confirm, CONFIRM_MS, NULL);
     lv_timer_pause(s_confirm_timer);
     (void)lv_timer_create(on_connect, WAITING_MS, NULL);
