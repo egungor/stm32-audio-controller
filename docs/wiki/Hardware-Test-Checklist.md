@@ -35,7 +35,7 @@ Firmware built with `-DAPP_UI_DEMO=ON` (no PC needed).
 - [ ] Page arrows work; no tearing or flicker
 - [ ] Hold the flip button (top right) for 1 s: image and touch turn by
       180° and stay upright; hold again to turn back; `UI FLIP off
-      copy_max_ms=<n>` with n of a few ms
+      copy_max_ms=<n>` with n of about 5 ms
 
 ## 4. USB HID — #30
 

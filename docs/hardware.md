@@ -173,7 +173,7 @@ Demo UI build:
 | Volume and mute | VERIFIED — `UI VOLUME value=<n>` on release, `UI MUTE on/off` |
 | Tearing | VERIFIED — none seen while dragging the slider, upright and flipped (developer visual check) |
 | Flip button (#42) | VERIFIED — short taps do nothing; a hold of 1 s or more arms it, it flips on release. Image upright in both orientations; touch maps correctly while flipped (cards, slider, mute, flip button) |
-| `UI FLIP off copy_max_ms` | NOT AS EXPECTED — `copy_max_ms=25` (demo) and `23` (normal build), not "a few ms". The 180° copy of the whole frame from SDRAM to SDRAM takes most of a 33 ms frame period. The buffer swap still waits for vertical blanking, so there is no tearing, but the frame rate drops while flipped |
+| `UI FLIP off copy_max_ms` | NOT AS EXPECTED — `copy_max_ms=25` (demo) and `23` (normal build), not "a few ms". The 180° copy of the whole frame from SDRAM to SDRAM takes most of a 33 ms frame period. The buffer swap still waits for vertical blanking, so there is no tearing, but the frame rate drops while flipped. Fixed in #51: 5 ms, see below |
 
 Default build, USB and host:
 
@@ -268,7 +268,7 @@ bring-up log, with the date and the firmware commit.
 | `stm32-audio-host list`, `set-default`, `volume`, `mute`, `watch` match Settings → Sound | #28, `host/README.md` | VERIFIED 2026-10-14 |
 | End to end with `stm32-audio-host run` (list, select on the LCD, Windows changes, unplug/replug, host restart) | `host/README.md`, "Manual check with the board" | VERIFIED 2026-10-14 (steps 1–8) |
 | Volume and mute: drag the slider and tap mute on the LCD → Windows follows; change them in Windows → the LCD follows | #40, `host/README.md` | VERIFIED 2026-10-14 |
-| Flip button (hold 1 s, top right): image and touch upright in both orientations, no tearing; `UI FLIP off copy_max_ms=<n>` small (a few ms expected) after dragging the slider while flipped | #42 | Image, touch, no tearing: VERIFIED 2026-10-14. `copy_max_ms`: NOT AS EXPECTED, 23–25 ms |
+| Flip button (hold 1 s, top right): image and touch upright in both orientations, no tearing; `UI FLIP off copy_max_ms=<n>` small (a few ms expected) after dragging the slider while flipped | #42 | VERIFIED 2026-10-14 — image, touch, no tearing; `copy_max_ms=5` after the #51 fix (was 23–25 ms) |
 | Boot after a power cycle (SDRAM from cold) | bring-up log above | VERIFIED 2026-10-14 |
 | LCD screenshots of the final UI in `docs/images/` | `docs/images/README.md` | Done 2026-10-14 (main, muted, waiting screens) |
 

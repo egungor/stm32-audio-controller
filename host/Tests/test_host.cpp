@@ -742,7 +742,8 @@ void testHidMatch()
     info.inputReportBytes = 65;
     info.outputReportBytes = 65;
     CHECK(isController(info));
-    CHECK(kReportBytes == 65);
+    // Compile-time constant: a runtime CHECK trips C4127 on MSVC 17.11 (/WX).
+    static_assert(kReportBytes == 65, "HID report = report ID + 64-byte frame");
 
     HidInfo other = info;
     other.vendorId = 0x0483;  // ST
