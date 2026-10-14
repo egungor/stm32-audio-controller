@@ -15,6 +15,15 @@ git submodule update --init          # once: fetches LVGL
 tools/run-ui-simulator.sh            # build, run, convert to PNG
 ```
 
+On Windows (Visual Studio 2022 with C++ tools, CMake, Python 3):
+
+```text
+powershell -ExecutionPolicy Bypass -File tools\run-ui-simulator.ps1
+```
+
+`-CMake <path>` selects a CMake that is not on the PATH; `-OutDir`
+changes the output directory.
+
 Screenshots land in `build/ui-sim/` (or the directory given as the first
 argument):
 
