@@ -50,17 +50,20 @@ void UsbLink_DeviceInit(USBD_HandleTypeDef *pdev);
 /**
  * @brief  Watch VBUS (PJ12) and treat its loss as a disconnect.
  *
- * Call periodically from the application task, before
- * UsbLink_IsConfigured(). Needed because the OTG FS core has no VBUS
- * sensing on this board and would otherwise only see a suspend.
+ * Call periodically (well under every 20 ms) from the application task,
+ * before UsbLink_IsConfigured(). Needed because the OTG FS core has no
+ * VBUS sensing on this board and would otherwise only see a suspend. Also
+ * samples the SOF frame number, so that a spurious resume without a host
+ * does not count as configured.
  */
 void UsbLink_Poll(void);
 
 /** VBUS state seen by the last UsbLink_Poll(). */
 bool UsbLink_VbusPresent(void);
 
-/** True while VBUS is present and the device is configured (not
- *  suspended). */
+/** True while VBUS is present, the device is configured (not suspended)
+ *  and the host sent an SOF within the last 20 ms, as seen by the last
+ *  UsbLink_Poll(). */
 bool UsbLink_IsConfigured(void);
 
 /** Number of SET_CONFIGURATION requests so far. Unchanged across a

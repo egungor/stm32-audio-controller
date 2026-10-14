@@ -21,6 +21,9 @@
 #define EP_SIZE           PROTO_FRAME_SIZE
 #define EP_INTERVAL_MS    5U
 
+/* A host that is not suspending the bus sends an SOF every 1 ms. */
+#define SOF_TIMEOUT_MS    20U
+
 #define HID_DESC_TYPE     0x21U
 #define HID_REPORT_TYPE   0x22U
 #define HID_DESC_SIZE     9U
@@ -114,6 +117,8 @@ static uint8_t s_rx_queue_buf[USB_LINK_RX_DEPTH * EP_SIZE];
 static volatile UsbLinkStats s_stats;
 static volatile uint32_t s_config_count; /* SET_CONFIGURATION requests */
 static bool s_vbus;
+static uint32_t s_frame;          /* last SOF frame number seen by UsbLink_Poll */
+static uint32_t s_frame_tick;     /* HAL tick when it last changed */
 
 /* ------------------------------------------------------------- class */
 
@@ -296,6 +301,14 @@ static bool read_vbus(void)
     return HAL_GPIO_ReadPin(OTG_FS_VBUS_GPIO_Port, OTG_FS_VBUS_Pin) == GPIO_PIN_SET;
 }
 
+static uint32_t read_frame(void)
+{
+    const USB_OTG_DeviceTypeDef *dev =
+        (const USB_OTG_DeviceTypeDef *)((uint32_t)USB_OTG_FS_PERIPH_BASE + USB_OTG_DEVICE_BASE);
+
+    return (dev->DSTS & USB_OTG_DSTS_FNSOF) >> USB_OTG_DSTS_FNSOF_Pos;
+}
+
 void UsbLink_DeviceInit(USBD_HandleTypeDef *pdev)
 {
     s_pdev = pdev;
@@ -314,10 +327,20 @@ void UsbLink_DeviceInit(USBD_HandleTypeDef *pdev)
  * suspend, and the stack keeps CONFIGURED as the state to resume to. A
  * wake-up interrupt from the floating lines then restores CONFIGURED with
  * no host attached (issue #52). VBUS is wired to the GPIO PJ12 instead;
- * losing it is handled here as the HAL would handle a session end. */
+ * losing it is handled here as the HAL would handle a session end.
+ * VBUS takes longer to fall than the spurious resume takes to arrive, so
+ * the device also counts as configured only while SOFs arrive: a real
+ * resume is followed by SOFs, a spurious one is not. */
 void UsbLink_Poll(void)
 {
     const bool vbus = read_vbus();
+    const uint32_t frame = read_frame();
+
+    if (frame != s_frame)
+    {
+        s_frame = frame;
+        s_frame_tick = HAL_GetTick();
+    }
 
     if ((s_pdev != NULL) && s_vbus && !vbus)
     {
@@ -337,7 +360,8 @@ bool UsbLink_VbusPresent(void)
 
 bool UsbLink_IsConfigured(void)
 {
-    return (s_pdev != NULL) && s_vbus && (s_pdev->dev_state == USBD_STATE_CONFIGURED);
+    return (s_pdev != NULL) && s_vbus && (s_pdev->dev_state == USBD_STATE_CONFIGURED) &&
+           ((HAL_GetTick() - s_frame_tick) < SOF_TIMEOUT_MS);
 }
 
 uint32_t UsbLink_ConfigCount(void)
