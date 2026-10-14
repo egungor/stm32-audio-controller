@@ -260,6 +260,23 @@ Taps, cable changes and the visual checks were done by the developer.
 | Alias, favorite, order from the board | NOT TESTED on hardware — no UI for them yet (#60); covered by the link, host and integration tests |
 | Settings after a host restart | NOT TESTED — the host keeps preferences in memory only until #59 |
 
+### 2026-10-15 — M7 UI phase 1: tabs, themes, accents, grids (issue #60)
+
+Firmware from branch `feature/60-ui-foundation` (Debug, 0 warnings,
+flash 624 KB), host from #59 (`run` with the preference file). Settings
+and favorites were set by editing the preference file while `run` was
+running; the developer tapped the tabs and checked the panel.
+
+| Check | Result |
+|---|---|
+| Favorites from the file | VERIFIED — new list `gen=3` with two favorites; stars on the cards |
+| Theme light, accent blue, grid 3x2 from the file | VERIFIED — after the fix below: board rebuilt in the light theme with blue accent and 3x2 cards (framebuffer dump and developer check: readable, nothing overlaps) |
+| Startup tab "last used" | VERIFIED — after a board reset the favorites tab opened (`tab=0/1`) |
+| Tabs | VERIFIED — "Tümü" shows all 9 devices over 2 pages, "Favoriler" the 2 favorites; every tap sent `SET_SETTINGS` with `last_tab`, answered by `SETTINGS` |
+| A damaged line in the file | VERIFIED — a test script wrote `setting theme 1,accent 1,grid 1`; the host kept the default for that field |
+| Bug found: frames lost after a long UI loop | `send_failures=4`, USB `tx_frames=2` read over SWD; `UsbLink_IsConfigured()` sampled SOFs only once per UI loop (#64). Fixed (PR #65, also on this branch); afterwards `send_failures=0` |
+| Collision: a settings change in the file and a tab tap at the same time | The whole record from the board overwrote the file's change once; expected with whole-record settings (ADR-004), noted |
+
 ## Firmware peripherals in use
 
 Pins and verification status: [`pin-mapping.md`](pin-mapping.md);
