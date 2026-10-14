@@ -260,6 +260,22 @@ Taps, cable changes and the visual checks were done by the developer.
 | Alias, favorite, order from the board | NOT TESTED on hardware — no UI for them yet (#60); covered by the link, host and integration tests |
 | Settings after a host restart | NOT TESTED — the host keeps preferences in memory only until #59 |
 
+### 2026-10-15 — host preference file, alias command, volume limit (issue #59)
+
+Host from branch `feature/59-host-preferences` (MSVC, Debug), firmware as
+in the #58 entry. Commands were run in the developer's terminal; the
+board's flip and the LCD were checked by the developer.
+
+| Check | Result |
+|---|---|
+| `alias <n> <name>`, `list`, wrong device number | VERIFIED — file written, `list` shows the alias; `alias 99 X` refused (exit 2). Turkish letters were stored as UTF-8 in a sandboxed run of the same build |
+| Alias set while `run` is running | VERIFIED — `Preferences reloaded`, new list `gen=2` with `DEVICE_ALIAS position=2 "JBL kulaklik"`; the second card on the LCD shows "JBL kulaklik" |
+| Flip on the board saved | VERIFIED — `SET_SETTINGS flipped=1`; `setting flipped 1` in the file within a second |
+| Host stopped, board reset, host started | VERIFIED — the board boots upright with defaults, then `LINK SETTINGS … flipped=1`, `UI FLIP on` without a tap; the alias is back too |
+| Startup volume limit at 30 % | VERIFIED — at `run` start 8 outputs were lowered (e.g. Razer 42 → 30, JBL 45 → 30, G435 100 → 30), one already at or below 30 % was left alone; the board got `VOLUME_CHANGED volume=30`; nothing lowered again on the board's reconnect. The limit was switched off again afterwards (the lowered volumes stay as they are) |
+| Settings edited in the file while running | VERIFIED — reloaded within a second, `SETTINGS … limit=off` sent to the board |
+| Observation | The VCP log once lost the end of a line (`TOUCH UP x=12` followed directly by `LINK LIST OK …`): bytes lost on the ST-LINK VCP log path only |
+
 ## Firmware peripherals in use
 
 Pins and verification status: [`pin-mapping.md`](pin-mapping.md);

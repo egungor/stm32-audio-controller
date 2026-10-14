@@ -23,18 +23,23 @@ host/
 ├── Audio/
 │   ├── IAudioSystem.h      # interface to the Windows audio system (no Windows types)
 │   ├── AudioMapping.*      # Windows form factor -> icon, volume scalar <-> percent
-│   └── DeviceRegistry.*    # endpoints -> device_index, DEVICE_LIST entries
+│   ├── DeviceRegistry.*    # endpoints -> device_index, DEVICE_LIST entries
+│   └── VolumeLimit.*       # startup volume limit (ADR-004)
 ├── Hid/
 │   ├── IFrameSink.h        # outgoing 64-byte protocol frames
 │   └── HidMatch.h          # which HID interface is the controller (ADR-003)
 ├── App/
 │   ├── HostController.*    # protocol v2 exchanges (protocol/protocol.md)
+│   ├── Preferences.*       # aliases, order, favorites, settings record (ADR-004)
+│   ├── PreferenceFile.*    # text format of the preference file
+│   ├── PreferenceStore.*   # load, save at most once per second, reload on change
 │   ├── EventQueue.h        # serialises Core Audio and HID events into the controller
 │   └── FrameText.*         # readable one-line form of a protocol message
 ├── Platform/Windows/       # Windows only
 │   ├── WinAudioSystem.*    # IAudioSystem on Core Audio / MMDevice
 │   ├── WinHidLink.*        # HID discovery, reader thread, IFrameSink
 │   ├── PolicyConfig.h      # undocumented IPolicyConfig (ADR-002)
+│   ├── WinPreferenceFile.* # %APPDATA%\stm32-audio-controller\preferences.txt
 │   ├── WinStrings.*        # UTF-16 <-> UTF-8
 │   └── main.cpp            # stm32-audio-host console program
 ├── Tests/
@@ -89,7 +94,37 @@ stm32-audio-host volume <0-100>    volume of the default device
 stm32-audio-host mute on|off       mute of the default device
 stm32-audio-host watch             run HostController; print the frames it
                                    would send to the STM32 (Ctrl+C stops)
+stm32-audio-host alias <n> <name>  show device <n> from "list" as <name> on the
+                                   board (at most 32 bytes of UTF-8)
+stm32-audio-host alias <n> --clear remove the alias
 ```
+
+Arguments are read as UTF-8 (`CommandLineToArgvW`), so aliases may
+contain Turkish letters. `list` prints each device's alias and favorite
+mark under its name.
+
+### Preferences
+
+Aliases, the device order, favorites and the board's settings record
+(ADR-004) are kept in `%APPDATA%\stm32-audio-controller\preferences.txt`,
+a UTF-8 text file (format in `App/PreferenceFile.h`).
+
+- `run` loads the file at start (`Preferences: <path>`, `(new)` if it does
+  not exist yet), saves what the board changes at most once per second
+  and when it stops, and checks the file once per second: a change made
+  by `alias` (or by hand) is reloaded (`Preferences reloaded from …`) and
+  sent to the board. A change from the file wins over board changes not
+  yet saved.
+- The file is replaced atomically (`preferences.tmp`, then
+  `MoveFileEx`). An unreadable file is kept as `preferences.bad` and the
+  defaults are used.
+- `watch` reads the file but never writes it.
+
+Startup volume limit (off by default; `volume_limit_on` and
+`volume_limit` in the settings record): when `run` starts, and each time
+a board session starts, every active output above the limit is lowered to
+it and logged as `Volume limit: "<name>" <from>% -> <to>%`. Volumes are
+never raised and mute is not touched.
 
 `run` prints `Controller connected: <product> <device path>` and
 `Controller disconnected.`, then one line per frame: `<-` received from the

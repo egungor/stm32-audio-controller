@@ -3,9 +3,10 @@
 ## Status
 
 Accepted by the developer on 2026-10-14 (issue #58). Protocol version 2
-is implemented in `protocol/`, `firmware/link` and the host controller,
-with the preferences kept in memory; saving them, the `alias` command and
-the volume limit follow in #59, the UI in #60.
+is implemented in `protocol/`, `firmware/link` and the host controller
+(#58); the preference file, the `alias` command and the startup volume
+limit in the host program (#59, file `preferences.txt`, text format in
+`host/App/PreferenceFile.h`). The UI follows in #60.
 
 One addition during implementation: a settings change made on the board
 while no host is connected is sent when the host's `SETTINGS` arrive,

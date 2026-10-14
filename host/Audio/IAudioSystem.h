@@ -50,6 +50,11 @@ public:
     // Mute state of the default endpoint; nullopt if unavailable.
     virtual std::optional<bool> muted() = 0;
     virtual bool setMuted(bool muted) = 0;
+
+    // Master volume of the active render endpoint @p id, 0..100; nullopt if
+    // unavailable. Used for the startup volume limit (ADR-004).
+    virtual std::optional<unsigned> endpointVolumePercent(const std::string& id) = 0;
+    virtual bool setEndpointVolumePercent(const std::string& id, unsigned percent) = 0;
 };
 
 }  // namespace stm32_audio::host

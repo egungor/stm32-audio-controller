@@ -20,8 +20,11 @@ target_include_directories(protocol PUBLIC ${PROTOCOL_DIR}/include)
 add_library(host_core STATIC
     Audio/AudioMapping.cpp
     Audio/DeviceRegistry.cpp
+    Audio/VolumeLimit.cpp
     App/FrameText.cpp
     App/HostController.cpp
+    App/PreferenceFile.cpp
+    App/PreferenceStore.cpp
     App/Preferences.cpp)
 target_include_directories(host_core PUBLIC Audio Hid App)
 target_link_libraries(host_core PUBLIC protocol)
@@ -37,10 +40,11 @@ if(WIN32)
         Platform/Windows/main.cpp
         Platform/Windows/WinAudioSystem.cpp
         Platform/Windows/WinHidLink.cpp
+        Platform/Windows/WinPreferenceFile.cpp
         Platform/Windows/WinStrings.cpp)
     target_include_directories(stm32-audio-host PRIVATE Platform/Windows)
     target_compile_definitions(stm32-audio-host PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX UNICODE _UNICODE)
-    target_link_libraries(stm32-audio-host PRIVATE host_core ole32 setupapi hid)
+    target_link_libraries(stm32-audio-host PRIVATE host_core ole32 setupapi hid shell32)
     if(MSVC)
         target_compile_options(stm32-audio-host PRIVATE /W4 /WX /permissive- /utf-8)
     else()

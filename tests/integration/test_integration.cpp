@@ -106,6 +106,15 @@ public:
         volumeNotificationDue = true;
         return true;
     }
+    // Only the default device has a volume in this simulation.
+    std::optional<unsigned> endpointVolumePercent(const std::string& id) override
+    {
+        return id == defaultId ? volumePercent() : std::nullopt;
+    }
+    bool setEndpointVolumePercent(const std::string& id, unsigned percent) override
+    {
+        return id == defaultId && setVolumePercent(percent);
+    }
 };
 
 AudioEndpoint endpoint(const std::string& id, const std::string& name, FormFactor ff)
@@ -1120,8 +1129,9 @@ void testSettingsRoundTrip()
     CHECK(r.host->preferences().settings().flipped == 1);
     CHECK(r.host->preferences().settings().theme == 1);
 
-    // Host program restarted with no stored settings (until #59 saves
-    // them): the board applies the host's record.
+    // Host program restarted without stored settings (no preference file;
+    // saving is the program's job, not the controller's): the board
+    // applies the host's record.
     r.stopHost();
     r.run(100);
     r.startHost();

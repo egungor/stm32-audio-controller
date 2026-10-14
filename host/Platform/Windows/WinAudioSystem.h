@@ -42,6 +42,8 @@ public:
     bool setVolumePercent(unsigned percent) override;
     std::optional<bool> muted() override;
     bool setMuted(bool muted) override;
+    std::optional<unsigned> endpointVolumePercent(const std::string& id) override;
+    bool setEndpointVolumePercent(const std::string& id, unsigned percent) override;
 
     // Move the volume notification to the current default endpoint. Call
     // on the consumer thread after a HostEvent::DefaultChanged.
@@ -52,6 +54,7 @@ private:
     class VolumeCallback;
 
     Microsoft::WRL::ComPtr<IAudioEndpointVolume> defaultVolume();
+    Microsoft::WRL::ComPtr<IAudioEndpointVolume> endpointVolume(const std::string& id);
 
     Microsoft::WRL::ComPtr<IMMDeviceEnumerator> enumerator_;
     Microsoft::WRL::ComPtr<NotificationClient> notificationClient_;
