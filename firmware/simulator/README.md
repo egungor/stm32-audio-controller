@@ -55,6 +55,8 @@ argument):
 | `43-settings-limit.png`, `44-settings-limit-moved.png` | Volume limit on; its slider moved to 75 % |
 | `45-settings-english.png` | Flip on, language English |
 | `46-main-after-settings.png` | Back on the main screen with the chosen settings |
+| `50-screen-off.png` | Screen timeout of 1 minute run out: black, backlight off |
+| `51-screen-woken.png` | After the waking touch and one more tap |
 
 The script prints the LVGL memory in use after each rebuild and fails if
 the peak passes 90 % of `LV_MEM_SIZE` or repeated rebuilds leak. LVGL
@@ -71,7 +73,11 @@ control reports the whole record once with the right value, the page
 stays open across the rebuild a change causes, scrolling over a control
 changes nothing, the volume limit slider reports once on release in 5 %
 steps, a new list or host settings leave the page open, and opening and
-closing it leaks no memory. The simulator exits non-zero if a check fails.
+closing it leaks no memory. The screen timeout goes dark once after the
+set minutes without a touch (and never with "never"), the waking touch
+does not reach the control under it, a touch restarts the count, and
+switching the timeout off from the host wakes the screen. The simulator
+exits non-zero if a check fails.
 
 ## How it works
 

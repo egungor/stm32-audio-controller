@@ -295,7 +295,7 @@ selection: `decisions/ADR-001-firmware-peripheral-set.md`.
 
 The checks for the M1–M6 code ran on 2026-10-14 on firmware and host
 `41bfed5` (issue #48); details and observations are in the bring-up log
-above. Open: the M7 settings page (last row). New checks go here first,
+above. Open: the M7 settings page and screen timeout (last rows). New checks go here first,
 and their results into the bring-up log, with the date and the firmware
 commit.
 
@@ -312,6 +312,7 @@ commit.
 | Boot after a power cycle (SDRAM from cold) | bring-up log above | VERIFIED 2026-10-14 |
 | LCD screenshots of the final UI in `docs/images/` | `docs/images/README.md` | Done 2026-10-14 (main, muted, waiting screens) |
 | Settings page (#60): the cog opens it; each control changes the setting at once (theme, colour, grid, language rebuild the screens and the page stays open); the list scrolls by finger and scrolling over a control changes nothing; "Ekranı döndür" turns the display and touch follows; `LINK SETTINGS` (or `UI SETTINGS` in the demo build) shows each change; with `stm32-audio-host run` the preference file has the new record and a host restart restores it | `firmware/ui/README.md`, `docs/firmware-log.md` | REQUIRES HARDWARE + WINDOWS |
+| Screen timeout (#60): with "Ekran kapanma" at 1 dk, the backlight goes off about a minute after the last touch (`UI BACKLIGHT off`); a touch lights it (`UI BACKLIGHT on`) and does not select anything; the next tap works; "Kapalı" keeps it lit | `firmware/ui/README.md`, `docs/firmware-log.md` | REQUIRES HARDWARE |
 
 ## Reference sources
 

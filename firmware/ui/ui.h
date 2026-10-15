@@ -19,6 +19,9 @@
  *     volume limit, flip and language. A change is applied at once and
  *     reported with the whole record (UiSettingsCallback);
  *   - error notice: shown over any screen for UI_NOTICE_MS;
+ *   - screen timeout: after settings.screen_timeout minutes without a touch
+ *     the screen goes black and the backlight handler is told to switch
+ *     the backlight off; the next touch only wakes it;
  *   - flip button (top right corner of both screens): held for
  *     UI_FLIP_HOLD_MS, it asks to turn the image by 180° when released.
  *
@@ -168,7 +171,7 @@ typedef struct
     uint8_t grid;            /**< UI_GRID_* (cards layout) */
     uint8_t startup_tab;     /**< UI_STARTUP_* */
     uint8_t last_tab;        /**< UI_TAB_*, kept up to date by the UI */
-    uint8_t screen_timeout;  /**< minutes, 0 = never (display port) */
+    uint8_t screen_timeout;  /**< minutes without a touch, 0 = never (Ui_SetBacklightHandler) */
     uint8_t flipped;         /**< 0/1 (display port) */
     uint8_t language;        /**< UI_LANGUAGE_* */
     uint8_t volume_limit_on; /**< 0/1 (host) */
@@ -191,12 +194,30 @@ const UiSettings *Ui_Settings(void);
 
 /** Called with the whole record when the user changed something in the UI
  *  (the tab, stored as last_tab, or a setting on the settings page). The UI
- *  has already applied what it shows itself; screen_timeout, flipped and
- *  the volume limit are for the caller (display port, host). */
+ *  has already applied what it handles itself (including screen_timeout);
+ *  flipped and the volume limit are for the caller (display port, host). */
 typedef void (*UiSettingsCallback)(const UiSettings *settings, void *user);
 
 /** Set the settings handler (optional). */
 void Ui_SetSettingsHandler(UiSettingsCallback on_settings, void *user);
+
+/* --------------------------------------------------------- screen timeout */
+
+#define UI_SCREEN_OFF_CHECK_MS 1000U  /**< how often the timeout is checked */
+
+/**
+ * Called when the screen goes dark (@p on false: settings.screen_timeout
+ * minutes without a touch) and when a touch wakes it (@p on true). The
+ * port switches the backlight. While dark, the first touch only wakes the
+ * screen: it does not reach the controls under it.
+ */
+typedef void (*UiBacklightCallback)(bool on, void *user);
+
+/** Set the backlight handler (optional; without it the timeout still runs). */
+void Ui_SetBacklightHandler(UiBacklightCallback on_backlight, void *user);
+
+/** True while the screen is lit (for tests). */
+bool Ui_ScreenOn(void);
 
 /** Currently shown page, 0-based (for tests). */
 uint32_t Ui_CurrentPage(void);

@@ -182,6 +182,14 @@ static void on_ui_flip(void *user)
 #endif
 }
 
+/* Screen timeout (settings.screen_timeout): the UI decides, the port
+ * switches the backlight. */
+static void on_ui_backlight(bool on, void *user)
+{
+    (void)user;
+    UiPort_SetBacklight(on);
+}
+
 /* LVGL UI, fed by the USB host link (or by demo data with APP_UI_DEMO). */
 static void run_ui(bool sdram_ok, bool touch_ok)
 {
@@ -199,6 +207,7 @@ static void run_ui(bool sdram_ok, bool touch_ok)
         LinkPort_Init();
 #endif
         Ui_SetFlipHandler(on_ui_flip, NULL);
+        Ui_SetBacklightHandler(on_ui_backlight, NULL);
         UiPort_Start();
         Log_Line("UI INIT OK fb0=0x%08lX fb1=0x%08lX", (unsigned long)UI_PORT_FB0_ADDR,
                  (unsigned long)UI_PORT_FB1_ADDR);

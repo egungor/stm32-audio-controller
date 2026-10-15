@@ -837,6 +837,65 @@ void ui_show_settings(void)
     lv_screen_load(g_ui.settings_screen);
 }
 
+/* ---------------------------------------------------------- screen timeout */
+
+static void set_screen_on(bool on)
+{
+    if (on == !g_ui.screen_off)
+    {
+        return;
+    }
+    g_ui.screen_off = !on;
+    if (on)
+    {
+        lv_obj_add_flag(g_ui.wake_catcher, LV_OBJ_FLAG_HIDDEN);
+        lv_display_trigger_activity(NULL);
+    }
+    else
+    {
+        lv_obj_remove_flag(g_ui.wake_catcher, LV_OBJ_FLAG_HIDDEN);
+    }
+    if (g_ui.on_backlight != NULL)
+    {
+        g_ui.on_backlight(on, g_ui.backlight_user);
+    }
+}
+
+/* LVGL counts the time since the last touch (lv_display_get_inactive_time). */
+static void on_screen_timer(lv_timer_t *timer)
+{
+    const uint32_t minutes = g_ui.settings.screen_timeout;
+
+    LV_UNUSED(timer);
+    if (!g_ui.screen_off && (minutes > 0U) && (lv_display_get_inactive_time(NULL) >= (minutes * 60000U)))
+    {
+        set_screen_on(false);
+    }
+}
+
+/* A press on the dark screen lands on the wake catcher (system layer, over
+ * every screen), so it only wakes the screen; the rest of that press and
+ * its release stay with the catcher. */
+static void on_wake_pressed(lv_event_t *e)
+{
+    LV_UNUSED(e);
+    set_screen_on(true);
+}
+
+static void build_wake_catcher(void)
+{
+    lv_obj_t *c = lv_obj_create(lv_layer_sys());
+
+    lv_obj_remove_style_all(c);
+    lv_obj_set_size(c, UI_WIDTH, UI_HEIGHT);
+    lv_obj_set_style_bg_color(c, lv_color_black(), 0);
+    lv_obj_set_style_bg_opa(c, LV_OPA_COVER, 0);
+    lv_obj_add_flag(c, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_flag(c, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_event_cb(c, on_wake_pressed, LV_EVENT_PRESSED, NULL);
+    g_ui.wake_catcher = c;
+}
+
 /* ------------------------------------------------------------------- API */
 
 void Ui_Init(UiSelectCallback on_select, void *user)
@@ -851,6 +910,8 @@ void Ui_Init(UiSelectCallback on_select, void *user)
     g_ui.settings.volume_limit = 50U; /* defaults of the settings record */
     g_ui.notice_timer = lv_timer_create(on_notice_timer, UI_NOTICE_MS, NULL);
     lv_timer_pause(g_ui.notice_timer);
+    g_ui.screen_timer = lv_timer_create(on_screen_timer, UI_SCREEN_OFF_CHECK_MS, NULL);
+    build_wake_catcher();
 
     build_all();
     lv_screen_load(g_ui.waiting_screen);
@@ -950,6 +1011,15 @@ void Ui_ApplySettings(const UiSettings *settings)
         return;
     }
     g_ui.settings = *settings;
+    if (old.screen_timeout != settings->screen_timeout)
+    {
+        /* A new timeout counts from now; "never" lights a dark screen. */
+        lv_display_trigger_activity(NULL);
+        if (settings->screen_timeout == 0U)
+        {
+            set_screen_on(true);
+        }
+    }
     rebuild = (old.theme != settings->theme) || (old.accent != settings->accent) ||
               (old.language != settings->language) || (old.layout != settings->layout) ||
               (old.grid != settings->grid);
@@ -1001,6 +1071,17 @@ uint32_t Ui_CurrentPage(void)
 uint32_t Ui_CurrentTab(void)
 {
     return g_ui.tab;
+}
+
+void Ui_SetBacklightHandler(UiBacklightCallback on_backlight, void *user)
+{
+    g_ui.on_backlight = on_backlight;
+    g_ui.backlight_user = user;
+}
+
+bool Ui_ScreenOn(void)
+{
+    return !g_ui.screen_off;
 }
 
 uint32_t Ui_CurrentScreen(void)

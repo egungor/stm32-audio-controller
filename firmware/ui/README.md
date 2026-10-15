@@ -52,6 +52,14 @@ firmware (`App/Src/ui_port.c`, `App/Src/ui_demo.c`) and into the Linux simulator
   control changes nothing. A new device list or settings from the host
   leave the page open; the waiting screen closes it. "Layout" (cards /
   list / large tile) is not on the page yet: only the cards layout exists.
+- Screen timeout: a 1 s LVGL timer compares LVGL's time since the last
+  touch (`lv_display_get_inactive_time`) with `screen_timeout` minutes.
+  When it runs out a black, clickable object on the system layer covers
+  everything and the `UiBacklightCallback` (`Ui_SetBacklightHandler`) is
+  told to switch the backlight off. The next press lands on that object,
+  so it only wakes the screen (backlight on) and never reaches a control.
+  A new timeout from the host counts from then; "never" wakes a dark
+  screen.
 - Tabs: "All" and "Favorites" (devices with the favorite flag), in the
   host's order.
 - Memory: the device list is a fixed array of 32 entries; LVGL objects are
