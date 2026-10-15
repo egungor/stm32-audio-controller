@@ -8,9 +8,10 @@
  *     Turkish letters (firmware/ui/fonts, tools/gen-ui-fonts.sh) and
  *     ui_font_16 is the default font;
  *   - dark default theme;
- *   - examples and demos not built.
- * Everything else, including the 64 KB LVGL heap (LV_MEM_SIZE), RGB565
- * colour depth and LV_OS_NONE, is the template default.
+ *   - examples and demos not built;
+ *   - LVGL heap (LV_MEM_SIZE) 128 KB instead of 64 KB (#60).
+ * Everything else, including RGB565 colour depth and LV_OS_NONE, is the
+ * template default.
  */
 /**
  * @file lv_conf.h
@@ -83,7 +84,11 @@
 
 #if LV_USE_STDLIB_MALLOC == LV_STDLIB_BUILTIN
     /** Size of memory available for `lv_malloc()` in bytes (>= 2kB) */
-    #define LV_MEM_SIZE (64 * 1024U)          /**< [bytes] */
+    /* 128 KB (#60): the main screen of the densest layout, the waiting
+     * screen and the settings page or edit mode with its keyboard, plus
+     * LVGL's draw buffers, did not fit in 64 KB. Internal RAM has room:
+     * about 182 KB of 320 KB are used with it. */
+    #define LV_MEM_SIZE (128 * 1024U)          /**< [bytes] */
 
     /** Size of the memory expand for `lv_malloc()` in bytes */
     #define LV_MEM_POOL_EXPAND_SIZE 0
