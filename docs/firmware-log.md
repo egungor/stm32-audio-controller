@@ -69,7 +69,7 @@ Then, as the USB host link works (`App/Src/link_port.c`, `protocol.md`):
 | `LINK SELECT FAIL reason=host_error` | The host answered the selection with `ERROR` |
 | `LINK SELECT FAIL reason=timeout` | No answer within 2 s to a selection, an edit or a settings change; waiting screen, list requested again |
 | `LINK EDIT FAIL reason=host_error` | The host answered an alias, favorite, order or settings change with `ERROR` |
-| `LINK SETTINGS layout=<n> theme=<n> accent=<n> grid=<n> tab=<startup>/<last> lang=<n> flipped=<0\|1> limit=<on>/<percent>` | Settings record applied (from the host, or changed on the board, e.g. a tab tap): theme, accent, grid, language and tabs by the UI, `flipped` by the display port |
+| `LINK SETTINGS layout=<n> theme=<n> accent=<n> grid=<n> tab=<startup>/<last> lang=<n> flipped=<0\|1> limit=<on>/<percent>` | Settings record applied (from the host, or changed on the board: a tab tap or the settings page): theme, accent, grid, language and tabs by the UI, `flipped` by the display port |
 | `UI VOLUME value=<n>` | User released the volume slider at `n` percent (`SET_VOLUME` is sent while dragging, at most every 100 ms) |
 | `UI MUTE on\|off` | User tapped the mute button; `SET_MUTE` sent |
 | `LINK MUTE muted=<0\|1>` | The host reported the mute state (`MUTE_CHANGED`) |
@@ -83,7 +83,7 @@ With `-DAPP_UI_DEMO=ON` demo data replaces the host link (no USB lines):
 | `UI SELECT id=<id>` | User tapped a device that is not active |
 | `UI DEMO ACTIVE id=<id>` | 0.4 s later the demo confirms the selection |
 | `UI VOLUME value=<n>` / `UI MUTE on\|off` | Volume slider released / mute tapped; the demo accepts at once |
-| `UI SETTINGS last_tab=<0\|1>` | User switched between the all and favorites tabs (the demo stores nothing) |
+| `UI SETTINGS layout=<n> theme=<n> accent=<n> grid=<n> tab=<startup>/<last> timeout=<min> flipped=<0\|1> lang=<n> limit=<on>/<percent>` | User changed the tab or something on the settings page; the demo turns the display for `flipped` and stores nothing |
 
 ### Test screen build (`-DAPP_TEST_SCREEN=ON`)
 

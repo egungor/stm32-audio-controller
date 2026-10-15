@@ -293,10 +293,11 @@ selection: `decisions/ADR-001-firmware-peripheral-set.md`.
 
 ## Pending hardware and Windows tests
 
-The checks for the M1–M6 code. All of them ran on 2026-10-14 on firmware
-and host `41bfed5` (issue #48); details and observations are in the
-bring-up log above. New checks go here first, and their results into the
-bring-up log, with the date and the firmware commit.
+The checks for the M1–M6 code ran on 2026-10-14 on firmware and host
+`41bfed5` (issue #48); details and observations are in the bring-up log
+above. Open: the M7 settings page (last row). New checks go here first,
+and their results into the bring-up log, with the date and the firmware
+commit.
 
 | Check | Where | Status |
 |---|---|---|
@@ -310,6 +311,7 @@ bring-up log, with the date and the firmware commit.
 | Flip button (hold 1 s, top right): image and touch upright in both orientations, no tearing; `UI FLIP off copy_max_ms=<n>` small (a few ms expected) after dragging the slider while flipped | #42 | VERIFIED 2026-10-14 — image, touch, no tearing; `copy_max_ms=5` after the #51 fix (was 23–25 ms) |
 | Boot after a power cycle (SDRAM from cold) | bring-up log above | VERIFIED 2026-10-14 |
 | LCD screenshots of the final UI in `docs/images/` | `docs/images/README.md` | Done 2026-10-14 (main, muted, waiting screens) |
+| Settings page (#60): the cog opens it; each control changes the setting at once (theme, colour, grid, language rebuild the screens and the page stays open); the list scrolls by finger and scrolling over a control changes nothing; "Ekranı döndür" turns the display and touch follows; `LINK SETTINGS` (or `UI SETTINGS` in the demo build) shows each change; with `stm32-audio-host run` the preference file has the new record and a host restart restores it | `firmware/ui/README.md`, `docs/firmware-log.md` | REQUIRES HARDWARE + WINDOWS |
 
 ## Reference sources
 

@@ -33,6 +33,8 @@ and speed on the real LCD are REQUIRES HARDWARE. Prefix `sim-`.
 | `sim-m7-dark-green.png` | Dark theme, green accent | as above, `24-dark-green` |
 | `sim-m7-grid-3x2.png` | 3×2 cards | as above, `25-grid-3x2` |
 | `sim-m7-list.png` | List layout | as above, `27-grid-list` |
+| `sim-m7-settings.png` | Settings page, dark theme | branch `feature/60-settings-page`, `40-settings` (#60) |
+| `sim-m7-settings-light.png` | Settings page after choosing the light theme and blue accent | as above, `41-settings-light-blue` |
 
 The light theme with blue accent and the 3×2 grid were also checked on the
 board on 2026-10-15 (`docs/hardware.md`, issue #60).
