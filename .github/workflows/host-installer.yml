@@ -1,0 +1,77 @@
+name: Host installer
+
+# Windows installer of the host programs (installer/, issue #74): Release
+# build with the static MSVC runtime (no Visual C++ Redistributable needed),
+# then Inno Setup. The setup.exe is uploaded as an artifact; on a v* tag it
+# is also attached to the GitHub release.
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+    paths:
+      - 'host/**'
+      - 'protocol/**'
+      - 'installer/**'
+      - '.github/workflows/host-installer.yml'
+  pull_request:
+    paths:
+      - 'host/**'
+      - 'protocol/**'
+      - 'installer/**'
+      - '.github/workflows/host-installer.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write  # attach the installer to a release (tags only)
+
+jobs:
+  installer:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Version
+        id: version
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            version="${GITHUB_REF#refs/tags/v}"
+          else
+            version="0.7.0-dev.${GITHUB_RUN_NUMBER}+${GITHUB_SHA::7}"
+          fi
+          echo "app=$version" >> "$GITHUB_OUTPUT"
+          echo "file=0.7.0.${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+
+      - name: Configure (Release, static runtime)
+        run: cmake -S host -B build/host -DBUILD_TESTING=OFF "-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded"
+
+      - name: Build
+        run: cmake --build build/host --config Release
+
+      - name: Inno Setup
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            choco install innosetup -y --no-progress
+          }
+          & $iscc "/DAppVersion=${{ steps.version.outputs.app }}" "/DFileVersion=${{ steps.version.outputs.file }}" `
+                  "/DBinDir=$env:GITHUB_WORKSPACE\build\host\Release" `
+                  "/O$env:GITHUB_WORKSPACE\build\installer" installer\stm32-audio-controller.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: stm32-audio-controller-setup
+          path: build/installer/*.exe
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" build/installer/*.exe --clobber || gh release create "$GITHUB_REF_NAME" build/installer/*.exe --generate-notes
