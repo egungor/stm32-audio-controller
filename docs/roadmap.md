@@ -49,7 +49,7 @@ Status: **DONE**
 - [x] Add pagination — four devices per page, arrows
 - [x] Create device model — device list from the host (`firmware/link`, #30), no model of its own on the STM32
 - [x] Capture LCD screenshots of the UI into `docs/images/` (#48)
-- [ ] Add the screenshots to the project presentation (see `docs/images/README.md`)
+- [x] Add the screenshots to the project presentation (#67, see `docs/images/README.md`)
 
 ## M3 — USB HID
 
