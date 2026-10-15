@@ -492,33 +492,36 @@ static void run_settings_page_script(const UiDevice *devices, size_t count)
     snapshot("40-settings");
     report_memory("40-settings");
 
-    tap_setting(425, 60, "the theme control reports the settings");
+    /* Rows from the top: layout 60, theme 108, colour 156, grid 204,
+     * startup tab 252. */
+    tap_setting(425, 108, "the theme control reports the settings");
     check(Ui_Settings()->theme == UI_THEME_LIGHT, "\"Light\" sets the light theme");
-    tap_setting(307, 108, "the colour swatches report the settings");
+    tap_setting(307, 156, "the colour swatches report the settings");
     check(Ui_Settings()->accent == UI_ACCENT_BLUE, "the second swatch sets the blue accent");
     snapshot("41-settings-light-blue");
     report_memory("41-settings-light-blue");
-    tap_setting(312, 156, "the grid control reports the settings");
+    tap_setting(312, 204, "the grid control reports the settings");
     check(Ui_Settings()->grid == UI_GRID_3X2, "\"3x2\" sets the 3x2 grid");
-    tap_setting(422, 204, "the startup tab control reports the settings");
+    tap_setting(422, 252, "the startup tab control reports the settings");
     check(Ui_Settings()->startup_tab == UI_STARTUP_FAVORITES, "\"Favorites\" sets the startup tab");
-    tap_setting(363, 252, "the screen timeout control reports the settings");
+
+    /* Scroll to the end of the list; a drag that starts on a control
+     * scrolls and changes nothing. Rows from the bottom then: startup tab
+     * 47, screen timeout 95, volume limit 143, flip 191, language 239. */
+    calls = s_settings.calls;
+    drag_v(240, 250, 40);
+    check((s_settings.calls == calls) && (Ui_Settings()->startup_tab == UI_STARTUP_FAVORITES),
+          "scrolling over a control does not change it");
+    drag_v(240, 250, 40);
+    snapshot("42-settings-bottom");
+    tap_setting(363, 95, "the screen timeout control reports the settings");
     check(Ui_Settings()->screen_timeout == 5U, "\"5 min\" sets a 5 minute screen timeout");
 
     /* Tapping the option that is already chosen reports nothing. */
     calls = s_settings.calls;
-    tap(363, 252);
+    tap(363, 95);
     check(s_settings.calls == calls, "the chosen option again reports nothing");
 
-    /* Scroll to the end of the list: volume limit, flip, language. */
-    /* Scroll to the end of the list; a drag that starts on a control
-     * scrolls and changes nothing. */
-    calls = s_settings.calls;
-    drag_v(240, 250, 40);
-    check((s_settings.calls == calls) && (Ui_Settings()->screen_timeout == 5U),
-          "scrolling over a control does not change it");
-    drag_v(240, 250, 40);
-    snapshot("42-settings-bottom");
     tap_setting(444, 144, "the volume limit switch reports the settings");
     check(Ui_Settings()->volume_limit_on == 1U, "the volume limit switch turns the limit on");
     run_ms(50U);
@@ -749,6 +752,99 @@ static void run_edit_script(const UiDevice *devices, size_t count)
     report_memory("edit-end");
 }
 
+/* Layouts B (list) and C (large tile), #60. */
+static void run_layouts_script(void)
+{
+    UiSettings s = *Ui_Settings();
+    int selects;
+    int volumes;
+    uint32_t before;
+    uint32_t after;
+
+    Ui_SetActive(1U);
+    Ui_SetVolume(45U);
+    Ui_SetMuted(0U);
+    s.theme = UI_THEME_DARK;
+    s.accent = UI_ACCENT_ORANGE;
+    s.language = UI_LANGUAGE_TURKISH;
+    s.layout = UI_LAYOUT_LIST;
+    apply_and_snapshot(&s, "70-list");
+    check(Ui_CurrentScreen() == UI_SCREEN_MAIN, "the list layout shows the main screen");
+
+    /* B: rows from y 32, 42 px apart; rail buttons at x 30. */
+    selects = s_select.calls;
+    tap(200, 51 + 42); /* second row */
+    check(s_select.calls == selects + 1, "a tap on a row selects its device");
+    tap(30, 82); /* favorites */
+    check(Ui_CurrentTab() == UI_TAB_FAVORITES, "the rail's star shows the favorites");
+    run_ms(50U);
+    snapshot("71-list-favorites");
+    tap(30, 30);
+    check(Ui_CurrentTab() == UI_TAB_ALL, "the rail's list button shows all devices");
+
+    /* Vertical volume on the right. */
+    volumes = s_audio.calls;
+    drag_v(448, 150, 70);
+    check((s_audio.calls > volumes) && (s_audio.last > 45U), "dragging the vertical slider up raises the volume");
+    Ui_SetVolume(s_audio.last);
+    s.theme = UI_THEME_LIGHT;
+    apply_and_snapshot(&s, "72-list-light");
+
+    /* C: the active device in the panel, the others as tiles. */
+    s.layout = UI_LAYOUT_TILES;
+    s.theme = UI_THEME_DARK;
+    apply_and_snapshot(&s, "73-tiles");
+    selects = s_select.calls;
+    tap(275, 80); /* first tile */
+    check((s_select.calls == selects + 1) && (s_select.last_id != 1U),
+          "the first tile is not the active device and selects its own");
+    Ui_SetActive(s_select.last_id);
+    run_ms(50U);
+    snapshot("74-tiles-switched");
+    s.theme = UI_THEME_LIGHT;
+    s.accent = UI_ACCENT_PURPLE;
+    apply_and_snapshot(&s, "75-tiles-light");
+
+    /* The layout row on the settings page: back to cards. */
+    tap(455, 25); /* cog */
+    check(Ui_CurrentScreen() == UI_SCREEN_SETTINGS, "the cog of layout C opens the settings page");
+    tap_setting(277, 60, "the layout control reports the settings");
+    check(Ui_Settings()->layout == UI_LAYOUT_CARDS, "\"Kart\" sets the cards layout");
+    tap_setting(351, 60, "the layout control reports the settings again");
+    check(Ui_Settings()->layout == UI_LAYOUT_LIST, "\"Liste\" sets the list layout");
+    snapshot("76-settings-layout-list");
+    {
+        const int before = s_settings.calls;
+
+        tap(312, 204); /* "3x2", greyed out outside the cards layout */
+        check((s_settings.calls == before) && (Ui_Settings()->grid == UI_GRID_2X2),
+              "the grid row does nothing outside the cards layout");
+    }
+    tap(60, 18);
+    run_ms(50U);
+    check(Ui_CurrentScreen() == UI_SCREEN_MAIN, "back on the main screen in the list layout");
+
+    /* Switching layouts again and again does not leak. */
+    s = *Ui_Settings();
+    Ui_MemoryUse(&before, NULL);
+    for (uint32_t i = 0U; i < 12U; i++)
+    {
+        s.layout = (uint8_t)(i % UI_LAYOUT_COUNT);
+        s.theme = (uint8_t)((i / 3U) % 2U);
+        Ui_ApplySettings(&s);
+        run_ms(20U);
+    }
+    s.layout = UI_LAYOUT_CARDS;
+    s.theme = UI_THEME_DARK;
+    s.accent = UI_ACCENT_ORANGE;
+    s.grid = UI_GRID_2X2;
+    Ui_ApplySettings(&s);
+    run_ms(20U);
+    Ui_MemoryUse(&after, NULL);
+    printf("memory after 13 layout changes: before=%lu after=%lu\n", (unsigned long)before, (unsigned long)after);
+    report_memory("layouts-end");
+}
+
 static void run_script(void)
 {
     /* Example names, including Turkish letters and a long name. */
@@ -858,6 +954,7 @@ static void run_script(void)
     run_settings_page_script(devices, sizeof(devices) / sizeof(devices[0]));
     run_screen_timeout_script(devices, sizeof(devices) / sizeof(devices[0]));
     run_edit_script(devices, sizeof(devices) / sizeof(devices[0]));
+    run_layouts_script();
 }
 
 int main(int argc, char **argv)
