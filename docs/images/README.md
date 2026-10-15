@@ -49,5 +49,12 @@ Last updated 2026-10-15 (#67): status, roadmap, hardware, firmware, host
 and protocol slides match `main` at `aa6ebc1`. The owner can export it as
 PDF or PowerPoint from the artifact.
 
+A PDF copy for reading without the artifact is in the repo:
+[`docs/presentation/stm32-ses-kumandasi.pdf`](../presentation/stm32-ses-kumandasi.pdf)
+(15 pages, 1920×1080). It was rendered from the artifact's slide files with
+headless Chromium, so small details (line breaks, icon shapes) can differ
+from the artifact's own export. The artifact is the source: when it changes,
+render or export the PDF again and replace this copy.
+
 When a screen changes, replace the file here first, then the image in the
 presentation.

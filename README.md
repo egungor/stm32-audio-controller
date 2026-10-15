@@ -17,7 +17,9 @@ board and Windows checks ran on 2026-10-14 (bring-up log in
 aliases, ordering, favorites, three layouts with themes and a settings
 page, on protocol version 2 (ADR-004). Milestones:
 [`docs/roadmap.md`](docs/roadmap.md). Project presentation (Turkish) with
-LCD screenshots: see [`docs/images/README.md`](docs/images/README.md).
+LCD screenshots:
+[`docs/presentation/stm32-ses-kumandasi.pdf`](docs/presentation/stm32-ses-kumandasi.pdf)
+(source and image list: [`docs/images/README.md`](docs/images/README.md)).
 
 ![Main screen on the LCD](docs/images/ui-main-screen.png)
 
