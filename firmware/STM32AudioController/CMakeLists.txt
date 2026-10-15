@@ -78,6 +78,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     ${UI_DIR}/ui.c
     ${UI_DIR}/ui_text.c
     ${UI_DIR}/ui_theme.c
+    ${UI_DIR}/ui_settings.c
     ${UI_DIR}/fonts/ui_font_14.c
     ${UI_DIR}/fonts/ui_font_16.c
     ${UI_DIR}/fonts/ui_font_22.c

@@ -14,6 +14,10 @@
  *     2x2, 3x2 or 3x3 grid or as a list (UiSettings.grid), the active
  *     device marked by colour and text, page buttons when there are more
  *     devices than fit on one page;
+ *   - settings: opened with the cog button in the main screen's top bar;
+ *     theme, accent colour, grid, startup tab, screen timeout, startup
+ *     volume limit, flip and language. A change is applied at once and
+ *     reported with the whole record (UiSettingsCallback);
  *   - error notice: shown over any screen for UI_NOTICE_MS;
  *   - flip button (top right corner of both screens): held for
  *     UI_FLIP_HOLD_MS, it asks to turn the image by 180° when released.
@@ -186,7 +190,9 @@ void Ui_ApplySettings(const UiSettings *settings);
 const UiSettings *Ui_Settings(void);
 
 /** Called with the whole record when the user changed something in the UI
- *  (for now: the tab, stored as last_tab). The UI has already applied it. */
+ *  (the tab, stored as last_tab, or a setting on the settings page). The UI
+ *  has already applied what it shows itself; screen_timeout, flipped and
+ *  the volume limit are for the caller (display port, host). */
 typedef void (*UiSettingsCallback)(const UiSettings *settings, void *user);
 
 /** Set the settings handler (optional). */
@@ -197,6 +203,12 @@ uint32_t Ui_CurrentPage(void);
 
 /** Currently shown tab, UI_TAB_* (for tests). */
 uint32_t Ui_CurrentTab(void);
+
+/** Screens, for Ui_CurrentScreen. */
+enum { UI_SCREEN_WAITING = 0, UI_SCREEN_MAIN = 1, UI_SCREEN_SETTINGS = 2 };
+
+/** Currently shown screen, UI_SCREEN_* (for tests). */
+uint32_t Ui_CurrentScreen(void);
 
 /** LVGL memory in use and its peak, in bytes (for tests and the log). */
 void Ui_MemoryUse(uint32_t *used, uint32_t *peak);

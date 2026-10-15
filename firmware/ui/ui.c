@@ -112,7 +112,7 @@ static void clamp_page(void)
 
 /* ---------------------------------------------------------------- helpers */
 
-static lv_obj_t *make_screen(void)
+lv_obj_t *ui_make_screen(void)
 {
     lv_obj_t *scr = lv_obj_create(NULL);
 
@@ -123,7 +123,7 @@ static lv_obj_t *make_screen(void)
     return scr;
 }
 
-static lv_obj_t *make_label(lv_obj_t *parent, const lv_font_t *font, uint32_t color, const char *text)
+lv_obj_t *ui_make_label(lv_obj_t *parent, const lv_font_t *font, uint32_t color, const char *text)
 {
     lv_obj_t *label = lv_label_create(parent);
 
@@ -134,7 +134,7 @@ static lv_obj_t *make_label(lv_obj_t *parent, const lv_font_t *font, uint32_t co
 }
 
 /* A plain container without the theme's styles. */
-static lv_obj_t *make_box(lv_obj_t *parent)
+lv_obj_t *ui_make_box(lv_obj_t *parent)
 {
     lv_obj_t *box = lv_obj_create(parent);
 
@@ -144,7 +144,7 @@ static lv_obj_t *make_box(lv_obj_t *parent)
     return box;
 }
 
-static void style_card(lv_obj_t *obj, int32_t radius)
+void ui_style_card(lv_obj_t *obj, int32_t radius)
 {
     lv_obj_set_style_radius(obj, radius, 0);
     lv_obj_set_style_shadow_width(obj, 0, 0);
@@ -361,7 +361,7 @@ static void on_page_clicked(lv_event_t *e)
     render_main();
 }
 
-static void notify_settings(void)
+void ui_notify_settings(void)
 {
     if (g_ui.on_settings != NULL)
     {
@@ -382,7 +382,7 @@ static void on_tab_clicked(lv_event_t *e)
     update_view();
     render_main();
     g_ui.settings.last_tab = (uint8_t)tab;
-    notify_settings();
+    ui_notify_settings();
 }
 
 static void on_notice_timer(lv_timer_t *timer)
@@ -446,12 +446,12 @@ static void on_flip_event(lv_event_t *e)
 /* Flip button in the top right corner of a screen, over the bar area. */
 static void build_flip_button(lv_obj_t *scr, uint32_t index)
 {
-    lv_obj_t *btn = make_box(scr);
+    lv_obj_t *btn = ui_make_box(scr);
 
     lv_obj_set_size(btn, FLIP_W, BAR_H);
     lv_obj_align(btn, LV_ALIGN_TOP_RIGHT, 0, 0);
     lv_obj_add_flag(btn, LV_OBJ_FLAG_CLICKABLE);
-    g_ui.flip_icons[index] = make_label(btn, &ui_font_16, g_ui.pal.muted, SYM_FLIP);
+    g_ui.flip_icons[index] = ui_make_label(btn, &ui_font_16, g_ui.pal.muted, SYM_FLIP);
     lv_obj_center(g_ui.flip_icons[index]);
     lv_obj_add_event_cb(btn, on_flip_event, LV_EVENT_ALL, NULL);
 }
@@ -460,28 +460,35 @@ static void build_waiting_screen(void)
 {
     lv_obj_t *box;
 
-    g_ui.waiting_screen = make_screen();
-    box = make_box(g_ui.waiting_screen);
+    g_ui.waiting_screen = ui_make_screen();
+    box = ui_make_box(g_ui.waiting_screen);
     lv_obj_set_size(box, LV_PCT(100), LV_SIZE_CONTENT);
     lv_obj_center(box);
     lv_obj_set_flex_flow(box, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_flex_align(box, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_set_style_pad_row(box, 10, 0);
 
-    (void)make_label(box, &ui_icons_40, g_ui.pal.link, SYM_HOURGLASS);
-    (void)make_label(box, &ui_font_22, g_ui.pal.text, ui_text(TXT_WAITING));
-    (void)make_label(box, &ui_font_16, g_ui.pal.muted, ui_text(TXT_WAITING_HINT));
+    (void)ui_make_label(box, &ui_icons_40, g_ui.pal.link, SYM_HOURGLASS);
+    (void)ui_make_label(box, &ui_font_22, g_ui.pal.text, ui_text(TXT_WAITING));
+    (void)ui_make_label(box, &ui_font_16, g_ui.pal.muted, ui_text(TXT_WAITING_HINT));
     build_flip_button(g_ui.waiting_screen, 0U);
 }
 
-/* Top bar: the two tabs on the left, the connection mark and the flip
- * button on the right. */
+static void on_settings_clicked(lv_event_t *e)
+{
+    LV_UNUSED(e);
+    ui_show_settings();
+}
+
+/* Top bar: the two tabs on the left; the connection mark, the settings
+ * button and the flip button on the right. */
 static void build_top_bar(lv_obj_t *scr)
 {
     static const char *const tab_symbols[2] = { SYM_GRID, SYM_STAR };
     static const UiTextId tab_texts[2] = { TXT_TAB_ALL, TXT_TAB_FAV };
-    lv_obj_t *bar = make_box(scr);
+    lv_obj_t *bar = ui_make_box(scr);
     lv_obj_t *plug;
+    lv_obj_t *cog;
 
     lv_obj_set_size(bar, LV_PCT(100), BAR_H);
     lv_obj_set_style_bg_color(bar, ui_color(g_ui.pal.bar), 0);
@@ -492,7 +499,7 @@ static void build_top_bar(lv_obj_t *scr)
 
     for (uint32_t t = 0U; t < 2U; t++)
     {
-        lv_obj_t *btn = make_box(bar);
+        lv_obj_t *btn = ui_make_box(bar);
 
         lv_obj_set_size(btn, TAB_W, BAR_H);
         lv_obj_set_pos(btn, (int32_t)(PAD + (t * TAB_W)), 0);
@@ -502,13 +509,21 @@ static void build_top_bar(lv_obj_t *scr)
         lv_obj_set_style_border_color(btn, ui_color(g_ui.pal.accent), 0);
         lv_obj_add_event_cb(btn, on_tab_clicked, LV_EVENT_CLICKED, (void *)(uintptr_t)t);
         g_ui.tab_btns[t] = btn;
-        g_ui.tab_labels[t] = make_label(btn, &ui_font_16, g_ui.pal.muted, "");
+        g_ui.tab_labels[t] = ui_make_label(btn, &ui_font_16, g_ui.pal.muted, "");
         lv_label_set_text_fmt(g_ui.tab_labels[t], "%s  %s", tab_symbols[t], ui_text(tab_texts[t]));
         lv_obj_center(g_ui.tab_labels[t]);
     }
 
-    plug = make_label(bar, &ui_font_16, g_ui.pal.link, SYM_PLUG);
-    lv_obj_align(plug, LV_ALIGN_RIGHT_MID, -(FLIP_W + 4), 0);
+    /* Settings button left of the flip button (which lies over the bar). */
+    cog = ui_make_box(bar);
+    lv_obj_set_size(cog, FLIP_W, BAR_H);
+    lv_obj_align(cog, LV_ALIGN_RIGHT_MID, -FLIP_W, 0);
+    lv_obj_add_flag(cog, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(cog, on_settings_clicked, LV_EVENT_CLICKED, NULL);
+    lv_obj_center(ui_make_label(cog, &ui_font_16, g_ui.pal.muted, SYM_COG));
+
+    plug = ui_make_label(bar, &ui_font_16, g_ui.pal.link, SYM_PLUG);
+    lv_obj_align(plug, LV_ALIGN_RIGHT_MID, -((2 * FLIP_W) + 4), 0);
 }
 
 static void build_device_button(lv_obj_t *parent, uint32_t slot, const GridShape *shape, CardKind kind)
@@ -518,7 +533,7 @@ static void build_device_button(lv_obj_t *parent, uint32_t slot, const GridShape
 
     memset(b, 0, sizeof(*b));
     b->btn = lv_button_create(parent);
-    style_card(b->btn, (kind == CARD_ROW) ? 10 : BTN_RADIUS);
+    ui_style_card(b->btn, (kind == CARD_ROW) ? 10 : BTN_RADIUS);
     if (kind == CARD_ROW)
     {
         lv_obj_set_size(b->btn, LV_PCT(100), LV_PCT(100));
@@ -539,21 +554,21 @@ static void build_device_button(lv_obj_t *parent, uint32_t slot, const GridShape
     switch (kind)
     {
     case CARD_LARGE:
-        b->icon = make_label(b->btn, &ui_icons_40, g_ui.pal.muted, "");
+        b->icon = ui_make_label(b->btn, &ui_icons_40, g_ui.pal.muted, "");
         lv_obj_set_width(b->icon, 48);
         break;
     case CARD_MEDIUM:
-        b->icon = make_label(b->btn, &ui_font_22, g_ui.pal.muted, "");
+        b->icon = ui_make_label(b->btn, &ui_font_22, g_ui.pal.muted, "");
         lv_obj_set_width(b->icon, 28);
         break;
     default:
-        b->icon = make_label(b->btn, &ui_font_16, g_ui.pal.muted, "");
+        b->icon = ui_make_label(b->btn, &ui_font_16, g_ui.pal.muted, "");
         lv_obj_set_width(b->icon, 22);
         break;
     }
     lv_obj_set_style_text_align(b->icon, LV_TEXT_ALIGN_CENTER, 0);
 
-    text = make_box(b->btn);
+    text = ui_make_box(b->btn);
     lv_obj_set_flex_grow(text, 1);
     lv_obj_set_height(text, LV_SIZE_CONTENT);
     lv_obj_set_flex_flow(text, LV_FLEX_FLOW_COLUMN);
@@ -563,27 +578,27 @@ static void build_device_button(lv_obj_t *parent, uint32_t slot, const GridShape
     {
         const lv_font_t *font = (kind == CARD_LARGE) ? &ui_font_22 : &ui_font_16;
 
-        b->name = make_label(text, font, g_ui.pal.text, "");
+        b->name = ui_make_label(text, font, g_ui.pal.text, "");
         lv_obj_set_width(b->name, LV_PCT(100));
         lv_obj_set_height(b->name, 2 * lv_font_get_line_height(font));
         lv_label_set_long_mode(b->name, LV_LABEL_LONG_MODE_DOTS);
-        b->state = make_label(text, (kind == CARD_LARGE) ? &ui_font_16 : &ui_font_14, g_ui.pal.on_acc, "");
+        b->state = ui_make_label(text, (kind == CARD_LARGE) ? &ui_font_16 : &ui_font_14, g_ui.pal.on_acc, "");
 
         /* Favorite mark in the top right corner, outside the flex flow. */
-        b->star = make_label(b->btn, &ui_font_14, g_ui.pal.accent, SYM_STAR);
+        b->star = ui_make_label(b->btn, &ui_font_14, g_ui.pal.accent, SYM_STAR);
         lv_obj_add_flag(b->star, LV_OBJ_FLAG_IGNORE_LAYOUT);
         lv_obj_align(b->star, LV_ALIGN_TOP_RIGHT, 2, -2);
     }
     else
     {
-        b->name = make_label(text, &ui_font_16, g_ui.pal.text, "");
+        b->name = ui_make_label(text, &ui_font_16, g_ui.pal.text, "");
         lv_obj_set_width(b->name, LV_PCT(100));
         /* One line; a fixed height makes LVGL cut long names with dots. */
         lv_obj_set_height(b->name, lv_font_get_line_height(&ui_font_16));
         lv_label_set_long_mode(b->name, LV_LABEL_LONG_MODE_DOTS);
         if (kind == CARD_ROW)
         {
-            b->star = make_label(b->btn, &ui_font_14, g_ui.pal.accent, SYM_STAR);
+            b->star = ui_make_label(b->btn, &ui_font_14, g_ui.pal.accent, SYM_STAR);
         }
     }
 }
@@ -594,8 +609,8 @@ static lv_obj_t *make_small_button(lv_obj_t *parent, int32_t w, const char *symb
     lv_obj_t *l;
 
     lv_obj_set_size(btn, w, BOTTOM_H - 8);
-    style_card(btn, 8);
-    l = make_label(btn, &ui_font_16, g_ui.pal.text, symbol);
+    ui_style_card(btn, 8);
+    l = ui_make_label(btn, &ui_font_16, g_ui.pal.text, symbol);
     lv_obj_center(l);
     if (label != NULL)
     {
@@ -608,7 +623,7 @@ static lv_obj_t *make_small_button(lv_obj_t *parent, int32_t w, const char *symb
  * the right when there is more than one page. */
 static void build_bottom_strip(lv_obj_t *scr)
 {
-    lv_obj_t *strip = make_box(scr);
+    lv_obj_t *strip = ui_make_box(scr);
 
     lv_obj_set_size(strip, LV_PCT(100), BOTTOM_H);
     lv_obj_align(strip, LV_ALIGN_BOTTOM_MID, 0, 0);
@@ -630,10 +645,10 @@ static void build_bottom_strip(lv_obj_t *scr)
     lv_obj_set_style_pad_all(g_ui.slider, 6, LV_PART_KNOB);
     lv_obj_add_event_cb(g_ui.slider, on_slider_event, LV_EVENT_ALL, NULL);
 
-    g_ui.volume_label = make_label(strip, &ui_font_16, g_ui.pal.text, "--");
+    g_ui.volume_label = ui_make_label(strip, &ui_font_16, g_ui.pal.text, "--");
     lv_obj_set_width(g_ui.volume_label, 44);
 
-    g_ui.pager = make_box(strip);
+    g_ui.pager = ui_make_box(strip);
     lv_obj_set_size(g_ui.pager, LV_SIZE_CONTENT, LV_PCT(100));
     lv_obj_set_flex_flow(g_ui.pager, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(g_ui.pager, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
@@ -641,7 +656,7 @@ static void build_bottom_strip(lv_obj_t *scr)
     lv_obj_set_style_pad_left(g_ui.pager, 4, 0);
 
     g_ui.prev_btn = make_small_button(g_ui.pager, 44, SYM_PREV, NULL);
-    g_ui.page_label = make_label(g_ui.pager, &ui_font_16, g_ui.pal.muted, "");
+    g_ui.page_label = ui_make_label(g_ui.pager, &ui_font_16, g_ui.pal.muted, "");
     g_ui.next_btn = make_small_button(g_ui.pager, 44, SYM_NEXT, NULL);
     lv_obj_add_event_cb(g_ui.prev_btn, on_page_clicked, LV_EVENT_CLICKED, NULL);
     lv_obj_add_event_cb(g_ui.next_btn, on_page_clicked, LV_EVENT_CLICKED, (void *)g_ui.next_btn);
@@ -667,11 +682,11 @@ static void build_main_screen(void)
     }
     rows[shape->rows] = LV_GRID_TEMPLATE_LAST;
 
-    g_ui.main_screen = make_screen();
+    g_ui.main_screen = ui_make_screen();
     build_top_bar(g_ui.main_screen);
     build_flip_button(g_ui.main_screen, 1U);
 
-    grid = make_box(g_ui.main_screen);
+    grid = ui_make_box(g_ui.main_screen);
     lv_obj_set_pos(grid, 0, BAR_H);
     lv_obj_set_size(grid, LV_PCT(100), UI_HEIGHT - BAR_H - BOTTOM_H);
     lv_obj_set_style_pad_all(grid, PAD, 0);
@@ -682,7 +697,7 @@ static void build_main_screen(void)
         build_device_button(grid, slot, shape, kind);
     }
 
-    g_ui.empty_label = make_label(g_ui.main_screen, &ui_font_22, g_ui.pal.muted, "");
+    g_ui.empty_label = ui_make_label(g_ui.main_screen, &ui_font_22, g_ui.pal.muted, "");
     lv_obj_center(g_ui.empty_label);
 
     build_bottom_strip(g_ui.main_screen);
@@ -703,8 +718,8 @@ static void build_notice(void)
     lv_obj_set_flex_align(g_ui.notice, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_remove_flag(g_ui.notice, LV_OBJ_FLAG_SCROLLABLE);
 
-    (void)make_label(g_ui.notice, &ui_font_22, g_ui.pal.accent, SYM_WARNING);
-    g_ui.notice_label = make_label(g_ui.notice, &ui_font_16, g_ui.pal.text, "");
+    (void)ui_make_label(g_ui.notice, &ui_font_22, g_ui.pal.accent, SYM_WARNING);
+    g_ui.notice_label = ui_make_label(g_ui.notice, &ui_font_16, g_ui.pal.text, "");
     lv_obj_set_flex_grow(g_ui.notice_label, 1);
     lv_label_set_long_mode(g_ui.notice_label, LV_LABEL_LONG_MODE_WRAP);
     lv_obj_add_flag(g_ui.notice, LV_OBJ_FLAG_HIDDEN);
@@ -714,12 +729,17 @@ static void build_notice(void)
  * deleted first so that LVGL never holds two sets at once (the 64 KB heap
  * does not fit both); an empty screen is shown meanwhile, because LVGL
  * must not delete the active screen. Nothing is drawn in between: the
- * whole rebuild runs in one call. */
+ * whole rebuild runs in one call. The screen shown before (and the
+ * settings list's scroll position) is shown again afterwards. */
 static void build_all(void)
 {
-    const bool show_main = (g_ui.main_screen != NULL) && (lv_screen_active() == g_ui.main_screen);
+    const uint32_t shown = Ui_CurrentScreen();
     lv_obj_t *const placeholder = lv_obj_create(NULL);
 
+    if (g_ui.settings_list != NULL)
+    {
+        g_ui.settings_scroll = lv_obj_get_scroll_y(g_ui.settings_list);
+    }
     lv_screen_load(placeholder);
     if (g_ui.notice != NULL)
     {
@@ -737,18 +757,84 @@ static void build_all(void)
         lv_obj_delete(g_ui.main_screen);
         g_ui.main_screen = NULL;
     }
+    if (g_ui.settings_screen != NULL)
+    {
+        lv_obj_delete(g_ui.settings_screen);
+        g_ui.settings_screen = NULL;
+        g_ui.settings_list = NULL;
+    }
     ui_theme_update();
     (void)lv_theme_default_init(lv_display_get_default(), ui_color(g_ui.pal.accent), ui_color(g_ui.pal.link),
                                 g_ui.pal.dark, &ui_font_16);
     build_waiting_screen();
     build_main_screen();
+    if (shown == UI_SCREEN_SETTINGS)
+    {
+        ui_settings_build();
+    }
     build_notice();
 
     clamp_page();
     render_main();
     render_audio();
-    lv_screen_load(show_main ? g_ui.main_screen : g_ui.waiting_screen);
+    ui_settings_render();
+    if (shown == UI_SCREEN_SETTINGS)
+    {
+        lv_obj_update_layout(g_ui.settings_screen);
+        lv_obj_scroll_to_y(g_ui.settings_list, g_ui.settings_scroll, LV_ANIM_OFF);
+        lv_screen_load(g_ui.settings_screen);
+    }
+    else
+    {
+        lv_screen_load((shown == UI_SCREEN_MAIN) ? g_ui.main_screen : g_ui.waiting_screen);
+    }
     lv_obj_delete(placeholder);
+}
+
+static void on_rebuild_async(void *user)
+{
+    LV_UNUSED(user);
+    g_ui.rebuild_queued = false;
+    build_all();
+}
+
+void ui_request_rebuild(void)
+{
+    if (!g_ui.rebuild_queued && (lv_async_call(on_rebuild_async, NULL) == LV_RESULT_OK))
+    {
+        g_ui.rebuild_queued = true;
+    }
+}
+
+/* The settings page exists only while it is shown, so that the main and
+ * waiting screens keep the LVGL heap they had before it (#60). Deleted
+ * asynchronously: this can run inside an event of one of its objects. */
+static void drop_settings_screen(void)
+{
+    if (g_ui.settings_screen != NULL)
+    {
+        lv_obj_delete_async(g_ui.settings_screen);
+        g_ui.settings_screen = NULL;
+        g_ui.settings_list = NULL;
+    }
+}
+
+void ui_show_main(void)
+{
+    render_main();
+    lv_screen_load(g_ui.main_screen);
+    drop_settings_screen();
+}
+
+void ui_show_settings(void)
+{
+    if (g_ui.settings_screen == NULL)
+    {
+        ui_settings_build();
+    }
+    ui_settings_render();
+    lv_obj_scroll_to_y(g_ui.settings_list, 0, LV_ANIM_OFF);
+    lv_screen_load(g_ui.settings_screen);
 }
 
 /* ------------------------------------------------------------------- API */
@@ -773,6 +859,7 @@ void Ui_Init(UiSelectCallback on_select, void *user)
 void Ui_ShowWaiting(void)
 {
     lv_screen_load(g_ui.waiting_screen);
+    drop_settings_screen();
 }
 
 void Ui_SetDevices(const UiDevice *devices, size_t count)
@@ -792,7 +879,12 @@ void Ui_SetDevices(const UiDevice *devices, size_t count)
     update_view();
     clamp_page();
     render_main();
-    lv_screen_load(g_ui.main_screen);
+    /* A new list (e.g. after an edit on the host) leaves the settings page
+     * open; from the waiting screen it shows the devices. */
+    if (Ui_CurrentScreen() != UI_SCREEN_SETTINGS)
+    {
+        lv_screen_load(g_ui.main_screen);
+    }
 }
 
 void Ui_SetActive(uint8_t device_id)
@@ -886,6 +978,7 @@ void Ui_ApplySettings(const UiSettings *settings)
     {
         clamp_page();
         render_main();
+        ui_settings_render();
     }
 }
 
@@ -908,6 +1001,17 @@ uint32_t Ui_CurrentPage(void)
 uint32_t Ui_CurrentTab(void)
 {
     return g_ui.tab;
+}
+
+uint32_t Ui_CurrentScreen(void)
+{
+    const lv_obj_t *const scr = lv_screen_active();
+
+    if ((scr != NULL) && (scr == g_ui.settings_screen))
+    {
+        return UI_SCREEN_SETTINGS;
+    }
+    return ((scr != NULL) && (scr == g_ui.main_screen)) ? UI_SCREEN_MAIN : UI_SCREEN_WAITING;
 }
 
 void Ui_MemoryUse(uint32_t *used, uint32_t *peak)

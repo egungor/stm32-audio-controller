@@ -49,6 +49,12 @@ argument):
 | `25-grid-3x2.png`, `26-grid-3x3.png`, `27-grid-list.png` | Card grids and the list |
 | `28-list-light.png` | List on the light theme |
 | `29-english.png` … `31-english-waiting.png` | English text: main screen, notice, waiting screen |
+| `40-settings.png` | Settings page, opened with the cog button |
+| `41-settings-light-blue.png` | After tapping "Açık" and the blue swatch: rebuilt, still open |
+| `42-settings-bottom.png` | Scrolled to the end: volume limit, flip, language |
+| `43-settings-limit.png`, `44-settings-limit-moved.png` | Volume limit on; its slider moved to 75 % |
+| `45-settings-english.png` | Flip on, language English |
+| `46-main-after-settings.png` | Back on the main screen with the chosen settings |
 
 The script prints the LVGL memory in use after each rebuild and fails if
 the peak passes 90 % of `LV_MEM_SIZE` or repeated rebuilds leak. LVGL
@@ -60,7 +66,12 @@ the right device, a tap on the active device does nothing, the page
 button changes the page, dragging the slider reports values and one
 release, the mute button asks for the opposite state, the disabled
 mute button does nothing, and the flip button asks to flip only after a
-long press, on release, on both screens. The simulator exits non-zero if a check fails.
+long press, on release, on both screens. On the settings page every
+control reports the whole record once with the right value, the page
+stays open across the rebuild a change causes, scrolling over a control
+changes nothing, the volume limit slider reports once on release in 5 %
+steps, a new list or host settings leave the page open, and opening and
+closing it leaks no memory. The simulator exits non-zero if a check fails.
 
 ## How it works
 

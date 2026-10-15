@@ -21,6 +21,27 @@ TEXTS = [
     ("TXT_SELECT_FAILED", "Ses çıkışı değiştirilemedi", "Could not switch the output"),
     ("TXT_HOST_TIMEOUT", "Bilgisayar yanıt vermiyor", "The computer is not responding"),
     ("TXT_EDIT_FAILED", "Değişiklik kaydedilemedi", "The change could not be saved"),
+    # Settings page (#60)
+    ("TXT_SETTINGS", "Ayarlar", "Settings"),
+    ("TXT_SET_THEME", "Tema", "Theme"),
+    ("TXT_THEME_DARK", "Koyu", "Dark"),
+    ("TXT_THEME_LIGHT", "Açık", "Light"),
+    ("TXT_SET_ACCENT", "Renk", "Colour"),
+    ("TXT_SET_GRID", "Izgara", "Grid"),
+    ("TXT_GRID_LIST", "Liste", "List"),
+    ("TXT_SET_STARTUP", "Açılış sekmesi", "Startup tab"),
+    ("TXT_STARTUP_LAST", "Son", "Last"),
+    ("TXT_STARTUP_FAV", "Favori", "Favorites"),
+    ("TXT_SET_TIMEOUT", "Ekran kapanma", "Screen off"),
+    ("TXT_TIMEOUT_NEVER", "Kapalı", "Never"),
+    ("TXT_TIMEOUT_1", "1 dk", "1 min"),
+    ("TXT_TIMEOUT_5", "5 dk", "5 min"),
+    ("TXT_TIMEOUT_15", "15 dk", "15 min"),
+    ("TXT_SET_LIMIT", "Açılışta ses sınırı", "Startup volume limit"),
+    ("TXT_LIMIT_HINT", "Açılışta sesi bundan yüksek çıkışlar bu değere iner",
+     "At startup, louder outputs are turned down to this"),
+    ("TXT_SET_FLIP", "Ekranı döndür", "Turn the display"),
+    ("TXT_SET_LANGUAGE", "Dil", "Language"),
 ]
 
 
