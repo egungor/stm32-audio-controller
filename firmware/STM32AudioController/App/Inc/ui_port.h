@@ -54,6 +54,14 @@ void UiPort_Start(void);
  */
 void UiPort_SetFlipped(bool flipped);
 
+/**
+ * @brief  Switch the LCD backlight on or off (LCD_BL_CTRL, PK3: enable of
+ *         the STLD40D backlight driver; docs/pin-mapping.md). The LTDC
+ *         keeps scanning out; only the light goes off.
+ * Used by the UI's screen timeout (Ui_SetBacklightHandler).
+ */
+void UiPort_SetBacklight(bool on);
+
 /** True while the image is turned by 180°. */
 bool UiPort_IsFlipped(void);
 
