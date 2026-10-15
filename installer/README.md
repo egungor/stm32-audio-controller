@@ -21,7 +21,13 @@ first page).
 The **Host installer** workflow builds it on every change to `host/`,
 `protocol/` or `installer/`: Actions → Host installer → the run →
 artifact `stm32-audio-controller-setup`. On a `v*` tag it is attached to
-the GitHub release.
+the GitHub release (created if missing; a tag with a "-", such as
+`v0.7.0-beta.1`, makes a pre-release):
+
+```text
+git tag v0.7.0-beta.1 <commit>
+git push origin v0.7.0-beta.1
+```
 
 The setup is not code-signed, so Windows SmartScreen may show "Windows
 protected your PC": "More info" → "Run anyway".

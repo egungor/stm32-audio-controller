@@ -74,4 +74,9 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$GITHUB_REF_NAME" build/installer/*.exe --clobber || gh release create "$GITHUB_REF_NAME" build/installer/*.exe --generate-notes
+        run: |
+          # A tag with a "-" (v0.7.0-beta.1) makes a pre-release.
+          pre=""
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then pre="--prerelease"; fi
+          gh release upload "$GITHUB_REF_NAME" build/installer/*.exe --clobber ||
+            gh release create "$GITHUB_REF_NAME" build/installer/*.exe --generate-notes $pre
