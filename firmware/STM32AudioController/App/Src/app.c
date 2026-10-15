@@ -176,7 +176,7 @@ static void on_ui_flip(void *user)
 {
     (void)user;
 #if APP_UI_DEMO
-    UiPort_SetFlipped(!UiPort_IsFlipped());
+    UiDemo_ToggleFlip();
 #else
     LinkPort_ToggleFlip();
 #endif

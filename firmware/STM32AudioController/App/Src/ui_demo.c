@@ -10,6 +10,7 @@
 #include "log.h"
 #include "lvgl.h"
 #include "ui.h"
+#include "ui_port.h"
 
 #define WAITING_MS 1500U /* show the waiting screen before "connecting" */
 #define CONFIRM_MS 400U  /* delay before the "host" confirms a selection */
@@ -63,12 +64,28 @@ static void on_mute(bool muted, void *user)
     Ui_SetMuted(muted ? 1U : 0U);
 }
 
-/* Settings changed in the UI (tab): the UI applied them already; the demo
- * has no host to store them. */
+/* Settings changed in the UI (tab or settings page): the UI applied what it
+ * shows; the demo turns the display itself and has no host to store the
+ * record. */
 static void on_settings(const UiSettings *settings, void *user)
 {
     LV_UNUSED(user);
-    Log_Line("UI SETTINGS last_tab=%u", (unsigned)settings->last_tab);
+    Log_Line("UI SETTINGS layout=%u theme=%u accent=%u grid=%u tab=%u/%u timeout=%u flipped=%u lang=%u "
+             "limit=%u/%u",
+             (unsigned)settings->layout, (unsigned)settings->theme, (unsigned)settings->accent,
+             (unsigned)settings->grid, (unsigned)settings->startup_tab, (unsigned)settings->last_tab,
+             (unsigned)settings->screen_timeout, (unsigned)settings->flipped, (unsigned)settings->language,
+             (unsigned)settings->volume_limit_on, (unsigned)settings->volume_limit);
+    UiPort_SetFlipped(settings->flipped != 0U);
+}
+
+void UiDemo_ToggleFlip(void)
+{
+    UiSettings s = *Ui_Settings();
+
+    s.flipped = (s.flipped != 0U) ? 0U : 1U;
+    Ui_ApplySettings(&s);
+    on_settings(&s, NULL);
 }
 
 static void on_connect(lv_timer_t *timer)
