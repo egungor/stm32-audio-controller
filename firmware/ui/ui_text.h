@@ -37,6 +37,9 @@ typedef enum
     TXT_LIMIT_HINT,
     TXT_SET_FLIP,
     TXT_SET_LANGUAGE,
+    TXT_EDIT_TITLE,
+    TXT_DONE,
+    TXT_SAVE,
     TXT_COUNT
 } UiTextId;
 

@@ -38,6 +38,9 @@ static const char *const k_text[UI_LANGUAGE_COUNT][TXT_COUNT] = {
         "A\xC3\xA7\xC4\xB1l\xC4\xB1\xC5\x9Fta sesi bundan y\xC3\xBCksek \xC3\xA7\xC4\xB1k\xC4\xB1\xC5\x9Flar bu de\xC4\x9F" "ere iner", /* TXT_LIMIT_HINT */
         "Ekran\xC4\xB1 d\xC3\xB6nd\xC3\xBCr", /* TXT_SET_FLIP */
         "Dil", /* TXT_SET_LANGUAGE */
+        "S\xC4\xB1rala ve d\xC3\xBCzenle", /* TXT_EDIT_TITLE */
+        "Bitti", /* TXT_DONE */
+        "Kaydet", /* TXT_SAVE */
     },
     {
         "All", /* TXT_TAB_ALL */
@@ -70,6 +73,9 @@ static const char *const k_text[UI_LANGUAGE_COUNT][TXT_COUNT] = {
         "At startup, louder outputs are turned down to this", /* TXT_LIMIT_HINT */
         "Turn the display", /* TXT_SET_FLIP */
         "Language", /* TXT_SET_LANGUAGE */
+        "Arrange and edit", /* TXT_EDIT_TITLE */
+        "Done", /* TXT_DONE */
+        "Save", /* TXT_SAVE */
     },
 };
 

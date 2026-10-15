@@ -5,6 +5,7 @@
 #include "link_port.h"
 
 #include <stdbool.h>
+#include <string.h>
 
 #include "link_client.h"
 #include "log.h"
@@ -163,6 +164,35 @@ static void on_ui_mute(bool muted, void *user)
     Link_SetMute(&s_link, muted);
 }
 
+/* Edit mode: the host stores the edit and sends a new list. */
+static bool on_ui_favorite(uint8_t device_id, bool favorite, void *user)
+{
+    const bool sent = Link_SetFavorite(&s_link, device_id, favorite, HAL_GetTick());
+
+    (void)user;
+    Log_Line("UI EDIT favorite id=%u on=%u sent=%u", (unsigned)device_id, favorite ? 1U : 0U, sent ? 1U : 0U);
+    return sent;
+}
+
+static bool on_ui_alias(uint8_t device_id, const char *alias, void *user)
+{
+    const bool sent = Link_SetAlias(&s_link, device_id, alias, HAL_GetTick());
+
+    (void)user;
+    Log_Line("UI EDIT alias id=%u bytes=%u sent=%u", (unsigned)device_id, (unsigned)strlen(alias),
+             sent ? 1U : 0U);
+    return sent;
+}
+
+static bool on_ui_move(uint8_t device_id, uint8_t new_position, void *user)
+{
+    const bool sent = Link_MoveDevice(&s_link, device_id, new_position, HAL_GetTick());
+
+    (void)user;
+    Log_Line("UI EDIT move id=%u to=%u sent=%u", (unsigned)device_id, (unsigned)new_position, sent ? 1U : 0U);
+    return sent;
+}
+
 static void on_ui_select(uint8_t device_id, void *user)
 {
     (void)user;
@@ -180,6 +210,11 @@ void LinkPort_Init(void)
     Ui_Init(on_ui_select, NULL);
     Ui_SetAudioHandlers(on_ui_volume, on_ui_mute, NULL);
     Ui_SetSettingsHandler(on_ui_settings, NULL);
+    {
+        static const UiEditHandlers edit = { on_ui_favorite, on_ui_alias, on_ui_move };
+
+        Ui_SetEditHandlers(&edit, NULL);
+    }
     Link_Init(&s_link, &callbacks);
 }
 

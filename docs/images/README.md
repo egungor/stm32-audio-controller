@@ -35,6 +35,8 @@ and speed on the real LCD are REQUIRES HARDWARE. Prefix `sim-`.
 | `sim-m7-list.png` | List layout | as above, `27-grid-list` |
 | `sim-m7-settings.png` | Settings page, dark theme | branch `feature/60-settings-page`, `40-settings` (#60) |
 | `sim-m7-settings-light.png` | Settings page after choosing the light theme and blue accent | as above, `41-settings-light-blue` |
+| `sim-m7-edit.png` | Edit mode after a star and a move (light theme, green accent) | branch `feature/60-edit-mode`, `62-edit-moved` (#60) |
+| `sim-m7-keyboard.png` | Alias keyboard, Turkish layout, "Oyunı" typed | as above, `64-keyboard-typed` |
 
 The light theme with blue accent and the 3×2 grid were also checked on the
 board on 2026-10-15 (`docs/hardware.md`, issue #60).

@@ -18,6 +18,10 @@
  *     theme, accent colour, grid, startup tab, screen timeout, startup
  *     volume limit, flip and language. A change is applied at once and
  *     reported with the whole record (UiSettingsCallback);
+ *   - edit mode: opened with the pencil button in the main screen's top
+ *     bar; every device as a card with buttons to move it one place left
+ *     or right, mark it as favorite, and give it an alias on an on-screen
+ *     keyboard (Turkish layout). Edits go out through UiEditHandlers;
  *   - error notice: shown over any screen for UI_NOTICE_MS;
  *   - screen timeout: after settings.screen_timeout minutes without a touch
  *     the screen goes black and the backlight handler is told to switch
@@ -201,6 +205,28 @@ typedef void (*UiSettingsCallback)(const UiSettings *settings, void *user);
 /** Set the settings handler (optional). */
 void Ui_SetSettingsHandler(UiSettingsCallback on_settings, void *user);
 
+/* -------------------------------------------------------------- edit mode */
+
+/**
+ * Edits asked for in the edit mode (pencil button in the top bar): favorite
+ * flag, alias (UTF-8, at most UI_MAX_ALIAS_BYTES, "" removes it) and the
+ * position in the user's order (0 = first). Each returns false if the edit
+ * was not sent (e.g. another one is still in flight): the tap then does
+ * nothing and can be repeated; a refusal by the host comes as
+ * Ui_ShowNotice(UI_NOTICE_EDIT_FAILED). The UI shows an edit only when the
+ * new list arrives (Ui_SetDevices), as the protocol says.
+ */
+typedef struct
+{
+    bool (*set_favorite)(uint8_t device_id, bool favorite, void *user);
+    bool (*set_alias)(uint8_t device_id, const char *alias, void *user);
+    bool (*move)(uint8_t device_id, uint8_t new_position, void *user);
+} UiEditHandlers;
+
+/** Set the edit handlers (optional; without them the pencil button is
+ *  hidden). @p handlers is copied. */
+void Ui_SetEditHandlers(const UiEditHandlers *handlers, void *user);
+
 /* --------------------------------------------------------- screen timeout */
 
 #define UI_SCREEN_OFF_CHECK_MS 1000U  /**< how often the timeout is checked */
@@ -226,7 +252,14 @@ uint32_t Ui_CurrentPage(void);
 uint32_t Ui_CurrentTab(void);
 
 /** Screens, for Ui_CurrentScreen. */
-enum { UI_SCREEN_WAITING = 0, UI_SCREEN_MAIN = 1, UI_SCREEN_SETTINGS = 2 };
+enum
+{
+    UI_SCREEN_WAITING = 0,
+    UI_SCREEN_MAIN = 1,
+    UI_SCREEN_SETTINGS = 2,
+    UI_SCREEN_EDIT = 3,
+    UI_SCREEN_KEYBOARD = 4,
+};
 
 /** Currently shown screen, UI_SCREEN_* (for tests). */
 uint32_t Ui_CurrentScreen(void);

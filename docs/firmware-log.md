@@ -52,6 +52,7 @@ printed.
 |---|---|
 | `UI INIT OK fb0=0x<addr> fb1=0x<addr>` | LVGL running on the two SDRAM framebuffers; LTDC enabled |
 | `UI INIT FAIL reason=<sdram\|lcd_format>` | No UI: SDRAM failed, or LTDC layer 0 is not RGB565 480×272 |
+| `UI EDIT favorite id=<id> on=<0\|1> sent=<0\|1>`, `UI EDIT alias id=<id> bytes=<n> sent=<0\|1>`, `UI EDIT move id=<id> to=<pos> sent=<0\|1>` | Edit mode (#60): star, alias saved on the keyboard, arrow. `sent=0`: not sent (another edit in flight); the demo build logs the same lines without `sent` and applies the edit itself |
 | `UI BACKLIGHT on\|off` | Screen timeout (#60): `off` after `screen_timeout` minutes without a touch, `on` at the next touch (which selects nothing) |
 | `UI FLIP on\|off copy_max_ms=<n>` | User held the flip button (#42): the image turns by 180° (`on`) or back (`off`). `n` is the longest 180° frame copy while flipped, so it is 0 on `on` and meaningful on `off` |
 | `APP READY` | Main loop running |
