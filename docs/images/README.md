@@ -43,21 +43,52 @@ and speed on the real LCD are REQUIRES HARDWARE. Prefix `sim-`.
 The light theme with blue accent and the 3×2 grid were also checked on the
 board on 2026-10-15 (`docs/hardware.md`, issue #60).
 
+### Presentation screens
+
+The screens in the product presentation. `firmware/ui` at `main` `c1342cf`
+(#73), driven through `ui.h` by a small headless program like the simulator
+(same LVGL build, same RGB565 framebuffer), with demo outputs: aliases
+"Masaüstü hoparlör", "Oyun kulaklığı" (active), "Monitör", "Kablosuz
+kulaklık", three outputs without alias, volume 62 %. Not captured on the
+board: REQUIRES HARDWARE.
+
+| File | Screen |
+|---|---|
+| `sim-pitch-a-dark.png` | Layout A, 2×2 cards, dark theme, orange accent |
+| `sim-pitch-a-muted.png` | As above, muted |
+| `sim-pitch-a-light-3x2.png` | Layout A, 3×2 cards, light theme, blue accent |
+| `sim-pitch-a-english.png` | Layout A in English |
+| `sim-pitch-acc-dark-0.png` … `-5.png` | The six accent colours, dark theme |
+| `sim-pitch-b-dark.png` | Layout B (list), dark theme |
+| `sim-pitch-c-dark.png` | Layout C (large tile), dark theme, purple accent |
+| `sim-pitch-edit.png` | Edit mode |
+| `sim-pitch-keyboard.png` | Alias keyboard |
+| `sim-pitch-settings.png` | Settings page |
+| `sim-pitch-waiting.png` | Waiting for the computer |
+
+How close the simulator is to the board: the same method, run on the UI
+code of `41bfed5`, gives the three LCD screenshots above pixel for pixel
+(0 of 130,560 pixels differ; checked 2026-10-16). That compares the
+framebuffer, not the panel.
+
 ## Project presentation
 
-The presentation (Turkish, 15 slides) is a claude.ai artifact owned by the
+The presentation (Turkish, 12 slides) is a claude.ai artifact owned by the
 project developer:
 <https://claude.ai/artifact/1iZGqWiF55fRbjfhNWXViQ>
 
-It uses the three LCD screenshots (cover, main screen, other states) and
-the four simulator screenshots (M7 slide, labelled as simulator output).
-Last updated 2026-10-15 (#67): status, roadmap, hardware, firmware, host
-and protocol slides match `main` at `aa6ebc1`. The owner can export it as
-PDF or PowerPoint from the artifact.
+Since 2026-10-16 (#67) it is a product presentation: what the controller
+does for the user (problem, solution, setup, main screen, three layouts,
+colours, aliases and order, volume, details, specifications, status), not
+how it is built. Every screen in it is one of the "Presentation screens"
+above, labelled on the slides as the device software's own output, not a
+photo. The closing slide separates what was verified on the board and on
+Windows (M0–M6) from what is still being tested (M7, installer). The owner
+can export it as PDF or PowerPoint from the artifact.
 
 A PDF copy for reading without the artifact is in the repo:
 [`docs/presentation/stm32-ses-kumandasi.pdf`](../presentation/stm32-ses-kumandasi.pdf)
-(15 pages, 1920×1080). It was rendered from the artifact's slide files with
+(12 pages, 1920×1080). It was rendered from the artifact's slide files with
 headless Chromium, so small details (line breaks, icon shapes) can differ
 from the artifact's own export. The artifact is the source: when it changes,
 render or export the PDF again and replace this copy.
