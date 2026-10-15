@@ -108,7 +108,7 @@ Order: protocol version 2 (ADR-004, #58) → host (#59) → firmware UI
 - [ ] Layouts and themes — A cards (2×2, 2×3, 3×3, list), B list, C large tile; dark/light; six accent colours (#57, #60)
 - [ ] Settings page — layout, theme, colour, grid, startup tab, screen timeout, flip, language, startup volume limit (#58–#60); page coded and tested in the simulator except "layout" (waits for layouts B and C), on the board REQUIRES HARDWARE; the screen timeout is stored but not acted on yet
 - [ ] Icons — form factor icons exist (speakers, headphones, headset, display, digital, generic; #22, #26)
-- [ ] Windows startup option
+- [ ] Windows startup option — tray program `stm32-audio-tray` with "start with Windows" (HKCU Run) and `stm32-audio-host startup` (#74); coded, built for Windows, unit tests for the Run value; REQUIRES WINDOWS
 - [ ] Error UI — waiting screen, error screen and notices for a refused or unanswered selection exist (#22, #30)
 - [ ] Performance/memory review
 - [x] Display flip (180°) — button and port (#42), frame copy 5 ms (#51), verified on the board
