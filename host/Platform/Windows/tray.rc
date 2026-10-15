@@ -1,0 +1,4 @@
+// Resources of stm32-audio-tray: the tray and program icon.
+#include "tray_resource.h"
+
+IDI_TRAY ICON "stm32-audio-tray.ico"

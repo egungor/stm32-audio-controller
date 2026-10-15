@@ -6,6 +6,8 @@ cmake_minimum_required(VERSION 3.20)
 #            with tests; builds on Windows and Linux.
 # stm32-audio-host: Windows console program on Core Audio and USB HID
 #                   (Windows only).
+# stm32-audio-tray: the same service as "stm32-audio-host run" as a system
+#                   tray program (Windows only, #74).
 project(stm32_audio_host LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -25,7 +27,8 @@ add_library(host_core STATIC
     App/HostController.cpp
     App/PreferenceFile.cpp
     App/PreferenceStore.cpp
-    App/Preferences.cpp)
+    App/Preferences.cpp
+    App/Startup.cpp)
 target_include_directories(host_core PUBLIC Audio Hid App)
 target_link_libraries(host_core PUBLIC protocol)
 
@@ -36,20 +39,38 @@ else()
 endif()
 
 if(WIN32)
-    add_executable(stm32-audio-host
-        Platform/Windows/main.cpp
+    enable_language(RC)
+
+    # Windows sources shared by the console and the tray program.
+    add_library(host_windows STATIC
+        Platform/Windows/HostService.cpp
         Platform/Windows/WinAudioSystem.cpp
         Platform/Windows/WinHidLink.cpp
         Platform/Windows/WinPreferenceFile.cpp
+        Platform/Windows/WinStartup.cpp
         Platform/Windows/WinStrings.cpp)
-    target_include_directories(stm32-audio-host PRIVATE Platform/Windows)
-    target_compile_definitions(stm32-audio-host PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX UNICODE _UNICODE)
-    target_link_libraries(stm32-audio-host PRIVATE host_core ole32 setupapi hid shell32)
-    if(MSVC)
-        target_compile_options(stm32-audio-host PRIVATE /W4 /WX /permissive- /utf-8)
-    else()
-        target_compile_options(stm32-audio-host PRIVATE -Wall -Wextra -Werror)
+    target_include_directories(host_windows PUBLIC Platform/Windows)
+    target_compile_definitions(host_windows PUBLIC WIN32_LEAN_AND_MEAN NOMINMAX UNICODE _UNICODE)
+    target_link_libraries(host_windows PUBLIC host_core ole32 setupapi hid shell32 advapi32 user32)
+
+    # Console program: run, list, set-default, volume, mute, watch, alias, startup.
+    add_executable(stm32-audio-host Platform/Windows/main.cpp)
+    target_link_libraries(stm32-audio-host PRIVATE host_windows)
+
+    # Tray program (#74): no console; same service as "run".
+    add_executable(stm32-audio-tray WIN32 Platform/Windows/tray.cpp Platform/Windows/tray.rc)
+    target_link_libraries(stm32-audio-tray PRIVATE host_windows)
+    if(NOT MSVC)
+        target_link_options(stm32-audio-tray PRIVATE -municode)
     endif()
+
+    foreach(target host_windows stm32-audio-host stm32-audio-tray)
+        if(MSVC)
+            target_compile_options(${target} PRIVATE /W4 /WX /permissive- /utf-8)
+        else()
+            target_compile_options(${target} PRIVATE -Wall -Wextra -Werror)
+        endif()
+    endforeach()
 endif()
 
 include(CTest)
