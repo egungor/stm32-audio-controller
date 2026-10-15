@@ -128,12 +128,53 @@ typedef struct
     lv_obj_t      *notice;
     lv_obj_t      *notice_label;
     lv_timer_t    *notice_timer;   /**< created once */
+
+    /* Settings page (ui_settings.c), rebuilt with the other screens. */
+    lv_obj_t *settings_screen;
+    lv_obj_t *settings_list;       /**< the scrolling list of rows */
+    int32_t   settings_scroll;     /**< list scroll position kept over a rebuild */
+    lv_obj_t *set_theme;           /**< segmented controls (lv_buttonmatrix) */
+    lv_obj_t *set_grid;
+    lv_obj_t *set_startup;
+    lv_obj_t *set_timeout;
+    lv_obj_t *set_language;
+    lv_obj_t *set_swatches[UI_ACCENT_COUNT];
+    lv_obj_t *set_limit_switch;
+    lv_obj_t *set_limit_box;       /**< hint and slider, hidden while the limit is off */
+    lv_obj_t *set_limit_slider;
+    lv_obj_t *set_limit_label;
+    lv_obj_t *set_flip_switch;
+    bool      rebuild_queued;      /**< ui_request_rebuild() pending */
 } UiState;
 
 extern UiState g_ui;
 
 /** Fill g_ui.pal from g_ui.settings (theme, accent). */
 void ui_theme_update(void);
+
+/** Accent colour @p accent on the current theme (for the colour swatches). */
+uint32_t ui_theme_accent(uint8_t accent);
+
+/* Building blocks shared by the screens (ui.c). */
+lv_obj_t *ui_make_screen(void);
+lv_obj_t *ui_make_label(lv_obj_t *parent, const lv_font_t *font, uint32_t color, const char *text);
+lv_obj_t *ui_make_box(lv_obj_t *parent);
+void      ui_style_card(lv_obj_t *obj, int32_t radius);
+
+/** Report g_ui.settings to the settings handler. */
+void ui_notify_settings(void);
+
+/** Rebuild every screen with the current settings on the next LVGL timer
+ *  run: a control must not delete itself from its own event handler. */
+void ui_request_rebuild(void);
+
+/** Show the main screen / the settings page. */
+void ui_show_main(void);
+void ui_show_settings(void);
+
+/* Settings page (ui_settings.c). */
+void ui_settings_build(void);   /**< create g_ui.settings_screen */
+void ui_settings_render(void);  /**< show g_ui.settings in the controls */
 
 /** lv_color_t of a palette value. */
 static inline lv_color_t ui_color(uint32_t rgb)

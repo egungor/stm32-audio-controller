@@ -29,7 +29,7 @@ LCD screenshots:
 | FT5336 touch | VERIFIED on the board |
 | LVGL UI (device buttons, pages, waiting screen, notices) | Simulator in CI; VERIFIED on the board |
 | USB HID interface `1209:0001` and STM32 protocol client | Unit tests in CI; VERIFIED on the board and Windows |
-| Protocol v1 (64-byte frames, CRC-16) | Codec tests in CI (Linux, Windows) |
+| Protocol v2 (64-byte frames, CRC-16; preferences and settings, ADR-004) | Codec tests in CI (Linux, Windows); VERIFIED on the board and Windows (#58) |
 | Windows host: Core Audio, default device switching, HID transport | Unit tests in CI; VERIFIED on Windows |
 | Firmware ↔ host together | Loopback integration test in CI; end to end VERIFIED; adding or removing a Windows device while connected NOT TESTED |
 | Volume and mute on the touchscreen (M6) | VERIFIED on the board and Windows |

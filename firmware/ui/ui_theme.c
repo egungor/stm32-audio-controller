@@ -50,6 +50,13 @@ static const UiPalette k_light = {
     false,
 };
 
+uint32_t ui_theme_accent(uint8_t accent)
+{
+    const AccentPair *a = &k_accents[(accent < UI_ACCENT_COUNT) ? accent : 0U];
+
+    return (g_ui.settings.theme == UI_THEME_LIGHT) ? a->light : a->dark;
+}
+
 void ui_theme_update(void)
 {
     const uint8_t accent = (g_ui.settings.accent < UI_ACCENT_COUNT) ? g_ui.settings.accent : 0U;

@@ -123,6 +123,26 @@ static void drag(int32_t x0, int32_t x1, int32_t y)
     run_ms(60U);
 }
 
+/* Press at (x, y0), move to y1 in 10 px steps, release (scrolling). */
+static void drag_v(int32_t x, int32_t y0, int32_t y1)
+{
+    const int32_t step = (y1 > y0) ? 10 : -10;
+
+    s_touch.x = x;
+    s_touch.y = y0;
+    s_touch.pressed = true;
+    run_ms(60U);
+    while ((step > 0) ? (s_touch.y < y1) : (s_touch.y > y1))
+    {
+        s_touch.y += step;
+        run_ms(20U);
+    }
+    s_touch.y = y1;
+    run_ms(60U);
+    s_touch.pressed = false;
+    run_ms(600U); /* let the scroll come to rest */
+}
+
 /* Press at (x, y) for @p ms, release. */
 static void hold(int32_t x, int32_t y, uint32_t ms)
 {
@@ -356,6 +376,119 @@ static void run_settings_script(const UiDevice *base, size_t count)
     }
 }
 
+/* Tap at (x, y) and check that it reported the settings exactly once. */
+static void tap_setting(int32_t x, int32_t y, const char *what)
+{
+    const int calls = s_settings.calls;
+
+    tap(x, y);
+    run_ms(50U); /* the rebuild after an appearance change runs here */
+    check(s_settings.calls == calls + 1, what);
+    check(Ui_CurrentScreen() == UI_SCREEN_SETTINGS, "the settings page stays open after a change");
+}
+
+/* Settings page (#60). Rows are 48 px high under the 36 px bar; the
+ * controls sit at the right edge. */
+static void run_settings_page_script(const UiDevice *devices, size_t count)
+{
+    uint32_t base;
+    uint32_t used;
+    int calls;
+
+    tap(414, 18); /* cog button */
+    check(Ui_CurrentScreen() == UI_SCREEN_SETTINGS, "the cog button opens the settings page");
+    run_ms(50U);
+    snapshot("40-settings");
+    report_memory("40-settings");
+
+    tap_setting(425, 60, "the theme control reports the settings");
+    check(Ui_Settings()->theme == UI_THEME_LIGHT, "\"Light\" sets the light theme");
+    tap_setting(307, 108, "the colour swatches report the settings");
+    check(Ui_Settings()->accent == UI_ACCENT_BLUE, "the second swatch sets the blue accent");
+    snapshot("41-settings-light-blue");
+    report_memory("41-settings-light-blue");
+    tap_setting(312, 156, "the grid control reports the settings");
+    check(Ui_Settings()->grid == UI_GRID_3X2, "\"3x2\" sets the 3x2 grid");
+    tap_setting(422, 204, "the startup tab control reports the settings");
+    check(Ui_Settings()->startup_tab == UI_STARTUP_FAVORITES, "\"Favorites\" sets the startup tab");
+    tap_setting(363, 252, "the screen timeout control reports the settings");
+    check(Ui_Settings()->screen_timeout == 5U, "\"5 min\" sets a 5 minute screen timeout");
+
+    /* Tapping the option that is already chosen reports nothing. */
+    calls = s_settings.calls;
+    tap(363, 252);
+    check(s_settings.calls == calls, "the chosen option again reports nothing");
+
+    /* Scroll to the end of the list: volume limit, flip, language. */
+    /* Scroll to the end of the list; a drag that starts on a control
+     * scrolls and changes nothing. */
+    calls = s_settings.calls;
+    drag_v(240, 250, 40);
+    check((s_settings.calls == calls) && (Ui_Settings()->screen_timeout == 5U),
+          "scrolling over a control does not change it");
+    drag_v(240, 250, 40);
+    snapshot("42-settings-bottom");
+    tap_setting(444, 144, "the volume limit switch reports the settings");
+    check(Ui_Settings()->volume_limit_on == 1U, "the volume limit switch turns the limit on");
+    run_ms(50U);
+    snapshot("43-settings-limit");
+
+    /* The slider reports once, on release, in steps of 5 %. */
+    calls = s_settings.calls;
+    drag(212, 300, 219);
+    check(s_settings.calls == calls + 1, "the volume limit slider reports once, on release");
+    check((Ui_Settings()->volume_limit > 50U) && ((Ui_Settings()->volume_limit % 5U) == 0U),
+          "the volume limit moved up in steps of 5");
+    snapshot("44-settings-limit-moved");
+
+    /* End of the list: flip and language rows. */
+    drag_v(240, 250, 40);
+    drag_v(240, 250, 40);
+    tap_setting(444, 191, "the flip switch reports the settings");
+    check(Ui_Settings()->flipped == 1U, "the flip switch asks for the flipped display");
+    tap_setting(419, 239, "the language control reports the settings");
+    check(Ui_Settings()->language == UI_LANGUAGE_ENGLISH, "\"English\" sets the English UI");
+    snapshot("45-settings-english");
+    report_memory("45-settings-english");
+
+    /* A new device list or settings from the host leave the page open. */
+    {
+        UiSettings s = *Ui_Settings();
+
+        Ui_SetDevices(devices, count);
+        check(Ui_CurrentScreen() == UI_SCREEN_SETTINGS, "a new device list leaves the settings page open");
+        s.accent = UI_ACCENT_GREEN;
+        Ui_ApplySettings(&s);
+        run_ms(50U);
+        check(Ui_CurrentScreen() == UI_SCREEN_SETTINGS, "settings from the host leave the settings page open");
+    }
+
+    /* Back to the main screen: the settings chosen above are in use. */
+    tap(60, 18);
+    run_ms(50U);
+    check(Ui_CurrentScreen() == UI_SCREEN_MAIN, "the back button shows the main screen");
+    snapshot("46-main-after-settings");
+
+    /* Opening and closing it again and again does not leak. */
+    Ui_MemoryUse(&base, NULL);
+    for (uint32_t i = 0U; i < 10U; i++)
+    {
+        tap(414, 18);
+        tap(60, 18);
+    }
+    run_ms(50U);
+    Ui_MemoryUse(&used, NULL);
+    printf("memory after 10 settings pages: before=%lu after=%lu\n", (unsigned long)base, (unsigned long)used);
+    check(used <= base + 512U, "opening the settings page does not leak memory");
+
+    /* The waiting screen closes the page. */
+    tap(414, 18);
+    Ui_ShowWaiting();
+    run_ms(50U);
+    check(Ui_CurrentScreen() == UI_SCREEN_WAITING, "the waiting screen replaces the settings page");
+    report_memory("end");
+}
+
 static void run_script(void)
 {
     /* Example names, including Turkish letters and a long name. */
@@ -462,6 +595,7 @@ static void run_script(void)
     check(s_flip_calls == 2, "the flip button works on the waiting screen");
 
     run_settings_script(devices, sizeof(devices) / sizeof(devices[0]));
+    run_settings_page_script(devices, sizeof(devices) / sizeof(devices[0]));
 }
 
 int main(int argc, char **argv)

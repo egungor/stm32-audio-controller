@@ -17,6 +17,10 @@ extern "C" {
 /** Build the UI with demo data. Call after UiPort_Init(). */
 void UiDemo_Start(void);
 
+/** Flip button: turn the display and keep the UI's settings record (the
+ *  settings page's switch) in step. */
+void UiDemo_ToggleFlip(void);
+
 #ifdef __cplusplus
 }
 #endif

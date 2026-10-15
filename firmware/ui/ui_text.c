@@ -19,6 +19,25 @@ static const char *const k_text[UI_LANGUAGE_COUNT][TXT_COUNT] = {
         "Ses \xC3\xA7\xC4\xB1k\xC4\xB1\xC5\x9F\xC4\xB1 de\xC4\x9Fi\xC5\x9Ftirilemedi", /* TXT_SELECT_FAILED */
         "Bilgisayar yan\xC4\xB1t vermiyor", /* TXT_HOST_TIMEOUT */
         "De\xC4\x9Fi\xC5\x9Fiklik kaydedilemedi", /* TXT_EDIT_FAILED */
+        "Ayarlar", /* TXT_SETTINGS */
+        "Tema", /* TXT_SET_THEME */
+        "Koyu", /* TXT_THEME_DARK */
+        "A\xC3\xA7\xC4\xB1k", /* TXT_THEME_LIGHT */
+        "Renk", /* TXT_SET_ACCENT */
+        "Izgara", /* TXT_SET_GRID */
+        "Liste", /* TXT_GRID_LIST */
+        "A\xC3\xA7\xC4\xB1l\xC4\xB1\xC5\x9F sekmesi", /* TXT_SET_STARTUP */
+        "Son", /* TXT_STARTUP_LAST */
+        "Favori", /* TXT_STARTUP_FAV */
+        "Ekran kapanma", /* TXT_SET_TIMEOUT */
+        "Kapal\xC4\xB1", /* TXT_TIMEOUT_NEVER */
+        "1 dk", /* TXT_TIMEOUT_1 */
+        "5 dk", /* TXT_TIMEOUT_5 */
+        "15 dk", /* TXT_TIMEOUT_15 */
+        "A\xC3\xA7\xC4\xB1l\xC4\xB1\xC5\x9Fta ses s\xC4\xB1n\xC4\xB1r\xC4\xB1", /* TXT_SET_LIMIT */
+        "A\xC3\xA7\xC4\xB1l\xC4\xB1\xC5\x9Fta sesi bundan y\xC3\xBCksek \xC3\xA7\xC4\xB1k\xC4\xB1\xC5\x9Flar bu de\xC4\x9F" "ere iner", /* TXT_LIMIT_HINT */
+        "Ekran\xC4\xB1 d\xC3\xB6nd\xC3\xBCr", /* TXT_SET_FLIP */
+        "Dil", /* TXT_SET_LANGUAGE */
     },
     {
         "All", /* TXT_TAB_ALL */
@@ -32,6 +51,25 @@ static const char *const k_text[UI_LANGUAGE_COUNT][TXT_COUNT] = {
         "Could not switch the output", /* TXT_SELECT_FAILED */
         "The computer is not responding", /* TXT_HOST_TIMEOUT */
         "The change could not be saved", /* TXT_EDIT_FAILED */
+        "Settings", /* TXT_SETTINGS */
+        "Theme", /* TXT_SET_THEME */
+        "Dark", /* TXT_THEME_DARK */
+        "Light", /* TXT_THEME_LIGHT */
+        "Colour", /* TXT_SET_ACCENT */
+        "Grid", /* TXT_SET_GRID */
+        "List", /* TXT_GRID_LIST */
+        "Startup tab", /* TXT_SET_STARTUP */
+        "Last", /* TXT_STARTUP_LAST */
+        "Favorites", /* TXT_STARTUP_FAV */
+        "Screen off", /* TXT_SET_TIMEOUT */
+        "Never", /* TXT_TIMEOUT_NEVER */
+        "1 min", /* TXT_TIMEOUT_1 */
+        "5 min", /* TXT_TIMEOUT_5 */
+        "15 min", /* TXT_TIMEOUT_15 */
+        "Startup volume limit", /* TXT_SET_LIMIT */
+        "At startup, louder outputs are turned down to this", /* TXT_LIMIT_HINT */
+        "Turn the display", /* TXT_SET_FLIP */
+        "Language", /* TXT_SET_LANGUAGE */
     },
 };
 
