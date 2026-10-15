@@ -145,6 +145,13 @@ typedef struct
     lv_obj_t *set_limit_label;
     lv_obj_t *set_flip_switch;
     bool      rebuild_queued;      /**< ui_request_rebuild() pending */
+
+    /* Screen timeout: created once in Ui_Init, never rebuilt. */
+    UiBacklightCallback on_backlight;
+    void               *backlight_user;
+    lv_timer_t         *screen_timer;
+    lv_obj_t           *wake_catcher;  /**< black, over everything, while dark */
+    bool                screen_off;
 } UiState;
 
 extern UiState g_ui;

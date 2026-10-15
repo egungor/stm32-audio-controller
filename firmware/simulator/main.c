@@ -55,6 +55,12 @@ static int s_flip_calls;
 
 static struct
 {
+    int  calls;
+    bool on;
+} s_backlight;
+
+static struct
+{
     int        calls;
     UiSettings last;
 } s_settings;
@@ -216,6 +222,13 @@ static void on_volume(uint8_t volume, bool released, void *user)
     s_audio.calls++;
     s_audio.released += released ? 1 : 0;
     s_audio.last = volume;
+}
+
+static void on_backlight(bool on, void *user)
+{
+    LV_UNUSED(user);
+    s_backlight.calls++;
+    s_backlight.on = on;
 }
 
 static void on_flip(void *user)
@@ -489,6 +502,56 @@ static void run_settings_page_script(const UiDevice *devices, size_t count)
     report_memory("end");
 }
 
+/* Screen timeout (#60): dark after settings.screen_timeout minutes without
+ * a touch; the first touch only wakes the screen. */
+static void run_screen_timeout_script(const UiDevice *devices, size_t count)
+{
+    UiSettings s = *Ui_Settings();
+    int selects;
+
+    Ui_SetDevices(devices, count);
+    Ui_SetActive(1U);
+    s.screen_timeout = 0U;
+    s.grid = UI_GRID_2X2;
+    s.language = UI_LANGUAGE_TURKISH;
+    Ui_ApplySettings(&s);
+    run_ms(120000U);
+    check(Ui_ScreenOn() && (s_backlight.calls == 0), "with the timeout off the screen stays lit");
+
+    s.screen_timeout = 1U;
+    Ui_ApplySettings(&s);
+    run_ms(58000U);
+    check(Ui_ScreenOn(), "the screen is lit before the timeout");
+    run_ms(3000U);
+    check(!Ui_ScreenOn() && (s_backlight.calls == 1) && !s_backlight.on,
+          "after 1 minute without a touch the screen goes dark once");
+    snapshot("50-screen-off");
+
+    /* The waking touch does not select the device under it. */
+    selects = s_select.calls;
+    tap(120, 85);
+    check(Ui_ScreenOn() && (s_backlight.calls == 2) && s_backlight.on, "a touch wakes the screen");
+    check(s_select.calls == selects, "the waking touch does not reach the controls");
+    tap(120, 85);
+    check(s_select.calls == selects + 1, "the next touch works normally");
+    snapshot("51-screen-woken");
+
+    /* A touch restarts the count. */
+    run_ms(40000U);
+    tap(240, 160);
+    run_ms(40000U);
+    check(Ui_ScreenOn(), "a touch restarts the timeout");
+    run_ms(25000U);
+    check(!Ui_ScreenOn(), "dark again a minute after the last touch");
+
+    /* "Never" from the host lights a dark screen and keeps it lit. */
+    s.screen_timeout = 0U;
+    Ui_ApplySettings(&s);
+    check(Ui_ScreenOn() && s_backlight.on, "switching the timeout off wakes the screen");
+    run_ms(70000U);
+    check(Ui_ScreenOn(), "and it stays lit");
+}
+
 static void run_script(void)
 {
     /* Example names, including Turkish letters and a long name. */
@@ -596,6 +659,7 @@ static void run_script(void)
 
     run_settings_script(devices, sizeof(devices) / sizeof(devices[0]));
     run_settings_page_script(devices, sizeof(devices) / sizeof(devices[0]));
+    run_screen_timeout_script(devices, sizeof(devices) / sizeof(devices[0]));
 }
 
 int main(int argc, char **argv)
@@ -627,6 +691,7 @@ int main(int argc, char **argv)
     Ui_SetAudioHandlers(on_volume, on_mute, NULL);
     Ui_SetFlipHandler(on_flip, NULL);
     Ui_SetSettingsHandler(on_settings, NULL);
+    Ui_SetBacklightHandler(on_backlight, NULL);
     run_ms(50U);
     run_script();
 

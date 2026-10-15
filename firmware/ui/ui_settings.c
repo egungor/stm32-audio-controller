@@ -10,8 +10,8 @@
  * tapped is not deleted inside its own event.
  *
  * "Layout" (cards / list / large tile) is not offered yet: only the cards
- * layout exists. screen_timeout, flipped and the volume limit are stored
- * in the record for the display port and the host.
+ * layout exists. screen_timeout is used by the UI's screen timeout (ui.c);
+ * flipped and the volume limit are for the display port and the host.
  */
 #include <string.h>
 
