@@ -254,7 +254,10 @@ LRESULT CALLBACK windowProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam)
         return TRUE;
     case WM_ENDSESSION:
         if (wparam != 0) {
-            stopWorker();  // logoff or shutdown: save the preferences first
+            stopWorker();  // logoff, shutdown or an installer: save the preferences first
+            if ((static_cast<UINT>(lparam) & ENDSESSION_CLOSEAPP) != 0) {
+                DestroyWindow(hwnd);  // the Restart Manager (installer) asks us to exit
+            }
         }
         return 0;
     case WM_DESTROY:

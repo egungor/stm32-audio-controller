@@ -112,6 +112,13 @@ Arguments are read as UTF-8 (`CommandLineToArgvW`), so aliases may
 contain Turkish letters. `list` prints each device's alias and favorite
 mark under its name.
 
+## Install
+
+`installer/` builds a setup (Inno Setup) that installs both programs for
+the current user, starts the tray program with Windows and starts it right
+away; see `installer/README.md`. CI builds it as the artifact
+`stm32-audio-controller-setup` (workflow "Host installer").
+
 ## Tray program (`stm32-audio-tray.exe`, #74)
 
 The same service as `run` without a console window (Windows GUI
