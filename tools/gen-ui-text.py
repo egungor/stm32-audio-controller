@@ -42,6 +42,10 @@ TEXTS = [
      "At startup, louder outputs are turned down to this"),
     ("TXT_SET_FLIP", "Ekranı döndür", "Turn the display"),
     ("TXT_SET_LANGUAGE", "Dil", "Language"),
+    # Edit mode and alias keyboard (#60)
+    ("TXT_EDIT_TITLE", "Sırala ve düzenle", "Arrange and edit"),
+    ("TXT_DONE", "Bitti", "Done"),
+    ("TXT_SAVE", "Kaydet", "Save"),
 ]
 
 

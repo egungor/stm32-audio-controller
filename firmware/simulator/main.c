@@ -59,6 +59,20 @@ static struct
     bool on;
 } s_backlight;
 
+/* Stand-in for the host's preference store in the edit mode tests: applies
+ * an edit to its list and sends the new list, as the host does. */
+static struct
+{
+    UiDevice list[8];
+    size_t   count;
+    int      favorite_calls;
+    int      alias_calls;
+    int      move_calls;
+    uint8_t  last_id;
+    uint8_t  last_position;
+    char     last_alias[UI_MAX_ALIAS_BYTES + 1U];
+} s_host;
+
 static struct
 {
     int        calls;
@@ -229,6 +243,70 @@ static void on_backlight(bool on, void *user)
     LV_UNUSED(user);
     s_backlight.calls++;
     s_backlight.on = on;
+}
+
+static size_t host_find(uint8_t id)
+{
+    for (size_t i = 0U; i < s_host.count; i++)
+    {
+        if (s_host.list[i].id == id)
+        {
+            return i;
+        }
+    }
+    return s_host.count;
+}
+
+static bool host_set_favorite(uint8_t id, bool favorite, void *user)
+{
+    const size_t i = host_find(id);
+
+    LV_UNUSED(user);
+    s_host.favorite_calls++;
+    s_host.last_id = id;
+    if (i < s_host.count)
+    {
+        s_host.list[i].favorite = favorite ? 1U : 0U;
+        Ui_SetDevices(s_host.list, s_host.count);
+    }
+    return true;
+}
+
+static bool host_set_alias(uint8_t id, const char *alias, void *user)
+{
+    const size_t i = host_find(id);
+
+    LV_UNUSED(user);
+    s_host.alias_calls++;
+    s_host.last_id = id;
+    (void)snprintf(s_host.last_alias, sizeof(s_host.last_alias), "%s", alias);
+    if (i < s_host.count)
+    {
+        (void)snprintf(s_host.list[i].alias, sizeof(s_host.list[i].alias), "%s", alias);
+        Ui_SetDevices(s_host.list, s_host.count);
+    }
+    return true;
+}
+
+static bool host_move(uint8_t id, uint8_t new_position, void *user)
+{
+    const size_t i = host_find(id);
+
+    LV_UNUSED(user);
+    s_host.move_calls++;
+    s_host.last_id = id;
+    s_host.last_position = new_position;
+    if ((i < s_host.count) && (new_position < s_host.count))
+    {
+        const UiDevice d = s_host.list[i];
+
+        (void)memmove(&s_host.list[i], &s_host.list[i + 1U], (s_host.count - i - 1U) * sizeof(UiDevice));
+        (void)memmove(&s_host.list[new_position + 1U], &s_host.list[new_position],
+                      (s_host.count - new_position - 1U) * sizeof(UiDevice));
+        s_host.list[new_position] = d;
+        Ui_SetDevices(s_host.list, s_host.count);
+    }
+    return true;
 }
 
 static void on_flip(void *user)
@@ -552,6 +630,125 @@ static void run_screen_timeout_script(const UiDevice *devices, size_t count)
     check(Ui_ScreenOn(), "and it stays lit");
 }
 
+/* Keyboard keys (Turkish Q layout, 480 x 220 under a 52 px bar): rows
+ * 50 px high; row 1 has 12 equal keys, row 3 starts with a mode key. */
+#define KB_ROW1_Y  81
+#define KB_ROW3_Y  189
+#define KB_ROW4_Y  243
+static int32_t kb_row1_x(int32_t index) { return 4 + (index * 40) + 18; }
+static int32_t kb_row3_x(int32_t letter) { return 62 + (letter * 40) + 18; } /* 0 = z */
+#define KB_MODE_X  31   /* "ABC" / "abc" */
+#define KB_OK_X    442
+#define KB_CLOSE_X 28
+#define KB_CLOSE_Y 26
+
+/* Edit mode (#60): favorite, order and alias through UiEditHandlers. Cards
+ * 2 x 2; a card's buttons (left, right, star, pencil) on its bottom row. */
+static void run_edit_script(const UiDevice *devices, size_t count)
+{
+    static const UiEditHandlers handlers = { host_set_favorite, host_set_alias, host_move };
+    uint32_t base;
+    uint32_t used;
+    int calls;
+
+    memcpy(s_host.list, devices, count * sizeof(UiDevice));
+    s_host.count = count;
+    Ui_SetDevices(s_host.list, s_host.count);
+    Ui_SetActive(1U);
+    Ui_SetEditHandlers(&handlers, NULL);
+    run_ms(50U);
+    snapshot("60-main-pencil");
+    Ui_MemoryUse(&base, NULL);
+
+    tap(370, 18); /* pencil */
+    check(Ui_CurrentScreen() == UI_SCREEN_EDIT, "the pencil button opens the edit mode");
+    run_ms(50U);
+    snapshot("61-edit");
+    report_memory("61-edit");
+
+    tap(128, 106); /* first card: star */
+    check((s_host.favorite_calls == 1) && (s_host.last_id == 0U) && (s_host.list[0].favorite == 1U),
+          "the star marks the first device as favorite");
+    check(Ui_CurrentScreen() == UI_SCREEN_EDIT, "the edit mode stays open when the new list arrives");
+
+    calls = s_host.move_calls;
+    tap(36, 106); /* first card: left, disabled */
+    check(s_host.move_calls == calls, "the first device cannot move further left");
+    tap(82, 106); /* first card: right */
+    check((s_host.move_calls == calls + 1) && (s_host.last_id == 0U) && (s_host.last_position == 1U) &&
+              (s_host.list[1].id == 0U),
+          "the right arrow moves the device one place on");
+    run_ms(50U);
+    snapshot("62-edit-moved");
+
+    /* Alias: pencil of the first card (now device 1), type "Oyun", OK. */
+    tap(174, 106);
+    check(Ui_CurrentScreen() == UI_SCREEN_KEYBOARD, "the pencil on a card opens the keyboard");
+    run_ms(50U);
+    snapshot("63-keyboard");
+    report_memory("63-keyboard");
+    tap(KB_MODE_X, KB_ROW3_Y);   /* ABC */
+    tap(kb_row1_x(8), KB_ROW1_Y); /* O */
+    tap(KB_MODE_X, KB_ROW3_Y);   /* abc */
+    tap(kb_row1_x(5), KB_ROW1_Y); /* y */
+    tap(kb_row1_x(6), KB_ROW1_Y); /* u */
+    tap(kb_row3_x(5), KB_ROW3_Y); /* n */
+    tap(kb_row1_x(7), KB_ROW1_Y); /* ı */
+    run_ms(50U);
+    snapshot("64-keyboard-typed");
+    tap(KB_OK_X, KB_ROW4_Y);
+    run_ms(50U);
+    check((s_host.alias_calls == 1) && (s_host.last_id == 1U) &&
+              (strcmp(s_host.last_alias, "Oyun\xC4\xB1") == 0),
+          "OK on the keyboard sets the typed alias");
+    check(Ui_CurrentScreen() == UI_SCREEN_EDIT, "saving the alias returns to the edit mode");
+
+    /* The alias is limited to UI_MAX_ALIAS_BYTES of UTF-8 ("\xC4\x9F" is 2 bytes). */
+    tap(174 + 236, 106); /* second card's pencil */
+    for (uint32_t i = 0U; i < 20U; i++)
+    {
+        tap(kb_row1_x(10), KB_ROW1_Y); /* ğ */
+    }
+    tap(KB_OK_X, KB_ROW4_Y);
+    run_ms(50U);
+    check((s_host.alias_calls == 2) && (strlen(s_host.last_alias) == UI_MAX_ALIAS_BYTES),
+          "the alias stops at 32 bytes");
+
+    /* Close without saving. */
+    tap(174 + 236, 106);
+    tap(kb_row1_x(0), KB_ROW1_Y);
+    Ui_SetDevices(s_host.list, s_host.count);
+    check(Ui_CurrentScreen() == UI_SCREEN_KEYBOARD, "a new list leaves the keyboard open");
+    tap(KB_CLOSE_X, KB_CLOSE_Y);
+    run_ms(50U);
+    check((s_host.alias_calls == 2) && (Ui_CurrentScreen() == UI_SCREEN_EDIT), "x closes the keyboard without saving");
+
+    /* Pages: 6 devices, 4 per page. */
+    tap(452, 252);
+    run_ms(50U);
+    snapshot("65-edit-page2");
+
+    tap(440, 18); /* Done */
+    run_ms(50U);
+    check(Ui_CurrentScreen() == UI_SCREEN_MAIN, "Done returns to the main screen");
+    snapshot("66-main-after-edit");
+
+    /* Opening and closing does not leak. */
+    for (uint32_t i = 0U; i < 5U; i++)
+    {
+        tap(370, 18);
+        tap(174, 106);
+        tap(KB_CLOSE_X, KB_CLOSE_Y);
+        tap(440, 18);
+    }
+    run_ms(50U);
+    Ui_MemoryUse(&used, NULL);
+    printf("memory after 5 edit sessions: before=%lu after=%lu\n", (unsigned long)base, (unsigned long)used);
+    check(used <= base + 512U, "the edit mode and keyboard do not leak memory");
+    check(Ui_CurrentScreen() == UI_SCREEN_MAIN, "back on the main screen");
+    report_memory("edit-end");
+}
+
 static void run_script(void)
 {
     /* Example names, including Turkish letters and a long name. */
@@ -660,6 +857,7 @@ static void run_script(void)
     run_settings_script(devices, sizeof(devices) / sizeof(devices[0]));
     run_settings_page_script(devices, sizeof(devices) / sizeof(devices[0]));
     run_screen_timeout_script(devices, sizeof(devices) / sizeof(devices[0]));
+    run_edit_script(devices, sizeof(devices) / sizeof(devices[0]));
 }
 
 int main(int argc, char **argv)

@@ -53,7 +53,7 @@ static CardKind card_kind(void)
     }
 }
 
-static const char *icon_symbol(uint8_t icon)
+const char *ui_icon_symbol(uint8_t icon)
 {
     static const char *const symbols[] = {
         "\xEF\x80\x81", /* generic: music */
@@ -67,7 +67,7 @@ static const char *icon_symbol(uint8_t icon)
     return (icon < sizeof(symbols) / sizeof(symbols[0])) ? symbols[icon] : symbols[0];
 }
 
-static const char *display_name(const UiDevice *d)
+const char *ui_display_name(const UiDevice *d)
 {
     return (d->alias[0] != '\0') ? d->alias : d->name;
 }
@@ -188,9 +188,9 @@ static void render_button(uint32_t slot)
         lv_obj_set_style_border_color(b->btn, ui_color(g_ui.pal.line), 0);
         lv_obj_set_style_border_width(b->btn, (g_ui.pal.dark || active) ? 0 : 1, 0);
     }
-    lv_label_set_text_static(b->icon, icon_symbol(d->icon));
+    lv_label_set_text_static(b->icon, ui_icon_symbol(d->icon));
     lv_obj_set_style_text_color(b->icon, ui_color(active ? g_ui.pal.on_acc : g_ui.pal.muted), 0);
-    lv_label_set_text(b->name, display_name(d));
+    lv_label_set_text(b->name, ui_display_name(d));
     lv_obj_set_style_text_color(b->name, ui_color(fg), 0);
 
     if (b->star != NULL)
@@ -480,6 +480,12 @@ static void on_settings_clicked(lv_event_t *e)
     ui_show_settings();
 }
 
+static void on_edit_clicked(lv_event_t *e)
+{
+    LV_UNUSED(e);
+    ui_show_edit();
+}
+
 /* Top bar: the two tabs on the left; the connection mark, the settings
  * button and the flip button on the right. */
 static void build_top_bar(lv_obj_t *scr)
@@ -489,6 +495,7 @@ static void build_top_bar(lv_obj_t *scr)
     lv_obj_t *bar = ui_make_box(scr);
     lv_obj_t *plug;
     lv_obj_t *cog;
+    lv_obj_t *pen;
 
     lv_obj_set_size(bar, LV_PCT(100), BAR_H);
     lv_obj_set_style_bg_color(bar, ui_color(g_ui.pal.bar), 0);
@@ -522,8 +529,22 @@ static void build_top_bar(lv_obj_t *scr)
     lv_obj_add_event_cb(cog, on_settings_clicked, LV_EVENT_CLICKED, NULL);
     lv_obj_center(ui_make_label(cog, &ui_font_16, g_ui.pal.muted, SYM_COG));
 
+    /* Edit mode button left of the settings button; hidden without edit
+     * handlers (Ui_SetEditHandlers). */
+    pen = ui_make_box(bar);
+    lv_obj_set_size(pen, FLIP_W, BAR_H);
+    lv_obj_align(pen, LV_ALIGN_RIGHT_MID, -(2 * FLIP_W), 0);
+    lv_obj_add_flag(pen, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(pen, on_edit_clicked, LV_EVENT_CLICKED, NULL);
+    lv_obj_center(ui_make_label(pen, &ui_font_16, g_ui.pal.muted, SYM_PENCIL));
+    if (!g_ui.edit_set)
+    {
+        lv_obj_add_flag(pen, LV_OBJ_FLAG_HIDDEN);
+    }
+    g_ui.edit_btn = pen;
+
     plug = ui_make_label(bar, &ui_font_16, g_ui.pal.link, SYM_PLUG);
-    lv_obj_align(plug, LV_ALIGN_RIGHT_MID, -((2 * FLIP_W) + 4), 0);
+    lv_obj_align(plug, LV_ALIGN_RIGHT_MID, -((3 * FLIP_W) + 4), 0);
 }
 
 static void build_device_button(lv_obj_t *parent, uint32_t slot, const GridShape *shape, CardKind kind)
@@ -740,6 +761,12 @@ static void build_all(void)
     {
         g_ui.settings_scroll = lv_obj_get_scroll_y(g_ui.settings_list);
     }
+    if (g_ui.kb_text != NULL)
+    {
+        /* Keep what was typed so far. */
+        (void)strncpy(g_ui.kb_draft, lv_textarea_get_text(g_ui.kb_text), UI_MAX_ALIAS_BYTES);
+        g_ui.kb_draft[UI_MAX_ALIAS_BYTES] = '\0';
+    }
     lv_screen_load(placeholder);
     if (g_ui.notice != NULL)
     {
@@ -763,6 +790,17 @@ static void build_all(void)
         g_ui.settings_screen = NULL;
         g_ui.settings_list = NULL;
     }
+    if (g_ui.kb_screen != NULL)
+    {
+        lv_obj_delete(g_ui.kb_screen);
+        g_ui.kb_screen = NULL;
+        g_ui.kb_text = NULL;
+    }
+    if (g_ui.edit_screen != NULL)
+    {
+        lv_obj_delete(g_ui.edit_screen);
+        g_ui.edit_screen = NULL;
+    }
     ui_theme_update();
     (void)lv_theme_default_init(lv_display_get_default(), ui_color(g_ui.pal.accent), ui_color(g_ui.pal.link),
                                 g_ui.pal.dark, &ui_font_16);
@@ -771,6 +809,15 @@ static void build_all(void)
     if (shown == UI_SCREEN_SETTINGS)
     {
         ui_settings_build();
+    }
+    if ((shown == UI_SCREEN_EDIT) || (shown == UI_SCREEN_KEYBOARD))
+    {
+        ui_edit_build();
+        ui_edit_render();
+    }
+    if (shown == UI_SCREEN_KEYBOARD)
+    {
+        ui_keyboard_build();
     }
     build_notice();
 
@@ -783,6 +830,14 @@ static void build_all(void)
         lv_obj_update_layout(g_ui.settings_screen);
         lv_obj_scroll_to_y(g_ui.settings_list, g_ui.settings_scroll, LV_ANIM_OFF);
         lv_screen_load(g_ui.settings_screen);
+    }
+    else if (shown == UI_SCREEN_EDIT)
+    {
+        lv_screen_load(g_ui.edit_screen);
+    }
+    else if (shown == UI_SCREEN_KEYBOARD)
+    {
+        lv_screen_load(g_ui.kb_screen);
     }
     else
     {
@@ -824,6 +879,7 @@ void ui_show_main(void)
     render_main();
     lv_screen_load(g_ui.main_screen);
     drop_settings_screen();
+    ui_edit_drop();
 }
 
 void ui_show_settings(void)
@@ -921,6 +977,7 @@ void Ui_ShowWaiting(void)
 {
     lv_screen_load(g_ui.waiting_screen);
     drop_settings_screen();
+    ui_edit_drop();
 }
 
 void Ui_SetDevices(const UiDevice *devices, size_t count)
@@ -940,9 +997,11 @@ void Ui_SetDevices(const UiDevice *devices, size_t count)
     update_view();
     clamp_page();
     render_main();
-    /* A new list (e.g. after an edit on the host) leaves the settings page
-     * open; from the waiting screen it shows the devices. */
-    if (Ui_CurrentScreen() != UI_SCREEN_SETTINGS)
+    /* A new list (e.g. after an edit) leaves the settings page, the edit
+     * mode and the keyboard open; from the waiting screen it shows the
+     * devices. */
+    ui_edit_render();
+    if ((Ui_CurrentScreen() == UI_SCREEN_MAIN) || (Ui_CurrentScreen() == UI_SCREEN_WAITING))
     {
         lv_screen_load(g_ui.main_screen);
     }
@@ -1084,13 +1143,50 @@ bool Ui_ScreenOn(void)
     return !g_ui.screen_off;
 }
 
+void Ui_SetEditHandlers(const UiEditHandlers *handlers, void *user)
+{
+    g_ui.edit_set = (handlers != NULL);
+    if (handlers != NULL)
+    {
+        g_ui.edit = *handlers;
+    }
+    else
+    {
+        (void)memset(&g_ui.edit, 0, sizeof(g_ui.edit));
+    }
+    g_ui.edit_user = user;
+    if (g_ui.edit_btn != NULL)
+    {
+        if (g_ui.edit_set)
+        {
+            lv_obj_remove_flag(g_ui.edit_btn, LV_OBJ_FLAG_HIDDEN);
+        }
+        else
+        {
+            lv_obj_add_flag(g_ui.edit_btn, LV_OBJ_FLAG_HIDDEN);
+        }
+    }
+}
+
 uint32_t Ui_CurrentScreen(void)
 {
     const lv_obj_t *const scr = lv_screen_active();
 
-    if ((scr != NULL) && (scr == g_ui.settings_screen))
+    if (scr == NULL)
+    {
+        return UI_SCREEN_WAITING;
+    }
+    if (scr == g_ui.settings_screen)
     {
         return UI_SCREEN_SETTINGS;
+    }
+    if (scr == g_ui.edit_screen)
+    {
+        return UI_SCREEN_EDIT;
+    }
+    if (scr == g_ui.kb_screen)
+    {
+        return UI_SCREEN_KEYBOARD;
     }
     return ((scr != NULL) && (scr == g_ui.main_screen)) ? UI_SCREEN_MAIN : UI_SCREEN_WAITING;
 }

@@ -74,6 +74,17 @@ typedef struct
     lv_obj_t *star;   /**< favorite mark; NULL if none */
 } UiDeviceButton;
 
+#define UI_EDIT_PER_PAGE 4U
+
+/** One card of the edit mode: three objects, so four cards fit the LVGL
+ *  heap next to the main screen. */
+typedef struct
+{
+    lv_obj_t *card;
+    lv_obj_t *name;     /**< icon and name in one label */
+    lv_obj_t *buttons;  /**< lv_buttonmatrix: left, right, star, pencil */
+} UiEditCard;
+
 typedef struct
 {
     /* Handlers. */
@@ -146,6 +157,23 @@ typedef struct
     lv_obj_t *set_flip_switch;
     bool      rebuild_queued;      /**< ui_request_rebuild() pending */
 
+    /* Edit mode and alias keyboard (ui_edit.c): built while shown. */
+    UiEditHandlers edit;
+    void          *edit_user;
+    bool           edit_set;            /**< Ui_SetEditHandlers called */
+    lv_obj_t      *edit_btn;            /**< pencil in the main screen's bar */
+    lv_obj_t      *edit_screen;
+    UiEditCard     edit_cards[UI_EDIT_PER_PAGE];
+    lv_obj_t      *edit_prev;
+    lv_obj_t      *edit_next;
+    lv_obj_t      *edit_page_label;
+    lv_obj_t      *edit_empty;
+    uint32_t       edit_page;
+    lv_obj_t      *kb_screen;
+    lv_obj_t      *kb_text;             /**< lv_textarea with the alias */
+    uint8_t        kb_device;           /**< device being renamed */
+    char           kb_draft[UI_MAX_ALIAS_BYTES + 1U]; /**< text kept over a rebuild */
+
     /* Screen timeout: created once in Ui_Init, never rebuilt. */
     UiBacklightCallback on_backlight;
     void               *backlight_user;
@@ -178,6 +206,19 @@ void ui_request_rebuild(void);
 /** Show the main screen / the settings page. */
 void ui_show_main(void);
 void ui_show_settings(void);
+
+/** Icon glyph of a device (UiIcon) in ui_font_* / ui_icons_40 (ui.c). */
+const char *ui_icon_symbol(uint8_t icon);
+
+/** Name shown for a device: alias if set, else the Windows name (ui.c). */
+const char *ui_display_name(const UiDevice *d);
+
+/* Edit mode and alias keyboard (ui_edit.c). */
+void ui_show_edit(void);
+void ui_edit_build(void);       /**< create g_ui.edit_screen */
+void ui_edit_render(void);      /**< show g_ui.devices in the cards */
+void ui_keyboard_build(void);   /**< create g_ui.kb_screen for kb_device with kb_draft */
+void ui_edit_drop(void);        /**< delete the edit and keyboard screens (async) */
 
 /* Settings page (ui_settings.c). */
 void ui_settings_build(void);   /**< create g_ui.settings_screen */
