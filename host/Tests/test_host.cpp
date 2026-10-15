@@ -22,6 +22,7 @@
 #include "PreferenceFile.h"
 #include "PreferenceStore.h"
 #include "Preferences.h"
+#include "Startup.h"
 #include "VolumeLimit.h"
 
 using namespace stm32_audio::host;
@@ -1354,6 +1355,39 @@ void testFrameText()
 
 }  // namespace
 
+// Start with Windows (#74): the Run value and its comparison.
+void testStartupCommand()
+{
+    const std::string exe = "C:\\Program Files\\STM32 Audio\\stm32-audio-tray.exe";
+
+    CHECK(startupCommand(exe) == "\"" + exe + "\"");
+    CHECK(startupCommandMatches(startupCommand(exe), exe));
+    CHECK(startupCommandMatches("  \"c:\\program files\\stm32 audio\\STM32-AUDIO-TRAY.EXE\"  ", exe));
+    CHECK(startupCommandMatches("\"" + exe + "\" --minimized", exe));
+    CHECK(!startupCommandMatches("\"C:\\Other\\stm32-audio-tray.exe\"", exe));
+    CHECK(!startupCommandMatches("\"" + exe, exe));  // no closing quote
+    CHECK(!startupCommandMatches("", exe));
+    CHECK(!startupCommandMatches(startupCommand(exe), ""));
+
+    const std::string plain = "C:\\Tools\\stm32-audio-tray.exe";
+    CHECK(startupCommandMatches(plain, plain));
+    CHECK(startupCommandMatches(plain + " --x", plain));
+    CHECK(!startupCommandMatches("C:\\Tools\\stm32-audio-tray.exe.bak", plain));
+}
+
+void testTrayText()
+{
+    CHECK(std::strcmp(trayText(TrayText::Exit, 1), "Exit") == 0);
+    CHECK(std::strcmp(trayText(TrayText::Exit, 0), "\xC3\x87\xC4\xB1k\xC4\xB1\xC5\x9F") == 0);
+    CHECK(std::strcmp(trayText(TrayText::Exit, 7), trayText(TrayText::Exit, 0)) == 0);  // unknown: Turkish
+    for (int id = 0; id <= static_cast<int>(TrayText::StartupFailed); ++id) {
+        CHECK(std::strlen(trayText(static_cast<TrayText>(id), 0)) > 0);
+        CHECK(std::strlen(trayText(static_cast<TrayText>(id), 1)) > 0);
+    }
+    // Tooltips are limited to 127 UTF-16 units: title + state must fit.
+    CHECK(std::strlen(trayText(TrayText::Title, 0)) + std::strlen(trayText(TrayText::Waiting, 0)) < 100);
+}
+
 int main()
 {
     testTruncateUtf8();
@@ -1393,6 +1427,8 @@ int main()
     testEventQueueFrames();
     testHidMatch();
     testFrameText();
+    testStartupCommand();
+    testTrayText();
 
     std::printf("%d checks, %d failures\n", g_checks, g_failures);
     return g_failures == 0 ? 0 : 1;
