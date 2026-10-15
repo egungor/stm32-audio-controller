@@ -9,8 +9,8 @@
  * the next LVGL timer run (ui_request_rebuild), so the control that was
  * tapped is not deleted inside its own event.
  *
- * "Layout" (cards / list / large tile) is not offered yet: only the cards
- * layout exists. screen_timeout is used by the UI's screen timeout (ui.c);
+ * "Layout" chooses cards (A), list (B) or large tile (C); the grid row
+ * applies to the cards layout and is greyed out with the others. screen_timeout is used by the UI's screen timeout (ui.c);
  * flipped and the volume limit are for the display port and the host.
  */
 #include <string.h>
@@ -27,6 +27,7 @@
 /* Settings changed by a segmented control (user data of its events). */
 typedef enum
 {
+    FIELD_LAYOUT,
     FIELD_THEME,
     FIELD_GRID,
     FIELD_STARTUP,
@@ -39,6 +40,7 @@ static const uint8_t k_timeouts[] = { 0U, 1U, 5U, 15U };
 
 /* lv_buttonmatrix keeps a pointer to its map: the maps live here and are
  * filled with the current language's text when the page is built. */
+static const char *s_layout_map[4];
 static const char *s_theme_map[3];
 static const char *s_grid_map[5];
 static const char *s_startup_map[4];
@@ -46,13 +48,15 @@ static const char *s_timeout_map[5];
 static const char *const k_language_map[] = { "T\xC3\xBC" "rk\xC3\xA7" "e", "English", "" };
 
 /* Styles shared by the rows and controls (one copy instead of a local
- * style per object: the page has to fit in the 64 KB LVGL heap next to the
+ * style per object: the page has to fit in the LVGL heap next to the
  * other screens). Reset and filled again on every build (theme colours). */
 static lv_style_t s_row;
 static lv_style_t s_seg;
 static lv_style_t s_seg_item;
 static lv_style_t s_seg_checked;
 static lv_style_t s_seg_pressed;
+static lv_style_t s_seg_disabled;         /**< items */
+static lv_style_t s_seg_disabled_checked; /**< the chosen item */
 static lv_style_t s_switch;
 static lv_style_t s_switch_on;
 static lv_style_t s_knob;
@@ -61,7 +65,7 @@ static bool       s_styles_init;
 
 static void init_styles(void)
 {
-    lv_style_t *const all[] = { &s_row, &s_seg, &s_seg_item, &s_seg_checked, &s_seg_pressed,
+    lv_style_t *const all[] = { &s_row, &s_seg, &s_seg_item, &s_seg_checked, &s_seg_pressed, &s_seg_disabled, &s_seg_disabled_checked,
                                 &s_switch, &s_switch_on, &s_knob, &s_knob_on };
 
     for (uint32_t i = 0U; i < sizeof(all) / sizeof(all[0]); i++)
@@ -97,6 +101,11 @@ static void init_styles(void)
 
     lv_style_set_bg_color(&s_seg_pressed, ui_color(g_ui.pal.btn));
     lv_style_set_bg_opa(&s_seg_pressed, LV_OPA_COVER);
+
+    /* Greyed out with text and fill opacity, not the object's opa: that
+     * would draw it through a layer buffer from the LVGL heap. */
+    lv_style_set_text_opa(&s_seg_disabled, LV_OPA_40);
+    lv_style_set_bg_opa(&s_seg_disabled_checked, LV_OPA_40);
 
     lv_style_set_bg_color(&s_switch, ui_color(g_ui.pal.track));
     lv_style_set_bg_opa(&s_switch, LV_OPA_COVER);
@@ -137,6 +146,10 @@ static void on_segment(lv_event_t *e)
     }
     switch (field)
     {
+    case FIELD_LAYOUT:
+        s.layout = (uint8_t)idx;
+        appearance = true;
+        break;
     case FIELD_THEME:
         s.theme = (uint8_t)idx;
         appearance = true;
@@ -254,6 +267,8 @@ static lv_obj_t *make_segment(lv_obj_t *row, const char **map, int32_t width, Se
     lv_obj_add_style(bm, &s_seg_item, LV_PART_ITEMS);
     lv_obj_add_style(bm, &s_seg_checked, LV_PART_ITEMS | LV_STATE_CHECKED);
     lv_obj_add_style(bm, &s_seg_pressed, LV_PART_ITEMS | LV_STATE_PRESSED);
+    lv_obj_add_style(bm, &s_seg_disabled, LV_PART_ITEMS | LV_STATE_DISABLED);
+    lv_obj_add_style(bm, &s_seg_disabled_checked, LV_PART_ITEMS | LV_STATE_CHECKED | LV_STATE_DISABLED);
 
     /* CLICKED, not VALUE_CHANGED: LVGL sends no click after a drag that
      * scrolled the list, so scrolling over a control changes nothing. */
@@ -370,6 +385,10 @@ void ui_settings_build(void)
     lv_obj_t *list;
     lv_obj_t *row;
 
+    s_layout_map[0] = ui_text(TXT_LAYOUT_CARDS);
+    s_layout_map[1] = ui_text(TXT_GRID_LIST);
+    s_layout_map[2] = ui_text(TXT_LAYOUT_TILES);
+    s_layout_map[3] = "";
     s_theme_map[0] = ui_text(TXT_THEME_DARK);
     s_theme_map[1] = ui_text(TXT_THEME_LIGHT);
     s_theme_map[2] = "";
@@ -406,6 +425,9 @@ void ui_settings_build(void)
     lv_obj_set_style_pad_bottom(list, PAD, 0);
     lv_obj_set_flex_flow(list, LV_FLEX_FLOW_COLUMN);
     g_ui.settings_list = list;
+
+    row = make_row(list, TXT_SET_LAYOUT);
+    g_ui.set_layout = make_segment(row, s_layout_map, 230, FIELD_LAYOUT);
 
     row = make_row(list, TXT_SET_THEME);
     g_ui.set_theme = make_segment(row, s_theme_map, 170, FIELD_THEME);
@@ -472,8 +494,19 @@ void ui_settings_render(void)
             timeout = i;
         }
     }
+    check_segment(g_ui.set_layout, s->layout, UI_LAYOUT_COUNT);
     check_segment(g_ui.set_theme, s->theme, UI_THEME_COUNT);
     check_segment(g_ui.set_grid, s->grid, UI_GRID_COUNT);
+    /* The grid applies to the cards layout only. lv_buttonmatrix draws each
+     * button with its own ctrl flags, not the object's state. */
+    if (s->layout != UI_LAYOUT_CARDS)
+    {
+        lv_buttonmatrix_set_button_ctrl_all(g_ui.set_grid, LV_BUTTONMATRIX_CTRL_DISABLED);
+    }
+    else
+    {
+        lv_buttonmatrix_clear_button_ctrl_all(g_ui.set_grid, LV_BUTTONMATRIX_CTRL_DISABLED);
+    }
     check_segment(g_ui.set_startup, s->startup_tab, 3U);
     check_segment(g_ui.set_timeout, timeout, sizeof(k_timeouts)); /* another value: none marked */
     check_segment(g_ui.set_language, s->language, UI_LANGUAGE_COUNT);

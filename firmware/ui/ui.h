@@ -10,10 +10,12 @@
  *
  * Screens:
  *   - waiting: no host connected;
- *   - main: two tabs, all devices and favorites; the devices as cards in a
- *     2x2, 3x2 or 3x3 grid or as a list (UiSettings.grid), the active
- *     device marked by colour and text, page buttons when there are more
- *     devices than fit on one page;
+ *   - main: two tabs, all devices and favorites, in one of three layouts
+ *     (UiSettings.layout): A cards in a 2x2, 3x2 or 3x3 grid or as a list
+ *     (UiSettings.grid); B a list with a tab rail and vertical volume; C
+ *     the active device in a large panel and the others as tiles. The
+ *     active device is marked by colour and text; page buttons when there
+ *     are more devices than fit on one page;
  *   - settings: opened with the cog button in the main screen's top bar;
  *     theme, accent colour, grid, startup tab, screen timeout, startup
  *     volume limit, flip and language. A change is applied at once and

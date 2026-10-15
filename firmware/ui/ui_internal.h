@@ -64,6 +64,17 @@ typedef struct
     bool     dark;
 } UiPalette;
 
+/** How much a device button shows (layout and grid). */
+typedef enum
+{
+    CARD_LARGE,  /**< A 2x2: 40 px icon, 22 px name on two lines, state line */
+    CARD_MEDIUM, /**< A 3x2: 22 px icon, 16 px name on two lines, state line */
+    CARD_SMALL,  /**< A 3x3: 16 px icon, one line */
+    CARD_ROW,    /**< A list row */
+    CARD_LIST,   /**< B: row with the Windows name under an alias, check mark */
+    CARD_TILE,   /**< C: small tile, icon and star over a one-line name */
+} CardKind;
+
 /** One device card or list row. */
 typedef struct
 {
@@ -72,6 +83,7 @@ typedef struct
     lv_obj_t *name;
     lv_obj_t *state;  /**< "Active output" / "Switching..."; NULL if none */
     lv_obj_t *star;   /**< favorite mark; NULL if none */
+    lv_obj_t *sub;    /**< B: Windows name under an alias; NULL if none */
 } UiDeviceButton;
 
 #define UI_EDIT_PER_PAGE 4U
@@ -135,7 +147,13 @@ typedef struct
     lv_obj_t      *volume_label;
     lv_obj_t      *prev_btn;
     lv_obj_t      *next_btn;
-    lv_obj_t      *flip_icons[2];  /**< waiting screen, main screen */
+    lv_obj_t      *flip_icons[2];  /**< waiting screen, main screen (NULL in B and C) */
+    CardKind       card_kind;      /**< of the buttons on the main screen */
+    lv_obj_t      *list_title;     /**< B: "ALL OUTPUTS" / "FAVORITES" */
+    lv_obj_t      *list_count;     /**< B: "9 outputs" */
+    lv_obj_t      *hero_icon;      /**< C: active device panel */
+    lv_obj_t      *hero_name;
+    lv_obj_t      *hero_sub;
     lv_obj_t      *notice;
     lv_obj_t      *notice_label;
     lv_timer_t    *notice_timer;   /**< created once */
@@ -144,7 +162,8 @@ typedef struct
     lv_obj_t *settings_screen;
     lv_obj_t *settings_list;       /**< the scrolling list of rows */
     int32_t   settings_scroll;     /**< list scroll position kept over a rebuild */
-    lv_obj_t *set_theme;           /**< segmented controls (lv_buttonmatrix) */
+    lv_obj_t *set_layout;          /**< segmented controls (lv_buttonmatrix) */
+    lv_obj_t *set_theme;
     lv_obj_t *set_grid;
     lv_obj_t *set_startup;
     lv_obj_t *set_timeout;
@@ -183,6 +202,22 @@ typedef struct
 } UiState;
 
 extern UiState g_ui;
+
+/* Main screen pieces shared by the layouts (ui.c). */
+void      ui_on_device_clicked(lv_event_t *e);  /**< user data: slot */
+void      ui_on_tab_clicked(lv_event_t *e);     /**< user data: UI_TAB_* */
+void      ui_on_page_clicked(lv_event_t *e);    /**< user data: NULL = previous */
+void      ui_on_slider_event(lv_event_t *e);
+void      ui_on_mute_clicked(lv_event_t *e);
+void      ui_on_settings_clicked(lv_event_t *e);
+void      ui_on_edit_clicked(lv_event_t *e);
+lv_obj_t *ui_make_small_button(lv_obj_t *parent, int32_t w, int32_t h, const char *symbol, lv_obj_t **label);
+void      ui_style_volume_slider(lv_obj_t *slider);
+
+/* Main screens of layouts B (list) and C (large tile) (ui_layouts.c). They
+ * set g_ui.per_page, g_ui.card_kind and the main screen objects. */
+void ui_build_list_main(void);
+void ui_build_tiles_main(void);
 
 /** Fill g_ui.pal from g_ui.settings (theme, accent). */
 void ui_theme_update(void);

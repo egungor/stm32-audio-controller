@@ -29,15 +29,7 @@ static const GridShape k_grids[UI_GRID_COUNT] = {
     { 1U, 5U, true },  /* list: 5 rows */
 };
 
-/* How much a card shows, by grid. */
-typedef enum
-{
-    CARD_LARGE,  /* 40 px icon, 22 px name on two lines, state line */
-    CARD_MEDIUM, /* 22 px icon, 16 px name on two lines, state line */
-    CARD_SMALL,  /* 16 px icon, one line */
-    CARD_ROW,    /* list row */
-} CardKind;
-
+/* How much a card of layout A shows, by grid. */
 static CardKind card_kind(void)
 {
     switch (g_ui.settings.grid)
@@ -82,12 +74,19 @@ static bool settings_valid(const UiSettings *s)
 
 /* ------------------------------------------------------------------ view */
 
-/* Devices of the current tab, in the host's order. */
+/* Devices of the current tab, in the host's order. Layout C shows the
+ * active device in its own panel, so not among the tiles. */
 static void update_view(void)
 {
+    const bool skip_active = (g_ui.card_kind == CARD_TILE);
+
     g_ui.view_count = 0U;
     for (uint32_t i = 0U; i < g_ui.count; i++)
     {
+        if (skip_active && (g_ui.devices[i].id == g_ui.active))
+        {
+            continue;
+        }
         if ((g_ui.tab == UI_TAB_ALL) || (g_ui.devices[i].favorite != 0U))
         {
             g_ui.view[g_ui.view_count++] = (uint8_t)i;
@@ -192,6 +191,20 @@ static void render_button(uint32_t slot)
     lv_obj_set_style_text_color(b->icon, ui_color(active ? g_ui.pal.on_acc : g_ui.pal.muted), 0);
     lv_label_set_text(b->name, ui_display_name(d));
     lv_obj_set_style_text_color(b->name, ui_color(fg), 0);
+    if (b->sub != NULL)
+    {
+        /* B: the Windows name under an alias. */
+        if (d->alias[0] != '\0')
+        {
+            lv_label_set_text(b->sub, d->name);
+            lv_obj_set_style_text_color(b->sub, ui_color(active ? g_ui.pal.on_acc : g_ui.pal.muted), 0);
+            lv_obj_remove_flag(b->sub, LV_OBJ_FLAG_HIDDEN);
+        }
+        else
+        {
+            lv_obj_add_flag(b->sub, LV_OBJ_FLAG_HIDDEN);
+        }
+    }
 
     if (b->star != NULL)
     {
@@ -205,7 +218,13 @@ static void render_button(uint32_t slot)
             lv_obj_add_flag(b->star, LV_OBJ_FLAG_HIDDEN);
         }
     }
-    if (b->state != NULL)
+    if ((b->state != NULL) && (g_ui.card_kind == CARD_LIST))
+    {
+        /* B: a check mark for the active device, "..." while pending. */
+        lv_label_set_text_static(b->state, active ? SYM_CHECK : (pending ? "..." : ""));
+        lv_obj_set_style_text_color(b->state, ui_color(active ? g_ui.pal.on_acc : g_ui.pal.accent), 0);
+    }
+    else if (b->state != NULL)
     {
         if (active || pending)
         {
@@ -227,14 +246,56 @@ static void render_tabs(void)
     {
         const bool on = (g_ui.tab == t);
 
-        lv_obj_set_style_text_color(g_ui.tab_labels[t], ui_color(on ? g_ui.pal.text : g_ui.pal.muted), 0);
-        lv_obj_set_style_border_width(g_ui.tab_btns[t], on ? 3 : 0, 0);
+        if (g_ui.card_kind == CARD_LIST || g_ui.card_kind == CARD_TILE)
+        {
+            /* B rail buttons and C pills: the chosen tab filled with the accent. */
+            lv_obj_set_style_bg_color(g_ui.tab_btns[t], ui_color(on ? g_ui.pal.accent : g_ui.pal.btn), 0);
+            lv_obj_set_style_bg_opa(g_ui.tab_btns[t], (on || (g_ui.card_kind == CARD_TILE)) ? LV_OPA_COVER : LV_OPA_TRANSP,
+                                    0);
+            lv_obj_set_style_text_color(g_ui.tab_labels[t], ui_color(on ? g_ui.pal.on_acc : g_ui.pal.muted), 0);
+        }
+        else
+        {
+            lv_obj_set_style_text_color(g_ui.tab_labels[t], ui_color(on ? g_ui.pal.text : g_ui.pal.muted), 0);
+            lv_obj_set_style_border_width(g_ui.tab_btns[t], on ? 3 : 0, 0);
+        }
     }
+}
+
+/* C: the active device's panel. */
+static void render_hero(void)
+{
+    const UiDevice *d = NULL;
+
+    for (uint32_t i = 0U; i < g_ui.count; i++)
+    {
+        if (g_ui.devices[i].id == g_ui.active)
+        {
+            d = &g_ui.devices[i];
+        }
+    }
+    lv_label_set_text_static(g_ui.hero_icon, ui_icon_symbol((d != NULL) ? d->icon : UI_ICON_GENERIC));
+    lv_obj_set_style_text_color(g_ui.hero_icon, ui_color((d != NULL) ? g_ui.pal.accent : g_ui.pal.muted), 0);
+    lv_label_set_text(g_ui.hero_name, (d != NULL) ? ui_display_name(d) : ui_text(TXT_HERO_NONE));
+    lv_label_set_text(g_ui.hero_sub, ((d != NULL) && (d->alias[0] != '\0')) ? d->name : "");
 }
 
 static void render_main(void)
 {
-    const uint32_t pages = page_count();
+    uint32_t pages;
+
+    update_view();
+    clamp_page();
+    pages = page_count();
+    if (g_ui.hero_name != NULL)
+    {
+        render_hero();
+    }
+    if (g_ui.list_title != NULL)
+    {
+        lv_label_set_text_static(g_ui.list_title, ui_text((g_ui.tab == UI_TAB_FAVORITES) ? TXT_LIST_FAV : TXT_LIST_ALL));
+        lv_label_set_text_fmt(g_ui.list_count, ui_text(TXT_N_OUTPUTS), (unsigned)g_ui.view_count);
+    }
 
     for (uint32_t slot = 0U; slot < g_ui.per_page; slot++)
     {
@@ -242,7 +303,10 @@ static void render_main(void)
     }
     render_tabs();
 
-    if (g_ui.view_count == 0U)
+    /* C with only the active device in the tab: the panel shows it, so the
+     * empty tiles need no text. */
+    if ((g_ui.view_count == 0U) && !((g_ui.card_kind == CARD_TILE) && (g_ui.count > 0U) &&
+                                     (g_ui.tab == UI_TAB_ALL)))
     {
         lv_label_set_text(g_ui.empty_label,
                           ui_text(((g_ui.tab == UI_TAB_FAVORITES) && (g_ui.count > 0U)) ? TXT_FAV_EMPTY : TXT_EMPTY));
@@ -299,7 +363,7 @@ static void render_audio(void)
 
 /* ---------------------------------------------------------------- events */
 
-static void on_slider_event(lv_event_t *e)
+void ui_on_slider_event(lv_event_t *e)
 {
     const lv_event_code_t code = lv_event_get_code(e);
     const uint8_t value = (uint8_t)lv_slider_get_value(g_ui.slider);
@@ -315,7 +379,7 @@ static void on_slider_event(lv_event_t *e)
     }
 }
 
-static void on_mute_clicked(lv_event_t *e)
+void ui_on_mute_clicked(lv_event_t *e)
 {
     LV_UNUSED(e);
     if ((g_ui.on_mute != NULL) && (g_ui.muted != UI_VOLUME_UNKNOWN))
@@ -324,7 +388,7 @@ static void on_mute_clicked(lv_event_t *e)
     }
 }
 
-static void on_device_clicked(lv_event_t *e)
+void ui_on_device_clicked(lv_event_t *e)
 {
     const uint32_t slot = (uint32_t)(uintptr_t)lv_event_get_user_data(e);
     const uint32_t pos = (g_ui.page * g_ui.per_page) + slot;
@@ -341,7 +405,7 @@ static void on_device_clicked(lv_event_t *e)
     }
 }
 
-static void on_page_clicked(lv_event_t *e)
+void ui_on_page_clicked(lv_event_t *e)
 {
     const bool next = lv_event_get_user_data(e) != NULL;
     const uint32_t pages = page_count();
@@ -369,7 +433,7 @@ void ui_notify_settings(void)
     }
 }
 
-static void on_tab_clicked(lv_event_t *e)
+void ui_on_tab_clicked(lv_event_t *e)
 {
     const uint32_t tab = (uint32_t)(uintptr_t)lv_event_get_user_data(e);
 
@@ -399,7 +463,10 @@ static void set_flip_armed(bool armed)
     g_ui.flip_armed = armed;
     for (uint32_t i = 0U; i < 2U; i++)
     {
-        lv_obj_set_style_text_color(g_ui.flip_icons[i], ui_color(armed ? g_ui.pal.accent : g_ui.pal.muted), 0);
+        if (g_ui.flip_icons[i] != NULL)
+        {
+            lv_obj_set_style_text_color(g_ui.flip_icons[i], ui_color(armed ? g_ui.pal.accent : g_ui.pal.muted), 0);
+        }
     }
 }
 
@@ -474,13 +541,13 @@ static void build_waiting_screen(void)
     build_flip_button(g_ui.waiting_screen, 0U);
 }
 
-static void on_settings_clicked(lv_event_t *e)
+void ui_on_settings_clicked(lv_event_t *e)
 {
     LV_UNUSED(e);
     ui_show_settings();
 }
 
-static void on_edit_clicked(lv_event_t *e)
+void ui_on_edit_clicked(lv_event_t *e)
 {
     LV_UNUSED(e);
     ui_show_edit();
@@ -514,7 +581,7 @@ static void build_top_bar(lv_obj_t *scr)
         /* Underline of the selected tab. */
         lv_obj_set_style_border_side(btn, LV_BORDER_SIDE_BOTTOM, 0);
         lv_obj_set_style_border_color(btn, ui_color(g_ui.pal.accent), 0);
-        lv_obj_add_event_cb(btn, on_tab_clicked, LV_EVENT_CLICKED, (void *)(uintptr_t)t);
+        lv_obj_add_event_cb(btn, ui_on_tab_clicked, LV_EVENT_CLICKED, (void *)(uintptr_t)t);
         g_ui.tab_btns[t] = btn;
         g_ui.tab_labels[t] = ui_make_label(btn, &ui_font_16, g_ui.pal.muted, "");
         lv_label_set_text_fmt(g_ui.tab_labels[t], "%s  %s", tab_symbols[t], ui_text(tab_texts[t]));
@@ -526,7 +593,7 @@ static void build_top_bar(lv_obj_t *scr)
     lv_obj_set_size(cog, FLIP_W, BAR_H);
     lv_obj_align(cog, LV_ALIGN_RIGHT_MID, -FLIP_W, 0);
     lv_obj_add_flag(cog, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_add_event_cb(cog, on_settings_clicked, LV_EVENT_CLICKED, NULL);
+    lv_obj_add_event_cb(cog, ui_on_settings_clicked, LV_EVENT_CLICKED, NULL);
     lv_obj_center(ui_make_label(cog, &ui_font_16, g_ui.pal.muted, SYM_COG));
 
     /* Edit mode button left of the settings button; hidden without edit
@@ -535,7 +602,7 @@ static void build_top_bar(lv_obj_t *scr)
     lv_obj_set_size(pen, FLIP_W, BAR_H);
     lv_obj_align(pen, LV_ALIGN_RIGHT_MID, -(2 * FLIP_W), 0);
     lv_obj_add_flag(pen, LV_OBJ_FLAG_CLICKABLE);
-    lv_obj_add_event_cb(pen, on_edit_clicked, LV_EVENT_CLICKED, NULL);
+    lv_obj_add_event_cb(pen, ui_on_edit_clicked, LV_EVENT_CLICKED, NULL);
     lv_obj_center(ui_make_label(pen, &ui_font_16, g_ui.pal.muted, SYM_PENCIL));
     if (!g_ui.edit_set)
     {
@@ -570,7 +637,7 @@ static void build_device_button(lv_obj_t *parent, uint32_t slot, const GridShape
     lv_obj_set_style_pad_column(b->btn, (kind == CARD_LARGE) ? 12 : 8, 0);
     lv_obj_set_flex_flow(b->btn, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(b->btn, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_add_event_cb(b->btn, on_device_clicked, LV_EVENT_CLICKED, (void *)(uintptr_t)slot);
+    lv_obj_add_event_cb(b->btn, ui_on_device_clicked, LV_EVENT_CLICKED, (void *)(uintptr_t)slot);
 
     switch (kind)
     {
@@ -624,12 +691,12 @@ static void build_device_button(lv_obj_t *parent, uint32_t slot, const GridShape
     }
 }
 
-static lv_obj_t *make_small_button(lv_obj_t *parent, int32_t w, const char *symbol, lv_obj_t **label)
+lv_obj_t *ui_make_small_button(lv_obj_t *parent, int32_t w, int32_t h, const char *symbol, lv_obj_t **label)
 {
     lv_obj_t *btn = lv_button_create(parent);
     lv_obj_t *l;
 
-    lv_obj_set_size(btn, w, BOTTOM_H - 8);
+    lv_obj_set_size(btn, w, h);
     ui_style_card(btn, 8);
     l = ui_make_label(btn, &ui_font_16, g_ui.pal.text, symbol);
     lv_obj_center(l);
@@ -638,6 +705,18 @@ static lv_obj_t *make_small_button(lv_obj_t *parent, int32_t w, const char *symb
         *label = l;
     }
     return btn;
+}
+
+/* The volume slider of every layout: 0-100, wide touch area, events. Its
+ * size (horizontal or vertical) is the caller's. */
+void ui_style_volume_slider(lv_obj_t *slider)
+{
+    lv_slider_set_range(slider, 0, 100);
+    lv_obj_set_ext_click_area(slider, 14);
+    lv_obj_set_style_bg_color(slider, ui_color(g_ui.pal.track), LV_PART_MAIN);
+    lv_obj_set_style_bg_opa(slider, LV_OPA_COVER, LV_PART_MAIN);
+    lv_obj_set_style_pad_all(slider, 6, LV_PART_KNOB);
+    lv_obj_add_event_cb(slider, ui_on_slider_event, LV_EVENT_ALL, NULL);
 }
 
 /* Bottom strip: mute button, volume slider and percentage; page arrows on
@@ -653,18 +732,13 @@ static void build_bottom_strip(lv_obj_t *scr)
     lv_obj_set_flex_flow(strip, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(strip, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
 
-    g_ui.mute_btn = make_small_button(strip, 52, SYM_VOLUME, &g_ui.mute_icon);
-    lv_obj_add_event_cb(g_ui.mute_btn, on_mute_clicked, LV_EVENT_CLICKED, NULL);
+    g_ui.mute_btn = ui_make_small_button(strip, 52, BOTTOM_H - 8, SYM_VOLUME, &g_ui.mute_icon);
+    lv_obj_add_event_cb(g_ui.mute_btn, ui_on_mute_clicked, LV_EVENT_CLICKED, NULL);
 
     g_ui.slider = lv_slider_create(strip);
-    lv_slider_set_range(g_ui.slider, 0, 100);
     lv_obj_set_flex_grow(g_ui.slider, 1);
     lv_obj_set_height(g_ui.slider, 8);
-    lv_obj_set_ext_click_area(g_ui.slider, 14);
-    lv_obj_set_style_bg_color(g_ui.slider, ui_color(g_ui.pal.track), LV_PART_MAIN);
-    lv_obj_set_style_bg_opa(g_ui.slider, LV_OPA_COVER, LV_PART_MAIN);
-    lv_obj_set_style_pad_all(g_ui.slider, 6, LV_PART_KNOB);
-    lv_obj_add_event_cb(g_ui.slider, on_slider_event, LV_EVENT_ALL, NULL);
+    ui_style_volume_slider(g_ui.slider);
 
     g_ui.volume_label = ui_make_label(strip, &ui_font_16, g_ui.pal.text, "--");
     lv_obj_set_width(g_ui.volume_label, 44);
@@ -676,14 +750,16 @@ static void build_bottom_strip(lv_obj_t *scr)
     lv_obj_set_style_pad_column(g_ui.pager, 8, 0);
     lv_obj_set_style_pad_left(g_ui.pager, 4, 0);
 
-    g_ui.prev_btn = make_small_button(g_ui.pager, 44, SYM_PREV, NULL);
+    g_ui.prev_btn = ui_make_small_button(g_ui.pager, 44, BOTTOM_H - 8, SYM_PREV, NULL);
     g_ui.page_label = ui_make_label(g_ui.pager, &ui_font_16, g_ui.pal.muted, "");
-    g_ui.next_btn = make_small_button(g_ui.pager, 44, SYM_NEXT, NULL);
-    lv_obj_add_event_cb(g_ui.prev_btn, on_page_clicked, LV_EVENT_CLICKED, NULL);
-    lv_obj_add_event_cb(g_ui.next_btn, on_page_clicked, LV_EVENT_CLICKED, (void *)g_ui.next_btn);
+    g_ui.next_btn = ui_make_small_button(g_ui.pager, 44, BOTTOM_H - 8, SYM_NEXT, NULL);
+    lv_obj_add_event_cb(g_ui.prev_btn, ui_on_page_clicked, LV_EVENT_CLICKED, NULL);
+    lv_obj_add_event_cb(g_ui.next_btn, ui_on_page_clicked, LV_EVENT_CLICKED, (void *)g_ui.next_btn);
 }
 
-static void build_main_screen(void)
+/* Layout A: cards in a grid (or rows), tabs in the top bar, volume and
+ * pages in the bottom strip. */
+static void build_cards_main(void)
 {
     static int32_t cols[4];
     static int32_t rows[6];
@@ -691,6 +767,7 @@ static void build_main_screen(void)
     const CardKind kind = card_kind();
     lv_obj_t *grid;
 
+    g_ui.card_kind = kind;
     g_ui.per_page = (uint32_t)shape->cols * shape->rows;
     for (uint32_t c = 0U; c < shape->cols; c++)
     {
@@ -724,6 +801,32 @@ static void build_main_screen(void)
     build_bottom_strip(g_ui.main_screen);
 }
 
+static void build_main_screen(void)
+{
+    /* Objects that only some layouts have. */
+    g_ui.flip_icons[1] = NULL;
+    g_ui.list_title = NULL;
+    g_ui.list_count = NULL;
+    g_ui.hero_icon = NULL;
+    g_ui.hero_name = NULL;
+    g_ui.hero_sub = NULL;
+    g_ui.edit_btn = NULL;
+    (void)memset(g_ui.buttons, 0, sizeof(g_ui.buttons));
+
+    switch (g_ui.settings.layout)
+    {
+    case UI_LAYOUT_LIST:
+        ui_build_list_main();
+        break;
+    case UI_LAYOUT_TILES:
+        ui_build_tiles_main();
+        break;
+    default:
+        build_cards_main();
+        break;
+    }
+}
+
 static void build_notice(void)
 {
     g_ui.notice = lv_obj_create(lv_layer_top());
@@ -747,7 +850,7 @@ static void build_notice(void)
 }
 
 /* Build every screen for the current settings. The previous screens are
- * deleted first so that LVGL never holds two sets at once (the 64 KB heap
+ * deleted first so that LVGL never holds two sets at once (the LVGL heap
  * does not fit both); an empty screen is shown meanwhile, because LVGL
  * must not delete the active screen. Nothing is drawn in between: the
  * whole rebuild runs in one call. The screen shown before (and the
