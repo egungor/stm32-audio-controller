@@ -102,9 +102,9 @@ Status: **IN PROGRESS**
 Order: protocol version 2 (ADR-004, #58) → host (#59) → firmware UI
 (#60). Designs: #57.
 
-- [ ] Friendly names — aliases, edited on the touchscreen and with `stm32-audio-host alias` (#58–#60)
-- [ ] Favorites — favorite flag and a favorites tab (#58–#60)
-- [ ] Custom ordering — edit mode on the touchscreen (#58–#60)
+- [ ] Friendly names — aliases, edited on the touchscreen and with `stm32-audio-host alias` (#58–#60); keyboard coded and tested in the simulator, on the board REQUIRES HARDWARE + WINDOWS
+- [ ] Favorites — favorite flag and a favorites tab (#58–#60); tab verified on the board, star in the edit mode coded and tested in the simulator
+- [ ] Custom ordering — edit mode on the touchscreen (#58–#60); coded and tested in the simulator, on the board REQUIRES HARDWARE + WINDOWS
 - [ ] Layouts and themes — A cards (2×2, 2×3, 3×3, list), B list, C large tile; dark/light; six accent colours (#57, #60)
 - [ ] Settings page — layout, theme, colour, grid, startup tab, screen timeout, flip, language, startup volume limit (#58–#60); page coded and tested in the simulator except "layout" (waits for layouts B and C), on the board REQUIRES HARDWARE; screen timeout: backlight off after the chosen minutes without a touch, coded and tested in the simulator, on the board REQUIRES HARDWARE
 - [ ] Icons — form factor icons exist (speakers, headphones, headset, display, digital, generic; #22, #26)
