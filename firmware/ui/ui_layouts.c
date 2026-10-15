@@ -235,6 +235,9 @@ static void build_hero(lv_obj_t *scr)
     lv_label_set_long_mode(g_ui.hero_name, LV_LABEL_LONG_MODE_DOTS);
     g_ui.hero_sub = ui_make_label(hero, &ui_font_14, g_ui.pal.muted, "");
     lv_obj_set_width(g_ui.hero_sub, LV_PCT(100));
+    /* One line: a fixed height makes LVGL cut a long Windows name with
+     * dots instead of wrapping it over the volume row. */
+    lv_obj_set_height(g_ui.hero_sub, lv_font_get_line_height(&ui_font_14));
     lv_label_set_long_mode(g_ui.hero_sub, LV_LABEL_LONG_MODE_DOTS);
 
     spacer = ui_make_box(hero);
