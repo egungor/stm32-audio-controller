@@ -12,6 +12,9 @@
 //                                      would send to the STM32 (Ctrl+C to stop)
 //   stm32-audio-host alias <n> <name>  set the alias of device <n> (from "list")
 //   stm32-audio-host alias <n> --clear remove it
+//   stm32-audio-host startup on|off|status
+//                                      start the tray program (stm32-audio-tray,
+//                                      next to this program) at Windows logon
 //
 // Aliases, the device order, favorites and the board's settings are kept in
 // %APPDATA%\stm32-audio-controller\preferences.txt (ADR-004). "run" saves
@@ -31,13 +34,12 @@
 #include "DeviceRegistry.h"
 #include "EventQueue.h"
 #include "FrameText.h"
-#include "HidMatch.h"
 #include "HostController.h"
+#include "HostService.h"
 #include "PreferenceStore.h"
-#include "VolumeLimit.h"
 #include "WinAudioSystem.h"
-#include "WinHidLink.h"
 #include "WinPreferenceFile.h"
+#include "WinStartup.h"
 #include "WinStrings.h"
 
 using namespace stm32_audio::host;
@@ -90,96 +92,22 @@ public:
     }
 };
 
-// Logs every frame, then hands it to the real transport.
-class LoggingSink : public IFrameSink {
-public:
-    explicit LoggingSink(IFrameSink& next) : next_(next) {}
-
-    bool sendFrame(const Frame& frame) override
-    {
-        ProtoMessage msg{};
-        const bool decoded = Proto_Decode(frame.data(), &msg) == PROTO_OK;
-        const bool sent = next_.sendFrame(frame);
-        std::printf("-> %s%s\n", decoded ? describeMessage(msg).c_str() : "(invalid frame)",
-                    sent ? "" : "  [send failed]");
-        std::fflush(stdout);
-        return sent;
-    }
-
-private:
-    IFrameSink& next_;
-};
-
-void printReceived(const Frame& frame)
-{
-    ProtoMessage msg{};
-    const ProtoStatus result = Proto_Decode(frame.data(), &msg);
-    if (result == PROTO_OK) {
-        std::printf("<- %s\n", describeMessage(msg).c_str());
-    } else {
-        std::printf("<- (invalid frame, Proto_Decode=%d)\n", static_cast<int>(result));
-    }
-    std::fflush(stdout);
-}
-
-// Core Audio events, the same in "watch" and "run".
-void handleAudioEvent(HostEvent event, win::WinAudioSystem& audio, HostController& controller)
-{
-    switch (event) {
-    case HostEvent::DevicesChanged:
-        controller.onDevicesChanged();
-        break;
-    case HostEvent::DefaultChanged:
-        audio.rebindVolumeNotifications();
-        controller.onDefaultChanged();
-        break;
-    case HostEvent::VolumeChanged:
-        controller.onVolumeChanged();
-        break;
-    default:
-        break;
-    }
-}
-
 void installCtrlHandler(EventQueue* events)
 {
     g_events = events;
     SetConsoleCtrlHandler(onConsoleCtrl, events != nullptr ? TRUE : FALSE);
 }
 
-// Load the preference file into @p store's Preferences and say what
-// happened. Returns false only if %APPDATA% is unknown.
-bool loadPreferences(win::WinPreferenceFile& file, PreferenceStore& store, bool quiet)
+// Console log: one line on stdout.
+void printLine(const std::string& line)
 {
-    if (!file.ok()) {
-        std::printf("WARN: %%APPDATA%% not set; preferences are not saved.\n");
-        return false;
-    }
-    switch (store.load()) {
-    case PreferenceStore::LoadResult::Loaded:
-        if (!quiet) {
-            std::printf("Preferences: %s\n", file.location().c_str());
-        }
-        break;
-    case PreferenceStore::LoadResult::Missing:
-        if (!quiet) {
-            std::printf("Preferences: %s (new)\n", file.location().c_str());
-        }
-        break;
-    case PreferenceStore::LoadResult::Unreadable:
-        std::printf("WARN: %s is not readable; kept as preferences.bad, using defaults.\n",
-                    file.location().c_str());
-        break;
-    }
-    return true;
+    std::printf("%s\n", line.c_str());
+    std::fflush(stdout);
 }
 
-void printVolumeLimited(const std::vector<VolumeLimited>& lowered)
+bool loadPreferences(win::WinPreferenceFile& file, PreferenceStore& store, bool quiet)
 {
-    for (const VolumeLimited& v : lowered) {
-        std::printf("Volume limit: \"%s\" %u%% -> %u%%\n", v.name.c_str(), v.from, v.to);
-    }
-    std::fflush(stdout);
+    return win::loadPreferences(file, store, quiet, printLine);
 }
 
 int cmdList(win::WinAudioSystem& audio)
@@ -317,85 +245,57 @@ int cmdWatch(win::WinAudioSystem& audio, EventQueue& events)
             std::printf("Stopped.\n");
             return 0;
         }
-        handleAudioEvent(item->event, audio, controller);
+        win::handleAudioEvent(item->event, audio, controller);
     }
 }
 
+int usage();
+
 int cmdRun(win::WinAudioSystem& audio, EventQueue& events)
 {
-    win::WinHidLink link(events);
-    LoggingSink sink(link);
-    HostController controller(audio, sink);
-    win::WinPreferenceFile file;
-    PreferenceStore store(file, controller.preferences());
-    const bool saving = loadPreferences(file, store, false);
-
-    controller.onPreferencesChanged();  // the stored order and aliases
-    controller.setPreferencesChangedHandler([&store] { store.markChanged(); });
-    controller.setVolumeLimitedHandler(printVolumeLimited);
-    // Startup volume limit, before any board connects (ADR-004).
-    printVolumeLimited(applyVolumeLimit(audio, controller.preferences().settings()));
-
-    installCtrlHandler(&events);
-    if (!link.start()) {
-        installCtrlHandler(nullptr);
-        std::printf("FAIL: cannot start the HID thread.\n");
+    win::SingleInstance single;
+    if (!single.first()) {
+        std::printf("FAIL: the controller is already served (stm32-audio-tray or another \"run\").\n");
         return 1;
     }
-    std::printf("Waiting for the controller (USB HID %04X:%04X); Ctrl+C stops.\n",
-                static_cast<unsigned>(kControllerVid), static_cast<unsigned>(kControllerPid));
-    std::fflush(stdout);
+    win::HostServiceHooks hooks;
+    hooks.log = printLine;
+    std::printf("Ctrl+C stops.\n");
+    installCtrlHandler(&events);
+    const int result = win::runHostService(audio, events, hooks);
+    installCtrlHandler(nullptr);
+    return result;
+}
 
-    for (;;) {
-        const std::optional<QueuedEvent> item = events.pop(std::chrono::milliseconds(500));
-        if (saving && store.poll(GetTickCount64())) {
-            std::printf("Preferences reloaded from %s\n", file.location().c_str());
-            std::fflush(stdout);
-            controller.onPreferencesChanged();
-        }
-        if (!item) {
-            continue;
-        }
-        switch (item->event) {
-        case HostEvent::FrameReceived:
-            printReceived(item->frame);
-            controller.onFrame(item->frame);
-            break;
-        case HostEvent::HidConnected:
-            std::printf("Controller connected: %s\n", link.description().c_str());
-            std::fflush(stdout);
-            controller.onConnected();
-            break;
-        case HostEvent::HidDisconnected:
-            std::printf("Controller disconnected.\n");
-            std::fflush(stdout);
-            controller.onDisconnected();
-            break;
-        case HostEvent::Quit: {
-            link.stop();
-            installCtrlHandler(nullptr);
-            if (saving && !store.flush()) {
-                std::printf("WARN: could not save %s\n", file.location().c_str());
-            }
-            const HostController::Stats& st = controller.stats();
-            std::printf("Stopped. sent=%u send_failures=%u rejected=%u ignored=%u errors_received=%u "
-                        "dropped=%lu\n",
-                        st.framesSent, st.sendFailures, st.framesRejected, st.framesIgnored, st.errorsReceived,
-                        static_cast<unsigned long>(events.droppedFrames()));
-            return 0;
-        }
-        default:
-            handleAudioEvent(item->event, audio, controller);
-            break;
-        }
+int cmdStartup(const std::string& arg)
+{
+    const std::wstring tray = win::trayProgramPath();
+    const std::string trayUtf8 = win::toUtf8(tray.c_str());
+
+    if (arg == "status") {
+        std::printf("Start with Windows: %s (%s)\n", win::startupEnabled(tray) ? "on" : "off", trayUtf8.c_str());
+        return 0;
     }
+    if (arg != "on" && arg != "off") {
+        return usage();
+    }
+    if (arg == "on" && GetFileAttributesW(tray.c_str()) == INVALID_FILE_ATTRIBUTES) {
+        std::printf("FAIL: %s not found (it is built next to this program).\n", trayUtf8.c_str());
+        return 1;
+    }
+    if (!win::setStartup(arg == "on", tray)) {
+        std::printf("FAIL: could not change HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run.\n");
+        return 1;
+    }
+    std::printf("OK: start with Windows %s (%s)\n", arg.c_str(), trayUtf8.c_str());
+    return 0;
 }
 
 int usage()
 {
     std::printf(
         "usage: stm32-audio-host run | list | set-default <n> | volume <0-100> | mute on|off | watch |\n"
-        "                        alias <n> <name> | alias <n> --clear\n");
+        "                        alias <n> <name> | alias <n> --clear | startup on|off|status\n");
     return 2;
 }
 
@@ -421,6 +321,10 @@ int run(const std::vector<std::string>& args)
         return usage();
     }
     const std::string& cmd = args[1];
+
+    if (cmd == "startup" && args.size() == 3) {
+        return cmdStartup(args[2]);  // no audio needed
+    }
 
     EventQueue events;
     win::WinAudioSystem audio(events);

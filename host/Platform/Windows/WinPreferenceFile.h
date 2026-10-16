@@ -18,6 +18,10 @@ public:
 
     bool ok() const { return !dir_.empty(); }
 
+    // %APPDATA%\stm32-audio-controller (no trailing backslash), or "" if
+    // unknown. It may not exist yet. The tray program keeps host.log here.
+    const std::wstring& directory() const { return dir_; }
+
     std::optional<std::string> read() override;
     bool write(const std::string& content) override;
     void keepUnreadable(const std::string& content) override;

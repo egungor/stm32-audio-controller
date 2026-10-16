@@ -14,9 +14,11 @@ Target language: C++17.
 ## Current state
 
 The platform-independent core, the Windows Core Audio layer and the USB
-HID transport exist. The Windows program is a console application:
-`run` serves the controller over USB HID; the other commands test the
-audio layer on their own.
+HID transport exist. Two Windows programs share them:
+`stm32-audio-tray.exe` serves the controller from the system tray and can
+start with Windows (#74); `stm32-audio-host.exe` is the console program
+(`run` serves the controller the same way with a log on screen; the other
+commands test the audio layer on their own).
 
 ```text
 host/
@@ -34,14 +36,18 @@ host/
 │   ├── PreferenceFile.*    # text format of the preference file
 │   ├── PreferenceStore.*   # load, save at most once per second, reload on change
 │   ├── EventQueue.h        # serialises Core Audio and HID events into the controller
-│   └── FrameText.*         # readable one-line form of a protocol message
+│   ├── FrameText.*         # readable one-line form of a protocol message
+│   └── Startup.*           # Run value of "start with Windows", tray text (#74)
 ├── Platform/Windows/       # Windows only
 │   ├── WinAudioSystem.*    # IAudioSystem on Core Audio / MMDevice
 │   ├── WinHidLink.*        # HID discovery, reader thread, IFrameSink
 │   ├── PolicyConfig.h      # undocumented IPolicyConfig (ADR-002)
 │   ├── WinPreferenceFile.* # %APPDATA%\stm32-audio-controller\preferences.txt
 │   ├── WinStrings.*        # UTF-16 <-> UTF-8
-│   └── main.cpp            # stm32-audio-host console program
+│   ├── HostService.*       # the "run" loop, shared by console and tray (#74)
+│   ├── WinStartup.*        # HKCU Run value, single instance mutex (#74)
+│   ├── main.cpp            # stm32-audio-host console program
+│   └── tray.cpp, tray.rc   # stm32-audio-tray tray program and its icon (#74)
 ├── Tests/
 │   └── test_host.cpp       # fake audio system + fake sink, no framework
 └── CMakeLists.txt
@@ -97,11 +103,49 @@ stm32-audio-host watch             run HostController; print the frames it
 stm32-audio-host alias <n> <name>  show device <n> from "list" as <name> on the
                                    board (at most 32 bytes of UTF-8)
 stm32-audio-host alias <n> --clear remove the alias
+stm32-audio-host startup on|off|status
+                                   start stm32-audio-tray.exe (next to this
+                                   program) at Windows logon, or not
 ```
 
 Arguments are read as UTF-8 (`CommandLineToArgvW`), so aliases may
 contain Turkish letters. `list` prints each device's alias and favorite
 mark under its name.
+
+## Install
+
+`installer/` builds a setup (Inno Setup) that installs both programs for
+the current user, starts the tray program with Windows and starts it right
+away; see `installer/README.md`. CI builds it as the artifact
+`stm32-audio-controller-setup` (workflow "Host installer").
+
+## Tray program (`stm32-audio-tray.exe`, #74)
+
+The same service as `run` without a console window (Windows GUI
+subsystem). The service loop (`HostService`) runs on a worker thread; the
+main thread owns a hidden window, the tray icon and its menu:
+
+- the connection state ("Kumanda bağlı" / "Kumanda bekleniyor"), also
+  in the icon's tooltip;
+- "Windows ile başlat": a check mark when
+  `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` has the value
+  `STM32 Audio Controller` = `"<folder>\stm32-audio-tray.exe"` (current
+  user only, no administrator rights); a click adds or removes it;
+- "Ayarlar klasörünü aç": `%APPDATA%\stm32-audio-controller`;
+- "Günlüğü aç": `host.log` in that folder: the same lines as `run`
+  prints, with the local time; above 1 MB at start it becomes
+  `host.log.1`;
+- "Çıkış": stops the service (preferences saved) and removes the icon.
+
+The menu and tooltip text follow the language in the board's settings
+record (Turkish or English). Logging off or shutting down Windows stops
+the service the same way. The icon comes back when Explorer restarts
+(`TaskbarCreated`).
+
+One program serves the controller at a time: `run` and the tray program
+hold the named mutex `Local\stm32-audio-controller-host`; the second one
+says so and exits. The other console commands (`list`, `alias`, …) still
+work while the tray program runs.
 
 ### Preferences
 
@@ -250,4 +294,5 @@ under Wine). None of this replaces the checks on Windows above.
 ## Still to do
 
 - Hardware + Windows test of `run` with the board (list above).
-- Running without a console (tray icon, start with Windows: M7).
+- Windows test of the tray program and "start with Windows" (#74,
+  `docs/hardware.md`).
