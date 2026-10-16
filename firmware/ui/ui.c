@@ -373,6 +373,20 @@ void ui_on_slider_event(lv_event_t *e)
         return;
     }
     lv_label_set_text_fmt(g_ui.volume_label, "%u%%", (unsigned)value);
+    /* The slider's value is the volume now. The caller may not report it
+     * back (the host confirms the value already shown), and render_audio,
+     * e.g. on a mute change, must not move the knob back to the volume from
+     * before the drag. */
+    if (g_ui.volume != UI_VOLUME_UNKNOWN)
+    {
+        g_ui.volume = value;
+    }
+    /* Moving the slider while muted unmutes, once until the host answers. */
+    if ((code == LV_EVENT_VALUE_CHANGED) && (g_ui.muted == 1U) && !g_ui.unmute_asked && (g_ui.on_mute != NULL))
+    {
+        g_ui.unmute_asked = true;
+        g_ui.on_mute(false, g_ui.audio_user);
+    }
     if (g_ui.on_volume != NULL)
     {
         g_ui.on_volume(value, code == LV_EVENT_RELEASED, g_ui.audio_user);
@@ -712,7 +726,7 @@ lv_obj_t *ui_make_small_button(lv_obj_t *parent, int32_t w, int32_t h, const cha
 void ui_style_volume_slider(lv_obj_t *slider)
 {
     lv_slider_set_range(slider, 0, 100);
-    lv_obj_set_ext_click_area(slider, 14);
+    lv_obj_set_ext_click_area(slider, VOLUME_TOUCH_PAD);
     lv_obj_set_style_bg_color(slider, ui_color(g_ui.pal.track), LV_PART_MAIN);
     lv_obj_set_style_bg_opa(slider, LV_OPA_COVER, LV_PART_MAIN);
     lv_obj_set_style_pad_all(slider, 6, LV_PART_KNOB);
@@ -734,6 +748,7 @@ static void build_bottom_strip(lv_obj_t *scr)
 
     g_ui.mute_btn = ui_make_small_button(strip, 52, BOTTOM_H - 8, SYM_VOLUME, &g_ui.mute_icon);
     lv_obj_add_event_cb(g_ui.mute_btn, ui_on_mute_clicked, LV_EVENT_CLICKED, NULL);
+    lv_obj_set_style_margin_right(g_ui.mute_btn, VOLUME_GAP - 12, 0);  /* 12: the column gap */
 
     g_ui.slider = lv_slider_create(strip);
     lv_obj_set_flex_grow(g_ui.slider, 1);
@@ -1154,6 +1169,7 @@ void Ui_SetVolume(uint8_t volume)
 void Ui_SetMuted(uint8_t muted)
 {
     g_ui.muted = (muted > 1U) ? UI_VOLUME_UNKNOWN : muted;
+    g_ui.unmute_asked = false;
     render_audio();
 }
 
@@ -1228,6 +1244,11 @@ void Ui_SetSettingsHandler(UiSettingsCallback on_settings, void *user)
 uint32_t Ui_CurrentPage(void)
 {
     return g_ui.page;
+}
+
+uint8_t Ui_ShownVolume(void)
+{
+    return (g_ui.volume == UI_VOLUME_UNKNOWN) ? UI_VOLUME_UNKNOWN : (uint8_t)lv_slider_get_value(g_ui.slider);
 }
 
 uint32_t Ui_CurrentTab(void)

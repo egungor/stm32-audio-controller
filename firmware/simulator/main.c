@@ -911,13 +911,56 @@ static void run_script(void)
     run_ms(50U);
     snapshot("09-muted");
 
+    /* The right edge of the mute button belongs to the button: the
+     * slider's touch margin no longer covers it, so the tap does not set
+     * the volume to the touched point. */
+    {
+        const int volume_calls = s_audio.calls;
+
+        tap(59, 252);
+        check((s_audio.mute_calls == 2) && !s_audio.mute_wanted, "a tap on the mute button's edge asks to unmute");
+        check(s_audio.calls == volume_calls, "a tap on the mute button's edge leaves the volume");
+    }
+
+    /* Moving the slider while muted asks to unmute, once until the host
+     * reports the mute state. */
+    drag(150, 200, 252);
+    check((s_audio.mute_calls == 3) && !s_audio.mute_wanted, "moving the slider while muted asks to unmute once");
+    Ui_SetMuted(0U);
+    run_ms(50U);
+    drag(200, 180, 252);
+    check(s_audio.mute_calls == 3, "moving the slider while not muted leaves mute");
+
+    /* The host confirms a dragged volume without reporting it again (the
+     * link shows nothing when the value is already shown): a mute change
+     * keeps the slider where it was dragged, not at the volume from before
+     * the drag. */
+    Ui_SetVolume(30U);
+    run_ms(50U);
+    drag(150, 260, 252);
+    {
+        const uint8_t dragged = Ui_ShownVolume();
+
+        check(dragged > 30U, "the slider shows the dragged volume");
+        Ui_SetMuted(1U);
+        run_ms(50U);
+        check(Ui_ShownVolume() == dragged, "muting keeps the dragged volume");
+        Ui_SetMuted(0U);
+        run_ms(50U);
+        check(Ui_ShownVolume() == dragged, "unmuting keeps the dragged volume");
+    }
+
     /* No default device: volume and mute unknown, controls disabled. */
     Ui_SetActive(UI_NO_DEVICE);
     Ui_SetVolume(UI_VOLUME_UNKNOWN);
     Ui_SetMuted(UI_VOLUME_UNKNOWN);
     run_ms(50U);
-    tap(34, 252);
-    check(s_audio.mute_calls == 1, "disabled mute button does nothing");
+    {
+        const int mute_calls = s_audio.mute_calls;
+
+        tap(34, 252);
+        check(s_audio.mute_calls == mute_calls, "disabled mute button does nothing");
+    }
     snapshot("10-no-volume");
 
     Ui_SetDevices(NULL, 0U);

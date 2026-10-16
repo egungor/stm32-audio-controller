@@ -76,7 +76,7 @@ Then, as the USB host link works (`App/Src/link_port.c`, `protocol.md`):
 | `LINK EDIT FAIL reason=host_error` | The host answered an alias, favorite, order or settings change with `ERROR` |
 | `LINK SETTINGS layout=<n> theme=<n> accent=<n> grid=<n> tab=<startup>/<last> lang=<n> flipped=<0\|1> limit=<on>/<percent>` | Settings record applied (from the host, or changed on the board: a tab tap or the settings page): theme, accent, grid, language and tabs by the UI, `flipped` by the display port |
 | `UI VOLUME value=<n>` | User released the volume slider at `n` percent (`SET_VOLUME` is sent while dragging, at most every 100 ms) |
-| `UI MUTE on\|off` | User tapped the mute button; `SET_MUTE` sent |
+| `UI MUTE on\|off` | User tapped the mute button, or moved the volume slider while muted (`off`, once); `SET_MUTE` sent |
 | `LINK MUTE muted=<0\|1>` | The host reported the mute state (`MUTE_CHANGED`) |
 
 With `-DAPP_UI_DEMO=ON` demo data replaces the host link (no USB lines):

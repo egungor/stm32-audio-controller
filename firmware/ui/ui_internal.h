@@ -19,6 +19,13 @@
 #define BAR_H        36
 #define BOTTOM_H     40
 #define PAD          8
+/* Touch margin of the volume slider (lv_obj_set_ext_click_area) and the
+ * gap between the slider and the mute button. The gap must be wider than
+ * the margin: where the slider's touch area covers the button, LVGL gives
+ * the touch to the slider (created later), and a tap on mute then sets the
+ * volume to the touched point. */
+#define VOLUME_TOUCH_PAD 14
+#define VOLUME_GAP       (VOLUME_TOUCH_PAD + 6)
 #define BTN_RADIUS   12
 #define FLIP_W       44
 #define TAB_W        116
@@ -117,6 +124,7 @@ typedef struct
     uint8_t  pending;
     uint8_t  volume;  /**< 0-100 or UI_VOLUME_UNKNOWN */
     uint8_t  muted;   /**< 0, 1 or UI_VOLUME_UNKNOWN */
+    bool     unmute_asked;  /**< slider moved while muted: unmute sent */
 
     /* Settings and view. */
     UiSettings settings;

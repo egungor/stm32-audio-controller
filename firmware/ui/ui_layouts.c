@@ -183,6 +183,7 @@ void ui_build_list_main(void)
     ui_style_volume_slider(g_ui.slider);
     g_ui.mute_btn = ui_make_small_button(vol, RAIL_BTN, 40, SYM_VOLUME, &g_ui.mute_icon);
     lv_obj_add_event_cb(g_ui.mute_btn, ui_on_mute_clicked, LV_EVENT_CLICKED, NULL);
+    lv_obj_set_style_margin_top(g_ui.mute_btn, VOLUME_GAP - 12, 0);  /* 12: the row gap */
 }
 
 /* -------------------------------------------------------- C: large tile */
@@ -253,7 +254,7 @@ static void build_hero(lv_obj_t *scr)
 
     row = ui_make_box(hero);
     lv_obj_set_size(row, LV_PCT(100), 36);
-    lv_obj_set_style_pad_column(row, 14, 0);
+    lv_obj_set_style_pad_column(row, VOLUME_GAP, 0);
     lv_obj_set_flex_flow(row, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(row, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     g_ui.mute_btn = ui_make_small_button(row, 40, 36, SYM_VOLUME, &g_ui.mute_icon);
