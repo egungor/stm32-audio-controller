@@ -911,6 +911,26 @@ static void run_script(void)
     run_ms(50U);
     snapshot("09-muted");
 
+    /* The right edge of the mute button belongs to the button: the
+     * slider's touch margin no longer covers it, so the tap does not set
+     * the volume to the touched point. */
+    {
+        const int volume_calls = s_audio.calls;
+
+        tap(59, 252);
+        check((s_audio.mute_calls == 2) && !s_audio.mute_wanted, "a tap on the mute button's edge asks to unmute");
+        check(s_audio.calls == volume_calls, "a tap on the mute button's edge leaves the volume");
+    }
+
+    /* Moving the slider while muted asks to unmute, once until the host
+     * reports the mute state. */
+    drag(150, 200, 252);
+    check((s_audio.mute_calls == 3) && !s_audio.mute_wanted, "moving the slider while muted asks to unmute once");
+    Ui_SetMuted(0U);
+    run_ms(50U);
+    drag(200, 180, 252);
+    check(s_audio.mute_calls == 3, "moving the slider while not muted leaves mute");
+
     /* No default device: volume and mute unknown, controls disabled. */
     Ui_SetActive(UI_NO_DEVICE);
     Ui_SetVolume(UI_VOLUME_UNKNOWN);

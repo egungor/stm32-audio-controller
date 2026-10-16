@@ -18,9 +18,13 @@ firmware (`App/Src/ui_port.c`, `App/Src/ui_demo.c`) and into the Linux simulator
 - Volume and mute (bottom strip; handlers set with `Ui_SetAudioHandlers`):
   `UiVolumeCallback` while the slider is dragged and once on release;
   `UiMuteCallback` with the state wanted. The UI does not change the mute
-  icon itself; it shows what `Ui_SetMuted` reports. `UI_VOLUME_UNKNOWN`
-  disables the controls. Rate limiting is the caller's job
-  (`firmware/link`).
+  icon itself; it shows what `Ui_SetMuted` reports. Moving the slider
+  while muted calls `UiMuteCallback` with "unmute" once (again only after
+  the next `Ui_SetMuted`), before the volume. The gap between the slider
+  and the mute button (`VOLUME_GAP`) is wider than the slider's touch
+  margin (`VOLUME_TOUCH_PAD`), so a tap on the button's edge never sets
+  the volume. `UI_VOLUME_UNKNOWN` disables the controls. Rate limiting is
+  the caller's job (`firmware/link`).
 - Display flip: a button in the top right corner of both screens; held
   for `UI_FLIP_HOLD_MS` (icon turns orange), it calls the
   `UiFlipCallback` (`Ui_SetFlipHandler`) when the finger lifts. The UI
