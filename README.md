@@ -9,13 +9,38 @@ The project consists of:
 - **Shared protocol** — the contract between STM32 and Windows
 - **Tests and CI** — automated validation for host/protocol code
 
+## Download
+
+The Windows installer and the STM32 firmware are on the
+**[Releases page](https://github.com/egungor/stm32-audio-controller/releases)**
+(latest: [v0.7.0-beta.2](https://github.com/egungor/stm32-audio-controller/releases/tag/v0.7.0-beta.2), pre-release):
+
+| File | What |
+|---|---|
+| `stm32-audio-controller-setup-<version>.exe` | Windows installer: tray program, `stm32-audio-host` console tools, start with Windows; current user, no administrator rights ([`installer/README.md`](installer/README.md)) |
+| `stm32-audio-controller-firmware-<version>.elf` / `.hex` / `.bin` | Firmware for the STM32F746G-DISCO (Release build; the `.bin` starts at `0x08000000`) |
+
+Flash the firmware through the board's ST-LINK USB connector with
+STM32CubeProgrammer:
+
+```text
+STM32_Programmer_CLI -c port=SWD -w stm32-audio-controller-firmware-<version>.elf -v -rst
+```
+
+Then connect the board's USB OTG FS connector to the PC and run the
+installed tray program. The setup is not code-signed, so Windows
+SmartScreen may warn ("More info" → "Run anyway"). A `v*` tag builds both
+files in CI and attaches them to the release
+([`installer/README.md`](installer/README.md), "Where to get it").
+
 ## Project status
 
 M0–M6 are done: firmware, host and protocol are tested in CI, and the
 board and Windows checks ran on 2026-10-14 (bring-up log in
-[`docs/hardware.md`](docs/hardware.md)). M7 (polish) is in progress:
-aliases, ordering, favorites, three layouts with themes and a settings
-page, on protocol version 2 (ADR-004). Milestones:
+[`docs/hardware.md`](docs/hardware.md)). M7 (polish) is coded and in
+board testing: aliases, ordering, favorites, three layouts with themes,
+a settings page, screen timeout, volume limit on switch (protocol
+version 2, ADR-004), tray program and installer. Milestones:
 [`docs/roadmap.md`](docs/roadmap.md). Product presentation (Turkish):
 [`docs/presentation/stm32-ses-kumandasi.pdf`](docs/presentation/stm32-ses-kumandasi.pdf)
 (source and image list: [`docs/images/README.md`](docs/images/README.md)).
@@ -33,7 +58,9 @@ page, on protocol version 2 (ADR-004). Milestones:
 | Firmware ↔ host together | Loopback integration test in CI; end to end VERIFIED; adding or removing a Windows device while connected NOT TESTED |
 | Volume and mute on the touchscreen (M6) | VERIFIED on the board and Windows |
 | Display flip (180°) | VERIFIED on the board (#42, #51) |
-| Polish (M7) | In progress (#57–#60) |
+| Polish (M7): layouts, themes, settings, edit mode, aliases (#57–#60) | Simulator in CI; layout A, themes, accent colours, favorites tab, mute/volume VERIFIED on the board; the rest REQUIRES HARDWARE ([`docs/hardware.md`](docs/hardware.md)) |
+| Volume limit on switch (#59, #83) | Unit tests in CI; VERIFIED on the board and Windows |
+| Tray program, start with Windows, installer (#74) | Built in CI; installed and used on Windows; the full tray check REQUIRES WINDOWS |
 
 ## Architecture
 
@@ -65,17 +92,20 @@ Details: [`docs/architecture.md`](docs/architecture.md).
 
 Done in code (verification status above):
 
-- device list from Windows on the touchscreen, four per page, with icons
-  and Turkish text;
+- device list from Windows on the touchscreen, in pages, with icons;
 - select a device on the touchscreen → Windows default playback device;
 - Windows changes (default, devices added or removed) shown on the board;
 - USB unplug/replug and host program restart handled on both sides;
-- volume slider and mute button on the touchscreen, following Windows.
-
-Planned:
-
-- friendly names, favourites, custom ordering, start with Windows, tray
-  icon (M7).
+- volume slider and mute button on the touchscreen, following Windows;
+  moving the slider while muted unmutes;
+- friendly names (aliases), favourites and custom ordering, edited on the
+  touchscreen (M7);
+- three layouts (cards, list, large tile), dark and light themes, six
+  accent colours, a settings page, screen timeout, display flip, Turkish
+  and English (M7);
+- optional volume limit: an output selected on the board is turned down
+  to the limit first (M7);
+- tray program with start with Windows, and a Windows installer (M7).
 
 ## Repository layout
 
@@ -91,6 +121,7 @@ stm32-audio-controller/
 │   ├── Audio/ App/ Hid/        # platform-independent core
 │   ├── Platform/Windows/       # Core Audio, HID, console program
 │   └── Tests/
+├── installer/                  # Inno Setup script of the Windows installer
 ├── protocol/                   # protocol.md, C codec, tests
 ├── tests/integration/          # firmware ↔ host loopback test
 ├── docs/                       # architecture, hardware, roadmap, ADRs

@@ -12,6 +12,7 @@
 - [Development Workflow](Development-Workflow)
 - [Troubleshooting](Troubleshooting)
 
+[Releases](https://github.com/egungor/stm32-audio-controller/releases) ·
 [Repository](https://github.com/egungor/stm32-audio-controller) ·
 [Roadmap](https://github.com/egungor/stm32-audio-controller/blob/main/docs/roadmap.md) ·
 [Issues](https://github.com/egungor/stm32-audio-controller/issues)

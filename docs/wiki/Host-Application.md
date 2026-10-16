@@ -1,7 +1,21 @@
-# Host Application (`stm32-audio-host`)
+# Host Application
 
-A Windows console program (C++17). It finds the board over USB HID,
-reads Windows' playback devices with Core Audio, and keeps both in step.
+Two Windows programs (C++17), installed together by the setup from the
+[Releases page](https://github.com/egungor/stm32-audio-controller/releases). Both find the board over USB HID, read Windows'
+playback devices with Core Audio, and keep both in step:
+
+- **`stm32-audio-tray`**: the everyday program, without a console window.
+  A tray icon shows the connection state ("Kumanda bağlı" / "Kumanda
+  bekleniyor"); its menu has "Windows ile başlat" (start at logon, current
+  user only), "Ayarlar klasörünü aç", "Günlüğü aç" (`host.log`, the same
+  lines as `run`) and "Çıkış". Menu text follows the board's language
+  setting.
+- **`stm32-audio-host`**: console tools, below.
+
+Only one of `run` and the tray program serves the board at a time; the
+other console commands work while the tray program runs. Preferences
+(aliases, favorites, order, the board's settings) are kept in
+`%APPDATA%\stm32-audio-controller\preferences.txt`.
 
 ## Commands
 
@@ -13,6 +27,13 @@ reads Windows' playback devices with Core Audio, and keeps both in step.
 | `volume <0-100>` | Volume of the default device |
 | `mute on\|off` | Mute of the default device |
 | `watch` | Run the protocol controller without a board and print what it would send |
+| `alias <n> <name>` / `alias <n> --clear` | Show device `<n>` under another name on the board (at most 32 bytes of UTF-8) |
+| `startup on\|off\|status` | Start the tray program at Windows logon, or not |
+
+**Volume limit on switch** (settings page on the board, off by default):
+when the board selects an output louder than the limit, the host turns it
+down to the limit before making it the default. Switches made in Windows
+and the host's start are not limited.
 
 ## How it works
 
@@ -43,7 +64,7 @@ host/
 ├── Audio/              IAudioSystem, DeviceRegistry, AudioMapping (portable)
 ├── App/                HostController, EventQueue, FrameText (portable)
 ├── Hid/                IFrameSink, HidMatch (portable)
-├── Platform/Windows/   WinAudioSystem, WinHidLink, PolicyConfig.h, main.cpp
+├── Platform/Windows/   WinAudioSystem, WinHidLink, HostService, main.cpp, tray.cpp
 └── Tests/              test_host.cpp (Linux and Windows)
 ```
 
