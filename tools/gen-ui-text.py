@@ -37,9 +37,9 @@ TEXTS = [
     ("TXT_TIMEOUT_1", "1 dk", "1 min"),
     ("TXT_TIMEOUT_5", "5 dk", "5 min"),
     ("TXT_TIMEOUT_15", "15 dk", "15 min"),
-    ("TXT_SET_LIMIT", "Açılışta ses sınırı", "Startup volume limit"),
-    ("TXT_LIMIT_HINT", "Açılışta sesi bundan yüksek çıkışlar bu değere iner",
-     "At startup, louder outputs are turned down to this"),
+    ("TXT_SET_LIMIT", "Geçişte ses sınırı", "Volume limit on switch"),
+    ("TXT_LIMIT_HINT", "Seçilen çıkışın sesi bundan yüksekse bu değere iner",
+     "A louder output you select is turned down to this"),
     ("TXT_SET_FLIP", "Ekranı döndür", "Turn the display"),
     ("TXT_SET_LANGUAGE", "Dil", "Language"),
     # Edit mode and alias keyboard (#60)

@@ -137,14 +137,6 @@ void HostController::onPreferencesChanged()
 
 void HostController::handleGetDeviceList()
 {
-    if (!synced()) {
-        // A board session starts: apply the startup volume limit before
-        // the volume is reported (ADR-004).
-        const std::vector<VolumeLimited> lowered = applyVolumeLimit(audio_, prefs_.settings());
-        if (!lowered.empty() && volumeLimited_) {
-            volumeLimited_(lowered);
-        }
-    }
     refreshRegistry();
     sendDeviceList();
     sendDefault(true);
@@ -176,6 +168,12 @@ void HostController::handleSelectDevice(const ProtoMessage& msg)
 
     if (device == nullptr) {
         return;
+    }
+    // Volume limit on switch (ADR-004): lower the device before it becomes
+    // the default, so it never plays above the limit.
+    const std::optional<VolumeLimited> lowered = applyVolumeLimit(audio_, prefs_.settings(), device->endpoint);
+    if (lowered && volumeLimited_) {
+        volumeLimited_(*lowered);
     }
     if (!audio_.setDefaultEndpoint(device->endpoint.id)) {
         sendError(PROTO_ERROR_OPERATION_FAILED, msg.command, msg.sequence);
