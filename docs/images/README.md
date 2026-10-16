@@ -9,11 +9,22 @@ Exact captures of the LCD: the framebuffer dumped over SWD and converted
 with `tools/fb2png.py` (see `docs/toolchain.md`). Prefer these over phone
 photos.
 
-| File | Screen | Firmware |
-|---|---|---|
-| `ui-main-screen.png` | Device list, active device, volume strip | `main` at `41bfed5`, default build (#48) |
-| `ui-muted.png` | Same screen, muted | as above |
-| `ui-waiting-for-host.png` | No computer connected | as above |
+Taken 2026-10-16 on firmware v0.7.0-beta.2 (`e46f5ee`, Release; the board's
+flash was read back and is identical to the release `.bin`), host
+v0.7.0-beta.2, with the developer's own Windows outputs and aliases. Dark
+theme, blue accent, volume 40 %. The capture reads the framebuffer the LTDC
+shows (`LTDC_L1CFBAR`, `0x400168AC`); a dump taken while the screen changes
+mixes two frames, so only dumps of a still screen are kept.
+
+| File | Screen |
+|---|---|
+| `ui-main-screen.png` | Layout A (cards, 2×2), "Tümü" tab, page 1 of 3, active device |
+| `ui-favorites.png` | Layout A, "Favoriler" tab |
+| `ui-muted.png` | Layout A, "Favoriler" tab, muted (mute set with `stm32-audio-host mute on`) |
+| `ui-layout-list.png` | Layout B (list), side rail, vertical volume slider |
+| `ui-layout-tiles.png` | Layout C (large tile for the active device, tiles for the others) |
+| `ui-settings.png` | Settings page, top |
+| `ui-waiting-for-host.png` | No host program connected (tray program closed); identical to the M6 capture of `41bfed5` |
 
 - Use descriptive lowercase names with the `ui-` prefix, e.g.
   `ui-volume.png`.
@@ -27,21 +38,11 @@ which runs the same `firmware/ui` code and writes the same RGB565
 framebuffer format as the board. They show layout, not the panel: colours
 and speed on the real LCD are REQUIRES HARDWARE. Prefix `sim-`.
 
-| File | Screen | Source |
-|---|---|---|
-| `sim-m7-light-blue.png` | Light theme, blue accent, tabs, favorites | `main` at `aa6ebc1`, `23-light-blue` (#60) |
-| `sim-m7-dark-green.png` | Dark theme, green accent | as above, `24-dark-green` |
-| `sim-m7-grid-3x2.png` | 3×2 cards | as above, `25-grid-3x2` |
-| `sim-m7-list.png` | List layout | as above, `27-grid-list` |
-| `sim-m7-settings.png` | Settings page, dark theme | branch `feature/60-settings-page`, `40-settings` (#60) |
-| `sim-m7-settings-light.png` | Settings page after choosing the light theme and blue accent | as above, `41-settings-light-blue` |
-| `sim-m7-edit.png` | Edit mode after a star and a move (light theme, green accent) | branch `feature/60-edit-mode`, `62-edit-moved` (#60) |
-| `sim-m7-keyboard.png` | Alias keyboard, Turkish layout, "Oyunı" typed | as above, `64-keyboard-typed` |
-| `sim-m7-layout-list.png` | Layout B (list), dark theme | branch `feature/60-layouts`, `70-list` (#60) |
-| `sim-m7-layout-tiles.png` | Layout C (large tile), dark theme | as above, `73-tiles` |
-
-The light theme with blue accent and the 3×2 grid were also checked on the
-board on 2026-10-15 (`docs/hardware.md`, issue #60).
+The simulator screenshots of the development branches (`sim-m7-*`) were
+removed on 2026-10-16: the LCD screenshots above replace them. The CI
+artifact `ui-screenshots` of the *UI Simulator and Link CI* job has the
+current simulator output. The light theme with blue accent and the 3×2
+grid were checked on the board on 2026-10-15 (`docs/hardware.md`, #60).
 
 ### Presentation screens
 

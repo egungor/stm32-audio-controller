@@ -45,7 +45,17 @@ version 2, ADR-004), tray program and installer. Milestones:
 [`docs/presentation/stm32-ses-kumandasi.pdf`](docs/presentation/stm32-ses-kumandasi.pdf)
 (source and image list: [`docs/images/README.md`](docs/images/README.md)).
 
-![Main screen on the LCD](docs/images/ui-main-screen.png)
+![Main screen on the LCD: layout A, dark theme](docs/images/ui-main-screen.png)
+
+<p>
+  <img src="docs/images/ui-layout-list.png" width="32%" alt="Layout B: list with side rail and vertical volume slider">
+  <img src="docs/images/ui-layout-tiles.png" width="32%" alt="Layout C: large tile for the active device">
+  <img src="docs/images/ui-settings.png" width="32%" alt="Settings page">
+</p>
+
+LCD screenshots from the board (framebuffer read over SWD), firmware and
+host v0.7.0-beta.2: layout A, layouts B and C, the settings page. More:
+[`docs/images/README.md`](docs/images/README.md).
 
 | Part | State |
 |---|---|
