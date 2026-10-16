@@ -28,7 +28,8 @@ bring-up log in `docs/hardware.md`; milestone status in
 - What remains of #60 is verification on the board and on Windows: the
   open checks are in `docs/hardware.md`, "Pending hardware and Windows
   tests". There is no #60 code left to write.
-- Open: system tray program (#74, PR #75).
+- The system tray program with start with Windows (#74) is merged
+  (#75); its Windows check is in the same list.
 
 The display flip (#42, #51) is done. Do not start other new product
 features unless the current task explicitly asks for it.
