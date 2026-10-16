@@ -78,5 +78,8 @@ jobs:
           # A tag with a "-" (v0.7.0-beta.1) makes a pre-release.
           pre=""
           if [[ "$GITHUB_REF_NAME" == *-* ]]; then pre="--prerelease"; fi
+          # The firmware workflow may create the release at the same time,
+          # so upload, else create, else upload again.
           gh release upload "$GITHUB_REF_NAME" build/installer/*.exe --clobber ||
-            gh release create "$GITHUB_REF_NAME" build/installer/*.exe --generate-notes $pre
+            gh release create "$GITHUB_REF_NAME" build/installer/*.exe --generate-notes $pre ||
+            { sleep 15; gh release upload "$GITHUB_REF_NAME" build/installer/*.exe --clobber; }

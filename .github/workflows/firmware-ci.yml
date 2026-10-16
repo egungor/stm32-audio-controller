@@ -3,6 +3,7 @@ name: Firmware CI
 on:
   push:
     branches: [ main ]
+    tags: [ 'v*' ]
     paths:
       - 'firmware/**'
       - 'tools/build-firmware-linux.sh'
@@ -14,6 +15,11 @@ on:
       - 'tools/build-firmware-linux.sh'
       - '.github/workflows/firmware-ci.yml'
       - '.gitmodules'
+
+# On a v* tag the Release build is also attached to the GitHub release as
+# .elf, .hex and .bin (the installer workflow attaches the setup).
+permissions:
+  contents: write  # attach the firmware to a release (tags only)
 
 # Toolchain versions follow docs/toolchain.md ("Linux build (secondary)").
 env:
@@ -64,3 +70,26 @@ jobs:
             firmware/STM32AudioController/build/linux-${{ matrix.build_type }}/STM32AudioController.elf
             firmware/STM32AudioController/build/linux-${{ matrix.build_type }}/STM32AudioController.map
           if-no-files-found: error
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v') && matrix.build_type == 'Release'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          objcopy="$HOME/.cache/stm32-tools/gcc/bin/arm-none-eabi-objcopy"
+          out="firmware/STM32AudioController/build/linux-Release"
+          name="stm32-audio-controller-firmware-${GITHUB_REF_NAME#v}"
+          mkdir -p release
+          cp "$out/STM32AudioController.elf" "release/$name.elf"
+          "$objcopy" -O ihex "$out/STM32AudioController.elf" "release/$name.hex"
+          "$objcopy" -O binary "$out/STM32AudioController.elf" "release/$name.bin"
+          # A tag with a "-" (v0.7.0-beta.1) makes a pre-release. The
+          # installer workflow may create the release at the same time, so
+          # upload, else create, else upload again.
+          pre=""
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then pre="--prerelease"; fi
+          gh release upload "$GITHUB_REF_NAME" release/* --clobber ||
+            gh release create "$GITHUB_REF_NAME" release/* --generate-notes $pre ||
+            { sleep 15; gh release upload "$GITHUB_REF_NAME" release/* --clobber; }
