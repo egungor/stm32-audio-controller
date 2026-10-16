@@ -14,7 +14,7 @@ on the board.
 | Flash | 388 588 B | 1 MB | 37 % | VERIFIED (linker) |
 | SDRAM, frame buffers | 4 × 256 KB at `0xC0000000` | 8 MB | 12.5 % | VERIFIED (`ui_port.h`) |
 | LVGL heap (`LV_MEM_SIZE`) | peak 53 KB | 128 KB | 41 % | simulator only (`firmware/ui/README.md`); on the board NOT VERIFIED |
-| Task stacks, FreeRTOS heap at run time | not measured | | | REQUIRES HARDWARE |
+| Task stacks, FreeRTOS heap at run time | not measured yet; the `MEM` log line reports them (see "Measured on the board") | | | REQUIRES HARDWARE |
 
 There is room in every region. No change is needed for the size of any
 buffer.
@@ -67,14 +67,39 @@ measured (REQUIRES HARDWARE).
    `Core/Src/freertos.c`, and nothing overrides them. A detected overflow
    or a failed `pvPortMalloc` carries on silently. Proposed: strong
    definitions in `App/` that log one line and stop in a known state.
-   Not changed in this review.
+   **Addressed** (`fix/60-rtos-hooks-mem-log`): `App/Src/rtos_diag.c`
+   defines both hooks. Each masks all interrupts, writes
+   `RTOS STACK OVERFLOW task=<name>` or `RTOS MALLOC FAILED` to USART1 by
+   polling the registers (`Log_Panic`, no HAL, no allocation) and loops
+   for ever. The CubeMX stubs in `Core/Src/freertos.c` are unchanged; the
+   `arm-none-eabi-nm` shows the strong definitions in the image (VERIFIED, build).
+   Neither failure has been provoked on the board (REQUIRES HARDWARE).
 2. **No run-time watermarks.** The firmware never reports the task stack
    high-water mark (`uxTaskGetStackHighWaterMark`), the smallest free
    FreeRTOS heap (`xPortGetMinimumEverFreeHeapSize`) or the LVGL heap peak
    (`Ui_MemoryUse`, used only in the simulator). Proposed: one log line
    with these three numbers, so a board test can fill in the "not
-   measured" rows above. Not changed in this review.
+   measured" rows above. **Addressed** (`fix/60-rtos-hooks-mem-log`): the
+   UI loop of `defaultTask` logs
+   `MEM stack_free=<words> rtos_heap_min=<bytes> lvgl_used=<bytes> lvgl_peak=<bytes>`
+   after `UI INIT OK` and every 60 s (`docs/firmware-log.md`).
+   `INCLUDE_uxTaskGetStackHighWaterMark` is set in the `USER CODE Defines`
+   section of `FreeRTOSConfig.h`. The numbers are still to be read on the
+   board (REQUIRES HARDWARE, `docs/hardware.md`).
 3. **Performance.** Only the display flip copy has been measured (5 ms per
    frame, #51). Touch-to-select latency and frame rate while dragging a
    slider are not measured (REQUIRES HARDWARE). The pending check for
    layouts B and C in `docs/hardware.md` covers tearing while dragging.
+
+## Measured on the board
+
+To be filled from the last `MEM` line of the check in `docs/hardware.md`
+("Memory watermarks"), with the date and the firmware commit. With the
+hooks and the `MEM` line the Release image is 389 332 B of flash (+744 B);
+internal RAM is unchanged at 184 720 B.
+
+| Value | Size | Measured | Status |
+|---|---|---|---|
+| `defaultTask` stack, smallest free (`stack_free`, words) | 4096 words | | REQUIRES HARDWARE |
+| FreeRTOS heap, smallest free (`rtos_heap_min`) | 32 768 B | | REQUIRES HARDWARE |
+| LVGL heap peak (`lvgl_peak`) | 131 072 B | | REQUIRES HARDWARE |

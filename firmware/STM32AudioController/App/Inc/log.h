@@ -9,6 +9,7 @@
  *
  * Transmission is blocking: call only from task context, never from an
  * interrupt handler. Not thread-safe yet; only one task logs today.
+ * Log_Panic() is the exception for fatal errors (see below).
  */
 #ifndef LOG_H
 #define LOG_H
@@ -23,6 +24,16 @@ extern "C" {
  * Lines longer than the internal buffer are truncated.
  */
 void Log_Line(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
+
+/**
+ * @brief  Send one fixed line (CR LF appended) for a fatal error.
+ *
+ * Writes the USART1 registers directly by polling, without the HAL, the
+ * tick, a format buffer or a lock, so it works with interrupts disabled
+ * and in handler mode. Each byte waits a bounded time for the
+ * transmitter. Meant to be called once, just before the firmware stops.
+ */
+void Log_Panic(const char *line);
 
 #ifdef __cplusplus
 }

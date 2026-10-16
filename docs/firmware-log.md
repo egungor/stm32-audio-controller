@@ -25,7 +25,9 @@ parse it, so changes to existing lines must update this file.
 - `RESULT` is `OK`, `PASS`, `FAIL`, `DRAWN`, `READY`. A line containing
   the word `FAIL` reports an error.
 - Numbers in `key=value` pairs are decimal unless prefixed with `0x`.
-- Lines are emitted only from task context (blocking transmit).
+- Lines are emitted only from task context (blocking transmit), except
+  the two `RTOS` lines below, which a FreeRTOS hook writes straight to
+  the UART just before the firmware stops.
 
 ## Lines
 
@@ -51,6 +53,7 @@ printed.
 | Line | Meaning |
 |---|---|
 | `UI INIT OK fb0=0x<addr> fb1=0x<addr>` | LVGL running on the two SDRAM framebuffers; LTDC enabled |
+| `MEM stack_free=<words> rtos_heap_min=<bytes> lvgl_used=<bytes> lvgl_peak=<bytes>` | Right after `UI INIT OK`, then every 60 s (`App/Src/rtos_diag.c`): `stack_free` is the smallest free stack of `defaultTask` since boot in 4-byte words (`uxTaskGetStackHighWaterMark`, of 4096), `rtos_heap_min` the smallest free FreeRTOS heap since boot (`xPortGetMinimumEverFreeHeapSize`, of 32768), `lvgl_used` / `lvgl_peak` the LVGL heap now and at its peak (`Ui_MemoryUse`, of 131072). Not printed after `UI INIT FAIL` |
 | `UI INIT FAIL reason=<sdram\|lcd_format>` | No UI: SDRAM failed, or LTDC layer 0 is not RGB565 480×272 |
 | `UI EDIT favorite id=<id> on=<0\|1> sent=<0\|1>`, `UI EDIT alias id=<id> bytes=<n> sent=<0\|1>`, `UI EDIT move id=<id> to=<pos> sent=<0\|1>` | Edit mode (#60): star, alias saved on the keyboard, arrow. `sent=0`: not sent (another edit in flight); the demo build logs the same lines without `sent` and applies the edit itself |
 | `UI BACKLIGHT on\|off` | Screen timeout (#60): `off` after `screen_timeout` minutes without a touch, `on` at the next touch (which selects nothing) |
@@ -112,6 +115,18 @@ the test pattern. To check the coordinates, touch each target and compare
 
 The test screen polls the FT5336 every 20 ms; the UI build polls it each
 time LVGL reads the input device (every 33 ms).
+
+### FreeRTOS failures (both builds)
+
+| Line | Meaning |
+|---|---|
+| `RTOS STACK OVERFLOW task=<name>` | The kernel found a task stack overflowed (`configCHECK_FOR_STACK_OVERFLOW` 2, checked at each context switch). Non-printable characters of the name are shown as `?` |
+| `RTOS MALLOC FAILED` | `pvPortMalloc` found the 32 KB FreeRTOS heap exhausted |
+
+Both come from `App/Src/rtos_diag.c`. The hook masks all interrupts,
+writes the line to USART1 by polling the registers (no HAL, no tick, no
+allocation) and then loops for ever: the display freezes and USB stops
+answering until the board is reset. It is always the last line.
 
 `tim` is the APB1 timer clock (2 × PCLK1, 100 MHz with the current
 configuration), which comes from HSE through the main PLL, so a `PASS`

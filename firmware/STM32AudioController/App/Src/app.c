@@ -13,6 +13,7 @@
 #include "touch.h"
 #include "touch_log.h"
 #include "link_port.h"
+#include "rtos_diag.h"
 #include "ui.h"
 #include "ui_demo.h"
 #include "ui_port.h"
@@ -211,6 +212,7 @@ static void run_ui(bool sdram_ok, bool touch_ok)
         UiPort_Start();
         Log_Line("UI INIT OK fb0=0x%08lX fb1=0x%08lX", (unsigned long)UI_PORT_FB0_ADDR,
                  (unsigned long)UI_PORT_FB1_ADDR);
+        RtosDiag_LogMemory();
     }
     Log_Line("APP READY");
 
@@ -224,6 +226,7 @@ static void run_ui(bool sdram_ok, bool touch_ok)
             LinkPort_Run();
 #endif
             wait = UiPort_Run();
+            RtosDiag_Run();
         }
 
         wait = (wait < UI_MIN_WAIT_MS) ? UI_MIN_WAIT_MS : wait;

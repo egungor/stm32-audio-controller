@@ -67,6 +67,7 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     App/Src/lcd_test.c
     App/Src/link_port.c
     App/Src/log.c
+    App/Src/rtos_diag.c
     App/Src/sdram.c
     App/Src/touch.c
     App/Src/touch_log.c
