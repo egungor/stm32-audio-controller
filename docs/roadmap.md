@@ -110,7 +110,7 @@ Order: protocol version 2 (ADR-004, #58) → host (#59) → firmware UI
 - [ ] Icons — form factor icons exist (speakers, headphones, headset, display, digital, generic; #22, #26)
 - [ ] Windows startup option — tray program `stm32-audio-tray` with "start with Windows" (HKCU Run) and `stm32-audio-host startup` (#74); coded, built for Windows, unit tests for the Run value; REQUIRES WINDOWS
 - [ ] Error UI — waiting screen, error screen and notices for a refused or unanswered selection exist (#22, #30)
-- [ ] Performance/memory review
+- [ ] Performance/memory review — static review in `docs/memory-review.md` (RAM 56 %, flash 37 %); stack and heap watermarks on the board REQUIRES HARDWARE
 - [x] Display flip (180°) — button and port (#42), frame copy 5 ms (#51), verified on the board
 
 ## v1.0
