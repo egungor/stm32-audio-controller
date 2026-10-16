@@ -106,7 +106,7 @@ Order: protocol version 2 (ADR-004, #58) → host (#59) → firmware UI
 - [ ] Favorites — favorite flag and a favorites tab (#58–#60); tab verified on the board, star in the edit mode coded and tested in the simulator
 - [ ] Custom ordering — edit mode on the touchscreen (#58–#60); coded and tested in the simulator, on the board REQUIRES HARDWARE + WINDOWS
 - [ ] Layouts and themes — A cards (2×2, 2×3, 3×3, list), B list, C large tile; dark/light; six accent colours (#57, #60); themes, colours and A verified on the board, B and C coded and tested in the simulator, on the board REQUIRES HARDWARE
-- [ ] Settings page — layout, theme, colour, grid, startup tab, screen timeout, flip, language, startup volume limit (#58–#60); page coded and tested in the simulator, on the board REQUIRES HARDWARE; screen timeout: backlight off after the chosen minutes without a touch, coded and tested in the simulator, on the board REQUIRES HARDWARE
+- [ ] Settings page — layout, theme, colour, grid, startup tab, screen timeout, flip, language, volume limit on switch (#58–#60); page coded and tested in the simulator, on the board REQUIRES HARDWARE; screen timeout: backlight off after the chosen minutes without a touch, coded and tested in the simulator, on the board REQUIRES HARDWARE
 - [ ] Icons — form factor icons exist (speakers, headphones, headset, display, digital, generic; #22, #26)
 - [ ] Windows startup option — tray program `stm32-audio-tray` with "start with Windows" (HKCU Run) and `stm32-audio-host startup` (#74); coded, built for Windows, unit tests for the Run value; REQUIRES WINDOWS
 - [ ] Error UI — waiting screen, error screen and notices for a refused or unanswered selection exist (#22, #30)

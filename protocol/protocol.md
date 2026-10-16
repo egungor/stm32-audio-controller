@@ -197,7 +197,8 @@ Settings record (11 bytes, payload of `SETTINGS` and `SET_SETTINGS`):
 
 The STM32 uses the defaults until the host's `SETTINGS` arrive. The host
 stores the record as received and interprets only `volume_limit_on` and
-`volume_limit` (startup volume limit, ADR-004).
+`volume_limit` (volume limit on switch: a device the STM32 selects is
+lowered to it first, ADR-004).
 
 ## Exchanges
 

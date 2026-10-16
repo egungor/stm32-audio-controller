@@ -41,8 +41,8 @@ firmware (`App/Src/ui_port.c`, `App/Src/ui_demo.c`) and into the Linux simulator
 - Settings page (`ui_settings.c`, #60, design A of #57): the cog button in
   the main screen's top bar opens it; the left half of its bar goes back.
   A scrolling list of rows: layout, theme, accent colour (6 swatches), grid,
-  startup tab, screen timeout (never / 1 / 5 / 15 min), startup volume
-  limit (switch; when on, a slider in 5 % steps, reported on release),
+  startup tab, screen timeout (never / 1 / 5 / 15 min), volume limit
+  on switch (switch; when on, a slider in 5 % steps, reported on release),
   flip (switch) and language. A tap applies the change at once and reports
   the record; a change of theme, accent, grid or language rebuilds the
   screens on the next timer run (`ui_request_rebuild`, so the tapped

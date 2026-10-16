@@ -46,11 +46,9 @@ void logReceived(const Frame& frame, const LogFn& log)
     }
 }
 
-void logVolumeLimited(const std::vector<VolumeLimited>& lowered, const LogFn& log)
+void logVolumeLimited(const VolumeLimited& v, const LogFn& log)
 {
-    for (const VolumeLimited& v : lowered) {
-        log("Volume limit: \"" + v.name + "\" " + std::to_string(v.from) + "% -> " + std::to_string(v.to) + "%");
-    }
+    log("Volume limit: \"" + v.name + "\" " + std::to_string(v.from) + "% -> " + std::to_string(v.to) + "%");
 }
 
 }  // namespace
@@ -121,9 +119,7 @@ int runHostService(WinAudioSystem& audio, EventQueue& events, const HostServiceH
 
     controller.onPreferencesChanged();  // the stored order and aliases
     controller.setPreferencesChangedHandler([&store] { store.markChanged(); });
-    controller.setVolumeLimitedHandler([&log](const std::vector<VolumeLimited>& v) { logVolumeLimited(v, log); });
-    // Startup volume limit, before any board connects (ADR-004).
-    logVolumeLimited(applyVolumeLimit(audio, controller.preferences().settings()), log);
+    controller.setVolumeLimitedHandler([&log](const VolumeLimited& v) { logVolumeLimited(v, log); });
     reportLanguage();
 
     if (!link.start()) {

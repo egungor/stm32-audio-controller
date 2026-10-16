@@ -34,8 +34,8 @@ static const char *const k_text[UI_LANGUAGE_COUNT][TXT_COUNT] = {
         "1 dk", /* TXT_TIMEOUT_1 */
         "5 dk", /* TXT_TIMEOUT_5 */
         "15 dk", /* TXT_TIMEOUT_15 */
-        "A\xC3\xA7\xC4\xB1l\xC4\xB1\xC5\x9Fta ses s\xC4\xB1n\xC4\xB1r\xC4\xB1", /* TXT_SET_LIMIT */
-        "A\xC3\xA7\xC4\xB1l\xC4\xB1\xC5\x9Fta sesi bundan y\xC3\xBCksek \xC3\xA7\xC4\xB1k\xC4\xB1\xC5\x9Flar bu de\xC4\x9F" "ere iner", /* TXT_LIMIT_HINT */
+        "Ge\xC3\xA7i\xC5\x9Fte ses s\xC4\xB1n\xC4\xB1r\xC4\xB1", /* TXT_SET_LIMIT */
+        "Se\xC3\xA7ilen \xC3\xA7\xC4\xB1k\xC4\xB1\xC5\x9F\xC4\xB1n sesi bundan y\xC3\xBCksekse bu de\xC4\x9F" "ere iner", /* TXT_LIMIT_HINT */
         "Ekran\xC4\xB1 d\xC3\xB6nd\xC3\xBCr", /* TXT_SET_FLIP */
         "Dil", /* TXT_SET_LANGUAGE */
         "S\xC4\xB1rala ve d\xC3\xBCzenle", /* TXT_EDIT_TITLE */
@@ -78,8 +78,8 @@ static const char *const k_text[UI_LANGUAGE_COUNT][TXT_COUNT] = {
         "1 min", /* TXT_TIMEOUT_1 */
         "5 min", /* TXT_TIMEOUT_5 */
         "15 min", /* TXT_TIMEOUT_15 */
-        "Startup volume limit", /* TXT_SET_LIMIT */
-        "At startup, louder outputs are turned down to this", /* TXT_LIMIT_HINT */
+        "Volume limit on switch", /* TXT_SET_LIMIT */
+        "A louder output you select is turned down to this", /* TXT_LIMIT_HINT */
         "Turn the display", /* TXT_SET_FLIP */
         "Language", /* TXT_SET_LANGUAGE */
         "Arrange and edit", /* TXT_EDIT_TITLE */

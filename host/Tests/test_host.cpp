@@ -85,6 +85,7 @@ public:
 
     // Per-device volume; the default device's is `volume`.
     std::map<std::string, unsigned> endpointVolumes;
+    std::vector<std::string> endpointVolumeDefaults;  // the default at each setEndpointVolumePercent
     std::optional<unsigned> endpointVolumePercent(const std::string& id) override
     {
         if (id == defaultId) {
@@ -95,6 +96,7 @@ public:
     }
     bool setEndpointVolumePercent(const std::string& id, unsigned percent) override
     {
+        endpointVolumeDefaults.push_back(defaultId);
         if (id == defaultId) {
             return setVolumePercent(percent);
         }
@@ -1066,56 +1068,66 @@ void testVolumeLimit()
     FakeAudio audio;
     audio.endpoints = {ep("spk", "Speakers"), ep("hp", "Headphones"), ep("tv", "TV"), ep("x", "No volume")};
     audio.defaultId = "hp";
-    audio.volume = 80;
     audio.endpointVolumes = {{"spk", 30}, {"tv", 100}};  // "x" has no volume control
 
     ProtoSettings s{};
     Proto_DefaultSettings(&s);
     s.volume_limit = 40;
-    CHECK(applyVolumeLimit(audio, s).empty());  // off
-    CHECK(audio.volume == 80U);
+    CHECK(!applyVolumeLimit(audio, s, audio.endpoints[2]));  // off
+    CHECK(audio.endpointVolumes["tv"] == 100U);
 
     s.volume_limit_on = 1;
-    const std::vector<VolumeLimited> lowered = applyVolumeLimit(audio, s);
-    CHECK(lowered.size() == 2);
-    CHECK(lowered[0].endpointId == "hp" && lowered[0].from == 80 && lowered[0].to == 40);
-    CHECK(lowered[1].endpointId == "tv" && lowered[1].from == 100);
-    CHECK(audio.volume == 40U && audio.endpointVolumes["tv"] == 40U);
-    CHECK(audio.endpointVolumes["spk"] == 30U);  // never raised
-    CHECK(audio.mute == false);                  // mute untouched
+    const std::optional<VolumeLimited> lowered = applyVolumeLimit(audio, s, audio.endpoints[2]);
+    CHECK(lowered && lowered->endpointId == "tv" && lowered->name == "TV");
+    CHECK(lowered && lowered->from == 100 && lowered->to == 40);
+    CHECK(audio.endpointVolumes["tv"] == 40U);
+    CHECK(!applyVolumeLimit(audio, s, audio.endpoints[0]));  // 30 %: never raised
+    CHECK(audio.endpointVolumes["spk"] == 30U);
+    CHECK(!applyVolumeLimit(audio, s, audio.endpoints[3]));  // no volume control
+    CHECK(audio.mute == false);                               // mute untouched
 }
 
-void testVolumeLimitAtSessionStart()
+void testVolumeLimitOnSelect()
 {
     Rig r;
     std::vector<VolumeLimited> logged;
-    r.controller.setVolumeLimitedHandler([&logged](const std::vector<VolumeLimited>& v) { logged = v; });
-    r.audio.volume = 90;
+    r.controller.setVolumeLimitedHandler([&logged](const VolumeLimited& v) { logged.push_back(v); });
+    r.audio.volume = 90;  // "hp", the default
+    r.audio.endpointVolumes = {{"spk", 20}, {"tv", 80}};
     ProtoSettings s = r.controller.preferences().settings();
     s.volume_limit_on = 1;
     s.volume_limit = 25;
     (void)r.controller.preferences().setSettings(s);
 
-    // The first list of a session: limited before the volume is reported.
+    // A board session starts: nothing is limited.
     r.controller.onConnected();
-    CHECK(r.audio.volume == 25U);
-    CHECK(logged.size() == 1 && logged[0].endpointId == "hp");
-    ProtoMessage m{};
-    do {
-        m = r.sink.pop();
-    } while (m.command != PROTO_CMD_VOLUME_CHANGED && !r.sink.sent.empty());
-    CHECK(m.command == PROTO_CMD_VOLUME_CHANGED && m.u.volume == 25);
-
-    // A GET_DEVICE_LIST within the same session does not limit again.
-    logged.clear();
-    r.audio.volume = 70;
     r.controller.onFrame(frameFor(PROTO_CMD_GET_DEVICE_LIST, 1));
-    CHECK(r.audio.volume == 70U && logged.empty());
+    CHECK(r.audio.volume == 90U && r.audio.endpointVolumes["tv"] == 80U && logged.empty());
 
-    // The next session does.
-    r.controller.onDisconnected();
-    r.controller.onFrame(frameFor(PROTO_CMD_GET_DEVICE_LIST, 2));
-    CHECK(r.audio.volume == 25U && logged.size() == 1);
+    // Selecting a louder device lowers it before it becomes the default.
+    r.controller.onFrame(requestFrame(PROTO_CMD_SELECT_DEVICE, 2, r.gen(), r.index("tv")));
+    CHECK(r.audio.endpointVolumes["tv"] == 25U);
+    CHECK(r.audio.endpointVolumeDefaults.size() == 1 && r.audio.endpointVolumeDefaults[0] == "hp");
+    CHECK(r.audio.defaultId == "tv");
+    CHECK(logged.size() == 1 && logged[0].endpointId == "tv" && logged[0].from == 80 && logged[0].to == 25);
+
+    // A quieter device is not raised.
+    r.controller.onFrame(requestFrame(PROTO_CMD_SELECT_DEVICE, 3, r.gen(), r.index("spk")));
+    CHECK(r.audio.endpointVolumes["spk"] == 20U && logged.size() == 1);
+
+    // A switch made in Windows is not limited.
+    r.audio.endpointVolumes["tv"] = 70;
+    r.audio.defaultId = "tv";
+    r.controller.onDefaultChanged();
+    CHECK(r.audio.endpointVolumes["tv"] == 70U && logged.size() == 1);
+
+    // Off: a selection is not limited.
+    s.volume_limit_on = 0;
+    (void)r.controller.preferences().setSettings(s);
+    r.audio.defaultId = "spk";
+    r.controller.onDefaultChanged();
+    r.controller.onFrame(requestFrame(PROTO_CMD_SELECT_DEVICE, 4, r.gen(), r.index("tv")));
+    CHECK(r.audio.defaultId == "tv" && r.audio.endpointVolumes["tv"] == 70U && logged.size() == 1);
 }
 
 // ------------------------------------------------- helper tests
@@ -1421,7 +1433,7 @@ int main()
     testPreferenceFileDamaged();
     testPreferenceStore();
     testVolumeLimit();
-    testVolumeLimitAtSessionStart();
+    testVolumeLimitOnSelect();
     testAudioMapping();
     testEventQueue();
     testEventQueueFrames();

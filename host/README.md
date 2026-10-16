@@ -26,7 +26,7 @@ host/
 │   ├── IAudioSystem.h      # interface to the Windows audio system (no Windows types)
 │   ├── AudioMapping.*      # Windows form factor -> icon, volume scalar <-> percent
 │   ├── DeviceRegistry.*    # endpoints -> device_index, DEVICE_LIST entries
-│   └── VolumeLimit.*       # startup volume limit (ADR-004)
+│   └── VolumeLimit.*       # volume limit on switch (ADR-004)
 ├── Hid/
 │   ├── IFrameSink.h        # outgoing 64-byte protocol frames
 │   └── HidMatch.h          # which HID interface is the controller (ADR-003)
@@ -164,11 +164,12 @@ a UTF-8 text file (format in `App/PreferenceFile.h`).
   defaults are used.
 - `watch` reads the file but never writes it.
 
-Startup volume limit (off by default; `volume_limit_on` and
-`volume_limit` in the settings record): when `run` starts, and each time
-a board session starts, every active output above the limit is lowered to
-it and logged as `Volume limit: "<name>" <from>% -> <to>%`. Volumes are
-never raised and mute is not touched.
+Volume limit on switch (off by default; `volume_limit_on` and
+`volume_limit` in the settings record): when the board selects an output
+whose volume is above the limit, the host lowers it to the limit before
+making it the default, and logs `Volume limit: "<name>" <from>% -> <to>%`.
+Switches made in Windows are not limited, volumes are never raised and
+mute is not touched (ADR-004).
 
 `run` prints `Controller connected: <product> <device path>` and
 `Controller disconnected.`, then one line per frame: `<-` received from the
