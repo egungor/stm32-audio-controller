@@ -316,6 +316,7 @@ commit.
 | Edit mode (#60): the pencil opens it; ★ marks a favorite, the arrows move a device, the keyboard sets an alias with Turkish letters (✓ / "Kaydet" saves, × does not); each change comes back as a new list (`LINK LIST OK`), the preference file holds it, and Windows' own names are unchanged | `firmware/ui/README.md`, `docs/firmware-log.md` | REQUIRES HARDWARE + WINDOWS |
 | Layouts B and C (#60): "Görünüm" switches between Kart, Liste and Karo; in B the rail switches tabs and the vertical slider sets the Windows volume; in C the panel follows the Windows default device (also when changed in Windows) and its slider and mute work; taps select in both; no tearing while dragging | `firmware/ui/README.md` | REQUIRES HARDWARE + WINDOWS |
 | LVGL heap 128 KB (#60): boot log as before (`UI INIT OK`), no LVGL out-of-memory assert after opening every screen in every layout | `firmware/ui/lv_conf.h` | REQUIRES HARDWARE |
+| Memory watermarks (#60): a `MEM ...` line follows `UI INIT OK` and repeats every 60 s; after opening every screen in every layout (the row above) and dragging the sliders, copy the last line's numbers into the "Measured on the board" table of `docs/memory-review.md`; no `RTOS STACK OVERFLOW` or `RTOS MALLOC FAILED` line | `docs/memory-review.md`, `docs/firmware-log.md` | REQUIRES HARDWARE |
 
 ## Reference sources
 
