@@ -15,14 +15,20 @@ The system has three major parts:
 
 M0–M6 are done and verified on the board and on Windows (2026-10-14,
 bring-up log in `docs/hardware.md`; milestone status in
-`docs/roadmap.md`). M7 (polish) is in progress, in this order:
+`docs/roadmap.md`). M7 (polish) is in progress:
 
-1. Protocol version 2: device preferences and UI settings
-   (`docs/decisions/ADR-004-device-preferences-and-settings.md`, #58).
-2. Host: preference store, alias command, startup volume limit (#59).
-3. Firmware UI: three layouts (A cards, B list, C large tile), dark/light
-   themes, accent colours, favorites, ordering, alias keyboard, settings
-   page (#60; designs from #57).
+- Coded and merged: protocol version 2
+  (`docs/decisions/ADR-004-device-preferences-and-settings.md`, #58),
+  host preference store, alias command and startup volume limit (#59),
+  and the firmware UI of #60 (designs from #57): tabs, themes, accent
+  colours, grids (#66), settings page (#70), screen timeout (#71), edit
+  mode with favorites, ordering and the alias keyboard (#72), layouts B
+  and C with the 128 KB LVGL heap (#73). The Windows installer with
+  start with Windows is merged (#76).
+- What remains of #60 is verification on the board and on Windows: the
+  open checks are in `docs/hardware.md`, "Pending hardware and Windows
+  tests". There is no #60 code left to write.
+- Open: system tray program (#74, PR #75).
 
 The display flip (#42, #51) is done. Do not start other new product
 features unless the current task explicitly asks for it.
