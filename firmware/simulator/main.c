@@ -955,8 +955,12 @@ static void run_script(void)
     Ui_SetVolume(UI_VOLUME_UNKNOWN);
     Ui_SetMuted(UI_VOLUME_UNKNOWN);
     run_ms(50U);
-    tap(34, 252);
-    check(s_audio.mute_calls == 1, "disabled mute button does nothing");
+    {
+        const int mute_calls = s_audio.mute_calls;
+
+        tap(34, 252);
+        check(s_audio.mute_calls == mute_calls, "disabled mute button does nothing");
+    }
     snapshot("10-no-volume");
 
     Ui_SetDevices(NULL, 0U);
