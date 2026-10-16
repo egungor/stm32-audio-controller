@@ -4,9 +4,14 @@
 
 Accepted by the developer on 2026-10-14 (issue #58). Protocol version 2
 is implemented in `protocol/`, `firmware/link` and the host controller
-(#58); the preference file, the `alias` command and the startup volume
+(#58); the preference file, the `alias` command and the volume
 limit in the host program (#59, file `preferences.txt`, text format in
 `host/App/PreferenceFile.h`). The UI follows in #60.
+
+Changed by the developer on 2026-10-16: the volume limit acts when the
+board selects a device, not at startup (section "Volume limit on
+switch"). The record's bytes are unchanged, so the protocol version stays
+2.
 
 One addition during implementation: a settings change made on the board
 while no host is connected is sent when the host's `SETTINGS` arrive,
@@ -28,7 +33,7 @@ session and a host restart:
   (dark/light), accent colour (6 colours, orange default), card grid
   (2×2, 2×3, 3×3, list), startup tab (last used, all, favorites), the
   last used tab, screen timeout, display flip, language
-  (Turkish/English) and an optional **startup volume limit**.
+  (Turkish/English) and an optional **volume limit on switch**.
 
 Decisions taken by the developer on 2026-10-14:
 
@@ -36,9 +41,10 @@ Decisions taken by the developer on 2026-10-14:
    host command.
 2. All of this state is stored on the host and sent to the board when
    they connect. Nothing is stored in the STM32's flash.
-3. Startup volume limit: optional, off by default; when on, outputs
-   whose volume is above the chosen percentage are lowered to it when
-   the host starts or the board connects.
+3. Volume limit on switch: optional, off by default; when on, a device
+   selected on the board whose volume is above the chosen percentage is
+   lowered to it. (Until 2026-10-16: all outputs, when the host started
+   or the board connected.)
 
 Protocol v1 cannot carry this: it has no messages for it, its
 `DEVICE_LIST` flags allow only bit 0, and v1 receivers reject unknown
@@ -142,19 +148,24 @@ timeout applies.
 - A field outside its range makes the frame invalid (`BAD_PAYLOAD`), as
   in v1. New fields need a new protocol version.
 
-### Startup volume limit (host)
+### Volume limit on switch (host)
 
-When `volume_limit_on` is 1, the host lowers to `volume_limit` the
-volume of every **active** playback device whose volume is higher:
+When `volume_limit_on` is 1 and a `SELECT_DEVICE` names a device whose
+volume is above `volume_limit`, the host lowers that device to
+`volume_limit` **before** it makes it the Windows default, so the new
+output never plays above the limit.
 
-- once when the host program starts (from the stored record, before any
-  board connects), and
-- each time a board session starts (host opens the device or answers
-  the first `GET_DEVICE_LIST`).
+It acts only on `SELECT_DEVICE` from the board. It does not act when the
+host starts, when a board session starts, on a default change made in
+Windows (or by Windows, e.g. a headset plugged in), or on later volume
+changes. It does not raise volumes and does not touch mute. The firmware
+needs nothing special: the limited volume reaches it as
+`VOLUME_CHANGED` after `DEVICE_CHANGED`.
 
-It does not raise volumes, does not touch mute, and does not act on
-later device switches or volume changes. The firmware needs nothing
-special: the limited volume reaches it as `VOLUME_CHANGED`.
+Changed on 2026-10-16 (developer's decision). Before, the host lowered
+every active output above the limit when it started and when each board
+session started. The fields, their ranges and the defaults are the same,
+so protocol version 2 is unchanged.
 
 ### Host command
 

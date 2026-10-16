@@ -295,7 +295,7 @@ selection: `decisions/ADR-001-firmware-peripheral-set.md`.
 
 The checks for the M1–M6 code ran on 2026-10-14 on firmware and host
 `41bfed5` (issue #48); details and observations are in the bring-up log
-above. Open: the M7 settings page, screen timeout, edit mode, layouts B and C and the larger LVGL heap, the memory watermarks, and the tray program (last rows). New checks go here first,
+above. Open: the M7 settings page, screen timeout, edit mode, layouts B and C and the larger LVGL heap, the memory watermarks, the tray program and the volume limit on switch (last rows). New checks go here first,
 and their results into the bring-up log, with the date and the firmware
 commit.
 
@@ -318,6 +318,7 @@ commit.
 | LVGL heap 128 KB (#60): boot log as before (`UI INIT OK`), no LVGL out-of-memory assert after opening every screen in every layout | `firmware/ui/lv_conf.h` | REQUIRES HARDWARE |
 | Memory watermarks (#60): a `MEM ...` line follows `UI INIT OK` and repeats every 60 s; after opening every screen in every layout (the row above) and dragging the sliders, copy the last line's numbers into the "Measured on the board" table of `docs/memory-review.md`; no `RTOS STACK OVERFLOW` or `RTOS MALLOC FAILED` line | `docs/memory-review.md`, `docs/firmware-log.md` | REQUIRES HARDWARE |
 | Tray program (#74): `stm32-audio-tray.exe` starts without a console window and shows the icon; the tooltip and the menu's first line say "Kumanda bekleniyor", then "Kumanda bağlı" when the board is plugged in, and the board works as with `run`; "Windows ile başlat" adds the Run value (check mark; `stm32-audio-host startup status` says on) and the tray program starts after logging off and on; "Günlüğü aç" shows the frames; "Çıkış" removes the icon and the preference file keeps the last change; a second tray program or `run` says another program serves the controller; English menu after choosing English on the board | `host/README.md`, "Tray program" | REQUIRES WINDOWS + HARDWARE |
+| Volume limit on switch (#59, ADR-004): with "Geçişte ses sınırı" on at 25 %, set another output above 25 % in Windows, then tap it on the board: the host logs `Volume limit: "<name>" <from>% -> 25%` and the board shows 25 %; an output at or below 25 % keeps its volume; a switch made in Windows, a host restart and plugging in the board change no volume | `host/README.md`, ADR-004 | REQUIRES WINDOWS + HARDWARE |
 
 ## Reference sources
 

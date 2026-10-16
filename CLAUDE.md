@@ -19,7 +19,7 @@ bring-up log in `docs/hardware.md`; milestone status in
 
 - Coded and merged: protocol version 2
   (`docs/decisions/ADR-004-device-preferences-and-settings.md`, #58),
-  host preference store, alias command and startup volume limit (#59),
+  host preference store, alias command and volume limit (#59; on switch since 2026-10-16),
   and the firmware UI of #60 (designs from #57): tabs, themes, accent
   colours, grids (#66), settings page (#70), screen timeout (#71), edit
   mode with favorites, ordering and the alias keyboard (#72), layouts B
