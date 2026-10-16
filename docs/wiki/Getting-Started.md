@@ -1,5 +1,32 @@
 # Getting Started
 
+## Quick start from a release
+
+No build needed. From the [Releases page](https://github.com/egungor/stm32-audio-controller/releases) take the latest
+`stm32-audio-controller-setup-<version>.exe` and
+`stm32-audio-controller-firmware-<version>.elf`.
+
+1. **Flash the board.** Connect the board's **ST-LINK** USB connector to
+   the PC, install
+   [STM32CubeProgrammer](https://www.st.com/en/development-tools/stm32cubeprog.html),
+   then:
+
+   ```text
+   STM32_Programmer_CLI -c port=SWD -w stm32-audio-controller-firmware-<version>.elf -v -rst
+   ```
+
+   The output ends with `Download verified successfully`. The `.hex` and
+   `.bin` files are the same firmware for other tools (`.bin` at
+   `0x08000000`).
+2. **Install the host.** Run the setup. It installs for the current user,
+   without administrator rights, and starts the tray program. It is not
+   code-signed: if SmartScreen warns, "More info" → "Run anyway".
+3. **Connect.** Plug the board's **USB OTG FS** micro-USB connector into
+   the PC. The tray icon says "Kumanda bağlı" and the LCD shows the
+   playback devices.
+
+To build everything yourself, read on.
+
 ## What you need
 
 - STM32F746G-DISCO board (MB1191) and two USB cables: one to the

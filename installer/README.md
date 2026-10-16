@@ -22,7 +22,9 @@ The **Host installer** workflow builds it on every change to `host/`,
 `protocol/` or `installer/`: Actions → Host installer → the run →
 artifact `stm32-audio-controller-setup`. On a `v*` tag it is attached to
 the GitHub release (created if missing; a tag with a "-", such as
-`v0.7.0-beta.1`, makes a pre-release):
+`v0.7.0-beta.1`, makes a pre-release). The **Firmware CI** workflow
+attaches the Release firmware to the same release as
+`stm32-audio-controller-firmware-<version>.elf`, `.hex` and `.bin`:
 
 ```text
 git tag v0.7.0-beta.1 <commit>
