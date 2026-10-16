@@ -30,14 +30,29 @@ reads SDRAM words directly.
 - The PC link is the **USB OTG FS** micro-USB connector, not ST-LINK.
 - The log must show `USB CONFIGURED`; Device Manager must list VID `1209`
   PID `0001`. A firmware built with `APP_UI_DEMO` does not use the PC link.
-- `run` scans once a second; another program holding the device is fine
-  (shared access), but two `run` instances both receive every frame.
+- The tray program (or `run`) scans once a second. Only one of them serves
+  the board at a time; a second one says another program serves the
+  controller and exits.
 
 ## The LCD shows the waiting screen ("Bilgisayar bekleniyor")
 
-No host is talking to the board: start `stm32-audio-host run`. After a
-selection that the host did not answer in 2 s the board also returns to
-the waiting screen and asks for the list again.
+No host is talking to the board: start the tray program (Start menu,
+"STM32 Ses Kumandası") or `stm32-audio-host run`. After a selection that
+the host did not answer in 2 s the board also returns to the waiting
+screen and asks for the list again.
+
+## An output gets quieter when I tap it
+
+That is the volume limit: "Geçişte ses sınırı" on the settings page turns
+an output down to the limit when you select it on the board
+([User Guide](User-Guide#settings)). The tray program's log ("Günlüğü
+aç") shows `Volume limit: "<name>" <from>% -> <to>%`. Turn the limit off
+or raise it.
+
+## The first touch does nothing
+
+The screen was dark ("Ekran kapanma"): the first touch only turns the
+backlight on. Tap again.
 
 ## `set-default` fails
 

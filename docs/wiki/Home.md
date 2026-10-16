@@ -4,6 +4,8 @@ A touchscreen controller on an **STM32F746G-DISCO** board that switches the
 default Windows playback device. Tap a device on the 4.3" LCD; Windows
 switches to it. Change the device in Windows; the LCD follows.
 
+![Main screen on the LCD](https://raw.githubusercontent.com/egungor/stm32-audio-controller/main/docs/images/ui-main-screen.png)
+
 ```text
  STM32F746G-DISCO (touchscreen)  ──USB HID──►  Windows PC (stm32-audio-tray)
    LVGL UI, protocol client      ◄──────────   Core Audio, default device
@@ -34,6 +36,7 @@ in `docs/hardware.md`.
 
 ## Pages
 
+- [User Guide](User-Guide) — screens, settings, favorites and aliases, the tray program
 - [Getting Started](Getting-Started) — install from a release, or clone, build, flash, run
 - [Architecture](Architecture) — the three parts and how they talk
 - [Hardware](Hardware) — board, peripherals, pins

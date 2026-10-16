@@ -1,6 +1,7 @@
 **STM32 Audio Controller**
 
 - [Home](Home)
+- [User Guide](User-Guide)
 - [Getting Started](Getting-Started)
 - [Architecture](Architecture)
 - [Hardware](Hardware)

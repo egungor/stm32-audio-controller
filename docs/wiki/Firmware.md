@@ -30,6 +30,11 @@ Generated code calls the application from two USER CODE hooks:
 
 ## UI
 
+![Layout B, list](https://raw.githubusercontent.com/egungor/stm32-audio-controller/main/docs/images/ui-layout-list.png)
+![Layout C, large tile](https://raw.githubusercontent.com/egungor/stm32-audio-controller/main/docs/images/ui-layout-tiles.png)
+
+*LCD screenshots: layouts B and C. All screens: [User Guide](User-Guide).*
+
 - Three layouts, chosen on the settings page: **A** cards (grid 2×2, 2×3,
   3×3 or a list), **B** list with a side rail and a vertical volume
   slider, **C** a large tile for the active device with smaller tiles for
