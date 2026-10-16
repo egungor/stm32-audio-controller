@@ -42,6 +42,20 @@ TEXTS = [
      "At startup, louder outputs are turned down to this"),
     ("TXT_SET_FLIP", "Ekranı döndür", "Turn the display"),
     ("TXT_SET_LANGUAGE", "Dil", "Language"),
+    # Edit mode and alias keyboard (#60)
+    ("TXT_EDIT_TITLE", "Sırala ve düzenle", "Arrange and edit"),
+    ("TXT_DONE", "Bitti", "Done"),
+    ("TXT_SAVE", "Kaydet", "Save"),
+    # Layouts B and C (#60)
+    ("TXT_SET_LAYOUT", "Görünüm", "Layout"),
+    ("TXT_LAYOUT_CARDS", "Kart", "Cards"),
+    ("TXT_LAYOUT_TILES", "Karo", "Tiles"),
+    ("TXT_LIST_ALL", "TÜM ÇIKIŞLAR", "ALL OUTPUTS"),
+    ("TXT_LIST_FAV", "FAVORİLER", "FAVORITES"),
+    ("TXT_N_OUTPUTS", "%u çıkış", "%u outputs"),
+    ("TXT_HERO_TITLE", "ETKİN ÇIKIŞ", "ACTIVE OUTPUT"),
+    ("TXT_HERO_NONE", "Varsayılan çıkış yok", "No default output"),
+    ("TXT_HERO_VOLUME", "ses", "volume"),
 ]
 
 

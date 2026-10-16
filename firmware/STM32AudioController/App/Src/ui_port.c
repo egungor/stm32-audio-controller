@@ -191,6 +191,12 @@ void UiPort_Start(void)
     __HAL_LTDC_ENABLE(&hltdc);
 }
 
+void UiPort_SetBacklight(bool on)
+{
+    HAL_GPIO_WritePin(LCD_BL_CTRL_GPIO_Port, LCD_BL_CTRL_Pin, on ? GPIO_PIN_SET : GPIO_PIN_RESET);
+    Log_Line("UI BACKLIGHT %s", on ? "on" : "off");
+}
+
 void UiPort_SetFlipped(bool flipped)
 {
     if (flipped == s_flipped)

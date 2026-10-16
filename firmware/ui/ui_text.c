@@ -38,6 +38,18 @@ static const char *const k_text[UI_LANGUAGE_COUNT][TXT_COUNT] = {
         "A\xC3\xA7\xC4\xB1l\xC4\xB1\xC5\x9Fta sesi bundan y\xC3\xBCksek \xC3\xA7\xC4\xB1k\xC4\xB1\xC5\x9Flar bu de\xC4\x9F" "ere iner", /* TXT_LIMIT_HINT */
         "Ekran\xC4\xB1 d\xC3\xB6nd\xC3\xBCr", /* TXT_SET_FLIP */
         "Dil", /* TXT_SET_LANGUAGE */
+        "S\xC4\xB1rala ve d\xC3\xBCzenle", /* TXT_EDIT_TITLE */
+        "Bitti", /* TXT_DONE */
+        "Kaydet", /* TXT_SAVE */
+        "G\xC3\xB6r\xC3\xBCn\xC3\xBCm", /* TXT_SET_LAYOUT */
+        "Kart", /* TXT_LAYOUT_CARDS */
+        "Karo", /* TXT_LAYOUT_TILES */
+        "T\xC3\x9CM \xC3\x87IKI\xC5\x9ELAR", /* TXT_LIST_ALL */
+        "FAVOR\xC4\xB0LER", /* TXT_LIST_FAV */
+        "%u \xC3\xA7\xC4\xB1k\xC4\xB1\xC5\x9F", /* TXT_N_OUTPUTS */
+        "ETK\xC4\xB0N \xC3\x87IKI\xC5\x9E", /* TXT_HERO_TITLE */
+        "Varsay\xC4\xB1lan \xC3\xA7\xC4\xB1k\xC4\xB1\xC5\x9F yok", /* TXT_HERO_NONE */
+        "ses", /* TXT_HERO_VOLUME */
     },
     {
         "All", /* TXT_TAB_ALL */
@@ -70,6 +82,18 @@ static const char *const k_text[UI_LANGUAGE_COUNT][TXT_COUNT] = {
         "At startup, louder outputs are turned down to this", /* TXT_LIMIT_HINT */
         "Turn the display", /* TXT_SET_FLIP */
         "Language", /* TXT_SET_LANGUAGE */
+        "Arrange and edit", /* TXT_EDIT_TITLE */
+        "Done", /* TXT_DONE */
+        "Save", /* TXT_SAVE */
+        "Layout", /* TXT_SET_LAYOUT */
+        "Cards", /* TXT_LAYOUT_CARDS */
+        "Tiles", /* TXT_LAYOUT_TILES */
+        "ALL OUTPUTS", /* TXT_LIST_ALL */
+        "FAVORITES", /* TXT_LIST_FAV */
+        "%u outputs", /* TXT_N_OUTPUTS */
+        "ACTIVE OUTPUT", /* TXT_HERO_TITLE */
+        "No default output", /* TXT_HERO_NONE */
+        "volume", /* TXT_HERO_VOLUME */
     },
 };
 

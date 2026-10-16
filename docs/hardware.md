@@ -295,7 +295,7 @@ selection: `decisions/ADR-001-firmware-peripheral-set.md`.
 
 The checks for the M1–M6 code ran on 2026-10-14 on firmware and host
 `41bfed5` (issue #48); details and observations are in the bring-up log
-above. Open: the M7 settings page and the tray program (last rows). New checks go here first,
+above. Open: the M7 settings page, screen timeout, edit mode, layouts B and C and the larger LVGL heap (last rows). New checks go here first,
 and their results into the bring-up log, with the date and the firmware
 commit.
 
@@ -312,7 +312,10 @@ commit.
 | Boot after a power cycle (SDRAM from cold) | bring-up log above | VERIFIED 2026-10-14 |
 | LCD screenshots of the final UI in `docs/images/` | `docs/images/README.md` | Done 2026-10-14 (main, muted, waiting screens) |
 | Settings page (#60): the cog opens it; each control changes the setting at once (theme, colour, grid, language rebuild the screens and the page stays open); the list scrolls by finger and scrolling over a control changes nothing; "Ekranı döndür" turns the display and touch follows; `LINK SETTINGS` (or `UI SETTINGS` in the demo build) shows each change; with `stm32-audio-host run` the preference file has the new record and a host restart restores it | `firmware/ui/README.md`, `docs/firmware-log.md` | REQUIRES HARDWARE + WINDOWS |
-| Tray program (#74): `stm32-audio-tray.exe` starts without a console window and shows the icon; the tooltip and the menu's first line say "Kumanda bekleniyor", then "Kumanda bağlı" when the board is plugged in, and the board works as with `run`; "Windows ile başlat" adds the Run value (check mark; `stm32-audio-host startup status` says on) and the tray program starts after logging off and on; "Günlüğü aç" shows the frames; "Çıkış" removes the icon and the preference file keeps the last change; a second tray program or `run` says another program serves the controller; English menu after choosing English on the board | `host/README.md`, "Tray program" | REQUIRES WINDOWS + HARDWARE |
+| Screen timeout (#60): with "Ekran kapanma" at 1 dk, the backlight goes off about a minute after the last touch (`UI BACKLIGHT off`); a touch lights it (`UI BACKLIGHT on`) and does not select anything; the next tap works; "Kapalı" keeps it lit | `firmware/ui/README.md`, `docs/firmware-log.md` | REQUIRES HARDWARE |
+| Edit mode (#60): the pencil opens it; ★ marks a favorite, the arrows move a device, the keyboard sets an alias with Turkish letters (✓ / "Kaydet" saves, × does not); each change comes back as a new list (`LINK LIST OK`), the preference file holds it, and Windows' own names are unchanged | `firmware/ui/README.md`, `docs/firmware-log.md` | REQUIRES HARDWARE + WINDOWS |
+| Layouts B and C (#60): "Görünüm" switches between Kart, Liste and Karo; in B the rail switches tabs and the vertical slider sets the Windows volume; in C the panel follows the Windows default device (also when changed in Windows) and its slider and mute work; taps select in both; no tearing while dragging | `firmware/ui/README.md` | REQUIRES HARDWARE + WINDOWS |
+| LVGL heap 128 KB (#60): boot log as before (`UI INIT OK`), no LVGL out-of-memory assert after opening every screen in every layout | `firmware/ui/lv_conf.h` | REQUIRES HARDWARE |
 
 ## Reference sources
 

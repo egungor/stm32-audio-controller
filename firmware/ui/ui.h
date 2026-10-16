@@ -10,15 +10,24 @@
  *
  * Screens:
  *   - waiting: no host connected;
- *   - main: two tabs, all devices and favorites; the devices as cards in a
- *     2x2, 3x2 or 3x3 grid or as a list (UiSettings.grid), the active
- *     device marked by colour and text, page buttons when there are more
- *     devices than fit on one page;
+ *   - main: two tabs, all devices and favorites, in one of three layouts
+ *     (UiSettings.layout): A cards in a 2x2, 3x2 or 3x3 grid or as a list
+ *     (UiSettings.grid); B a list with a tab rail and vertical volume; C
+ *     the active device in a large panel and the others as tiles. The
+ *     active device is marked by colour and text; page buttons when there
+ *     are more devices than fit on one page;
  *   - settings: opened with the cog button in the main screen's top bar;
  *     theme, accent colour, grid, startup tab, screen timeout, startup
  *     volume limit, flip and language. A change is applied at once and
  *     reported with the whole record (UiSettingsCallback);
+ *   - edit mode: opened with the pencil button in the main screen's top
+ *     bar; every device as a card with buttons to move it one place left
+ *     or right, mark it as favorite, and give it an alias on an on-screen
+ *     keyboard (Turkish layout). Edits go out through UiEditHandlers;
  *   - error notice: shown over any screen for UI_NOTICE_MS;
+ *   - screen timeout: after settings.screen_timeout minutes without a touch
+ *     the screen goes black and the backlight handler is told to switch
+ *     the backlight off; the next touch only wakes it;
  *   - flip button (top right corner of both screens): held for
  *     UI_FLIP_HOLD_MS, it asks to turn the image by 180° when released.
  *
@@ -168,7 +177,7 @@ typedef struct
     uint8_t grid;            /**< UI_GRID_* (cards layout) */
     uint8_t startup_tab;     /**< UI_STARTUP_* */
     uint8_t last_tab;        /**< UI_TAB_*, kept up to date by the UI */
-    uint8_t screen_timeout;  /**< minutes, 0 = never (display port) */
+    uint8_t screen_timeout;  /**< minutes without a touch, 0 = never (Ui_SetBacklightHandler) */
     uint8_t flipped;         /**< 0/1 (display port) */
     uint8_t language;        /**< UI_LANGUAGE_* */
     uint8_t volume_limit_on; /**< 0/1 (host) */
@@ -191,12 +200,52 @@ const UiSettings *Ui_Settings(void);
 
 /** Called with the whole record when the user changed something in the UI
  *  (the tab, stored as last_tab, or a setting on the settings page). The UI
- *  has already applied what it shows itself; screen_timeout, flipped and
- *  the volume limit are for the caller (display port, host). */
+ *  has already applied what it handles itself (including screen_timeout);
+ *  flipped and the volume limit are for the caller (display port, host). */
 typedef void (*UiSettingsCallback)(const UiSettings *settings, void *user);
 
 /** Set the settings handler (optional). */
 void Ui_SetSettingsHandler(UiSettingsCallback on_settings, void *user);
+
+/* -------------------------------------------------------------- edit mode */
+
+/**
+ * Edits asked for in the edit mode (pencil button in the top bar): favorite
+ * flag, alias (UTF-8, at most UI_MAX_ALIAS_BYTES, "" removes it) and the
+ * position in the user's order (0 = first). Each returns false if the edit
+ * was not sent (e.g. another one is still in flight): the tap then does
+ * nothing and can be repeated; a refusal by the host comes as
+ * Ui_ShowNotice(UI_NOTICE_EDIT_FAILED). The UI shows an edit only when the
+ * new list arrives (Ui_SetDevices), as the protocol says.
+ */
+typedef struct
+{
+    bool (*set_favorite)(uint8_t device_id, bool favorite, void *user);
+    bool (*set_alias)(uint8_t device_id, const char *alias, void *user);
+    bool (*move)(uint8_t device_id, uint8_t new_position, void *user);
+} UiEditHandlers;
+
+/** Set the edit handlers (optional; without them the pencil button is
+ *  hidden). @p handlers is copied. */
+void Ui_SetEditHandlers(const UiEditHandlers *handlers, void *user);
+
+/* --------------------------------------------------------- screen timeout */
+
+#define UI_SCREEN_OFF_CHECK_MS 1000U  /**< how often the timeout is checked */
+
+/**
+ * Called when the screen goes dark (@p on false: settings.screen_timeout
+ * minutes without a touch) and when a touch wakes it (@p on true). The
+ * port switches the backlight. While dark, the first touch only wakes the
+ * screen: it does not reach the controls under it.
+ */
+typedef void (*UiBacklightCallback)(bool on, void *user);
+
+/** Set the backlight handler (optional; without it the timeout still runs). */
+void Ui_SetBacklightHandler(UiBacklightCallback on_backlight, void *user);
+
+/** True while the screen is lit (for tests). */
+bool Ui_ScreenOn(void);
 
 /** Currently shown page, 0-based (for tests). */
 uint32_t Ui_CurrentPage(void);
@@ -205,7 +254,14 @@ uint32_t Ui_CurrentPage(void);
 uint32_t Ui_CurrentTab(void);
 
 /** Screens, for Ui_CurrentScreen. */
-enum { UI_SCREEN_WAITING = 0, UI_SCREEN_MAIN = 1, UI_SCREEN_SETTINGS = 2 };
+enum
+{
+    UI_SCREEN_WAITING = 0,
+    UI_SCREEN_MAIN = 1,
+    UI_SCREEN_SETTINGS = 2,
+    UI_SCREEN_EDIT = 3,
+    UI_SCREEN_KEYBOARD = 4,
+};
 
 /** Currently shown screen, UI_SCREEN_* (for tests). */
 uint32_t Ui_CurrentScreen(void);

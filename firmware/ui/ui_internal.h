@@ -64,6 +64,17 @@ typedef struct
     bool     dark;
 } UiPalette;
 
+/** How much a device button shows (layout and grid). */
+typedef enum
+{
+    CARD_LARGE,  /**< A 2x2: 40 px icon, 22 px name on two lines, state line */
+    CARD_MEDIUM, /**< A 3x2: 22 px icon, 16 px name on two lines, state line */
+    CARD_SMALL,  /**< A 3x3: 16 px icon, one line */
+    CARD_ROW,    /**< A list row */
+    CARD_LIST,   /**< B: row with the Windows name under an alias, check mark */
+    CARD_TILE,   /**< C: small tile, icon and star over a one-line name */
+} CardKind;
+
 /** One device card or list row. */
 typedef struct
 {
@@ -72,7 +83,19 @@ typedef struct
     lv_obj_t *name;
     lv_obj_t *state;  /**< "Active output" / "Switching..."; NULL if none */
     lv_obj_t *star;   /**< favorite mark; NULL if none */
+    lv_obj_t *sub;    /**< B: Windows name under an alias; NULL if none */
 } UiDeviceButton;
+
+#define UI_EDIT_PER_PAGE 4U
+
+/** One card of the edit mode: three objects, so four cards fit the LVGL
+ *  heap next to the main screen. */
+typedef struct
+{
+    lv_obj_t *card;
+    lv_obj_t *name;     /**< icon and name in one label */
+    lv_obj_t *buttons;  /**< lv_buttonmatrix: left, right, star, pencil */
+} UiEditCard;
 
 typedef struct
 {
@@ -124,7 +147,13 @@ typedef struct
     lv_obj_t      *volume_label;
     lv_obj_t      *prev_btn;
     lv_obj_t      *next_btn;
-    lv_obj_t      *flip_icons[2];  /**< waiting screen, main screen */
+    lv_obj_t      *flip_icons[2];  /**< waiting screen, main screen (NULL in B and C) */
+    CardKind       card_kind;      /**< of the buttons on the main screen */
+    lv_obj_t      *list_title;     /**< B: "ALL OUTPUTS" / "FAVORITES" */
+    lv_obj_t      *list_count;     /**< B: "9 outputs" */
+    lv_obj_t      *hero_icon;      /**< C: active device panel */
+    lv_obj_t      *hero_name;
+    lv_obj_t      *hero_sub;
     lv_obj_t      *notice;
     lv_obj_t      *notice_label;
     lv_timer_t    *notice_timer;   /**< created once */
@@ -133,7 +162,8 @@ typedef struct
     lv_obj_t *settings_screen;
     lv_obj_t *settings_list;       /**< the scrolling list of rows */
     int32_t   settings_scroll;     /**< list scroll position kept over a rebuild */
-    lv_obj_t *set_theme;           /**< segmented controls (lv_buttonmatrix) */
+    lv_obj_t *set_layout;          /**< segmented controls (lv_buttonmatrix) */
+    lv_obj_t *set_theme;
     lv_obj_t *set_grid;
     lv_obj_t *set_startup;
     lv_obj_t *set_timeout;
@@ -145,9 +175,49 @@ typedef struct
     lv_obj_t *set_limit_label;
     lv_obj_t *set_flip_switch;
     bool      rebuild_queued;      /**< ui_request_rebuild() pending */
+
+    /* Edit mode and alias keyboard (ui_edit.c): built while shown. */
+    UiEditHandlers edit;
+    void          *edit_user;
+    bool           edit_set;            /**< Ui_SetEditHandlers called */
+    lv_obj_t      *edit_btn;            /**< pencil in the main screen's bar */
+    lv_obj_t      *edit_screen;
+    UiEditCard     edit_cards[UI_EDIT_PER_PAGE];
+    lv_obj_t      *edit_prev;
+    lv_obj_t      *edit_next;
+    lv_obj_t      *edit_page_label;
+    lv_obj_t      *edit_empty;
+    uint32_t       edit_page;
+    lv_obj_t      *kb_screen;
+    lv_obj_t      *kb_text;             /**< lv_textarea with the alias */
+    uint8_t        kb_device;           /**< device being renamed */
+    char           kb_draft[UI_MAX_ALIAS_BYTES + 1U]; /**< text kept over a rebuild */
+
+    /* Screen timeout: created once in Ui_Init, never rebuilt. */
+    UiBacklightCallback on_backlight;
+    void               *backlight_user;
+    lv_timer_t         *screen_timer;
+    lv_obj_t           *wake_catcher;  /**< black, over everything, while dark */
+    bool                screen_off;
 } UiState;
 
 extern UiState g_ui;
+
+/* Main screen pieces shared by the layouts (ui.c). */
+void      ui_on_device_clicked(lv_event_t *e);  /**< user data: slot */
+void      ui_on_tab_clicked(lv_event_t *e);     /**< user data: UI_TAB_* */
+void      ui_on_page_clicked(lv_event_t *e);    /**< user data: NULL = previous */
+void      ui_on_slider_event(lv_event_t *e);
+void      ui_on_mute_clicked(lv_event_t *e);
+void      ui_on_settings_clicked(lv_event_t *e);
+void      ui_on_edit_clicked(lv_event_t *e);
+lv_obj_t *ui_make_small_button(lv_obj_t *parent, int32_t w, int32_t h, const char *symbol, lv_obj_t **label);
+void      ui_style_volume_slider(lv_obj_t *slider);
+
+/* Main screens of layouts B (list) and C (large tile) (ui_layouts.c). They
+ * set g_ui.per_page, g_ui.card_kind and the main screen objects. */
+void ui_build_list_main(void);
+void ui_build_tiles_main(void);
 
 /** Fill g_ui.pal from g_ui.settings (theme, accent). */
 void ui_theme_update(void);
@@ -171,6 +241,19 @@ void ui_request_rebuild(void);
 /** Show the main screen / the settings page. */
 void ui_show_main(void);
 void ui_show_settings(void);
+
+/** Icon glyph of a device (UiIcon) in ui_font_* / ui_icons_40 (ui.c). */
+const char *ui_icon_symbol(uint8_t icon);
+
+/** Name shown for a device: alias if set, else the Windows name (ui.c). */
+const char *ui_display_name(const UiDevice *d);
+
+/* Edit mode and alias keyboard (ui_edit.c). */
+void ui_show_edit(void);
+void ui_edit_build(void);       /**< create g_ui.edit_screen */
+void ui_edit_render(void);      /**< show g_ui.devices in the cards */
+void ui_keyboard_build(void);   /**< create g_ui.kb_screen for kb_device with kb_draft */
+void ui_edit_drop(void);        /**< delete the edit and keyboard screens (async) */
 
 /* Settings page (ui_settings.c). */
 void ui_settings_build(void);   /**< create g_ui.settings_screen */

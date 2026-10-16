@@ -18,6 +18,10 @@
 static lv_timer_t *s_confirm_timer;
 static uint8_t s_requested = UI_NO_DEVICE;
 
+/* The demo "host's" list: edits are applied here and sent again. */
+#define DEMO_DEVICES 5U
+static UiDevice s_devices[DEMO_DEVICES];
+
 static UiDevice device(uint8_t id, uint8_t icon, const char *name)
 {
     UiDevice d;
@@ -88,9 +92,68 @@ void UiDemo_ToggleFlip(void)
     on_settings(&s, NULL);
 }
 
+static size_t demo_find(uint8_t id)
+{
+    size_t i = 0U;
+
+    while ((i < DEMO_DEVICES) && (s_devices[i].id != id))
+    {
+        i++;
+    }
+    return i;
+}
+
+static bool on_edit_favorite(uint8_t id, bool favorite, void *user)
+{
+    const size_t i = demo_find(id);
+
+    LV_UNUSED(user);
+    Log_Line("UI EDIT favorite id=%u on=%u", (unsigned)id, favorite ? 1U : 0U);
+    if (i < DEMO_DEVICES)
+    {
+        s_devices[i].favorite = favorite ? 1U : 0U;
+        Ui_SetDevices(s_devices, DEMO_DEVICES);
+    }
+    return true;
+}
+
+static bool on_edit_alias(uint8_t id, const char *alias, void *user)
+{
+    const size_t i = demo_find(id);
+
+    LV_UNUSED(user);
+    Log_Line("UI EDIT alias id=%u bytes=%u", (unsigned)id, (unsigned)strlen(alias));
+    if (i < DEMO_DEVICES)
+    {
+        (void)strncpy(s_devices[i].alias, alias, UI_MAX_ALIAS_BYTES);
+        s_devices[i].alias[UI_MAX_ALIAS_BYTES] = '\0';
+        Ui_SetDevices(s_devices, DEMO_DEVICES);
+    }
+    return true;
+}
+
+static bool on_edit_move(uint8_t id, uint8_t new_position, void *user)
+{
+    const size_t i = demo_find(id);
+
+    LV_UNUSED(user);
+    Log_Line("UI EDIT move id=%u to=%u", (unsigned)id, (unsigned)new_position);
+    if ((i < DEMO_DEVICES) && (new_position < DEMO_DEVICES))
+    {
+        const UiDevice d = s_devices[i];
+
+        (void)memmove(&s_devices[i], &s_devices[i + 1U], (DEMO_DEVICES - i - 1U) * sizeof(UiDevice));
+        (void)memmove(&s_devices[new_position + 1U], &s_devices[new_position],
+                      (DEMO_DEVICES - new_position - 1U) * sizeof(UiDevice));
+        s_devices[new_position] = d;
+        Ui_SetDevices(s_devices, DEMO_DEVICES);
+    }
+    return true;
+}
+
 static void on_connect(lv_timer_t *timer)
 {
-    UiDevice devices[] = {
+    const UiDevice devices[DEMO_DEVICES] = {
         device(0U, UI_ICON_SPEAKERS, "Hoparl\xC3\xB6rler"),
         device(1U, UI_ICON_HEADPHONES, "Kulakl\xC4\xB1k"),
         device(2U, UI_ICON_DISPLAY, "Monit\xC3\xB6r (HDMI)"),
@@ -98,15 +161,16 @@ static void on_connect(lv_timer_t *timer)
         device(4U, UI_ICON_DIGITAL, "USB DAC"),
     };
 
+    (void)memcpy(s_devices, devices, sizeof(s_devices));
     /* Two favorites so the favorites tab has something to show. */
-    devices[0].favorite = 1U;
-    devices[3].favorite = 1U;
+    s_devices[0].favorite = 1U;
+    s_devices[3].favorite = 1U;
     lv_timer_delete(timer);
-    Ui_SetDevices(devices, sizeof(devices) / sizeof(devices[0]));
+    Ui_SetDevices(s_devices, DEMO_DEVICES);
     Ui_SetActive(1U);
     Ui_SetVolume(45U);
     Ui_SetMuted(0U);
-    Log_Line("UI DEMO DEVICES n=%u active=1", (unsigned)(sizeof(devices) / sizeof(devices[0])));
+    Log_Line("UI DEMO DEVICES n=%u active=1", (unsigned)DEMO_DEVICES);
 }
 
 void UiDemo_Start(void)
@@ -114,6 +178,11 @@ void UiDemo_Start(void)
     Ui_Init(on_select, NULL);
     Ui_SetAudioHandlers(on_volume, on_mute, NULL);
     Ui_SetSettingsHandler(on_settings, NULL);
+    {
+        static const UiEditHandlers edit = { on_edit_favorite, on_edit_alias, on_edit_move };
+
+        Ui_SetEditHandlers(&edit, NULL);
+    }
     s_confirm_timer = lv_timer_create(on_confirm, CONFIRM_MS, NULL);
     lv_timer_pause(s_confirm_timer);
     (void)lv_timer_create(on_connect, WAITING_MS, NULL);

@@ -55,6 +55,26 @@ static int s_flip_calls;
 
 static struct
 {
+    int  calls;
+    bool on;
+} s_backlight;
+
+/* Stand-in for the host's preference store in the edit mode tests: applies
+ * an edit to its list and sends the new list, as the host does. */
+static struct
+{
+    UiDevice list[8];
+    size_t   count;
+    int      favorite_calls;
+    int      alias_calls;
+    int      move_calls;
+    uint8_t  last_id;
+    uint8_t  last_position;
+    char     last_alias[UI_MAX_ALIAS_BYTES + 1U];
+} s_host;
+
+static struct
+{
     int        calls;
     UiSettings last;
 } s_settings;
@@ -216,6 +236,77 @@ static void on_volume(uint8_t volume, bool released, void *user)
     s_audio.calls++;
     s_audio.released += released ? 1 : 0;
     s_audio.last = volume;
+}
+
+static void on_backlight(bool on, void *user)
+{
+    LV_UNUSED(user);
+    s_backlight.calls++;
+    s_backlight.on = on;
+}
+
+static size_t host_find(uint8_t id)
+{
+    for (size_t i = 0U; i < s_host.count; i++)
+    {
+        if (s_host.list[i].id == id)
+        {
+            return i;
+        }
+    }
+    return s_host.count;
+}
+
+static bool host_set_favorite(uint8_t id, bool favorite, void *user)
+{
+    const size_t i = host_find(id);
+
+    LV_UNUSED(user);
+    s_host.favorite_calls++;
+    s_host.last_id = id;
+    if (i < s_host.count)
+    {
+        s_host.list[i].favorite = favorite ? 1U : 0U;
+        Ui_SetDevices(s_host.list, s_host.count);
+    }
+    return true;
+}
+
+static bool host_set_alias(uint8_t id, const char *alias, void *user)
+{
+    const size_t i = host_find(id);
+
+    LV_UNUSED(user);
+    s_host.alias_calls++;
+    s_host.last_id = id;
+    (void)snprintf(s_host.last_alias, sizeof(s_host.last_alias), "%s", alias);
+    if (i < s_host.count)
+    {
+        (void)snprintf(s_host.list[i].alias, sizeof(s_host.list[i].alias), "%s", alias);
+        Ui_SetDevices(s_host.list, s_host.count);
+    }
+    return true;
+}
+
+static bool host_move(uint8_t id, uint8_t new_position, void *user)
+{
+    const size_t i = host_find(id);
+
+    LV_UNUSED(user);
+    s_host.move_calls++;
+    s_host.last_id = id;
+    s_host.last_position = new_position;
+    if ((i < s_host.count) && (new_position < s_host.count))
+    {
+        const UiDevice d = s_host.list[i];
+
+        (void)memmove(&s_host.list[i], &s_host.list[i + 1U], (s_host.count - i - 1U) * sizeof(UiDevice));
+        (void)memmove(&s_host.list[new_position + 1U], &s_host.list[new_position],
+                      (s_host.count - new_position - 1U) * sizeof(UiDevice));
+        s_host.list[new_position] = d;
+        Ui_SetDevices(s_host.list, s_host.count);
+    }
+    return true;
 }
 
 static void on_flip(void *user)
@@ -401,33 +492,36 @@ static void run_settings_page_script(const UiDevice *devices, size_t count)
     snapshot("40-settings");
     report_memory("40-settings");
 
-    tap_setting(425, 60, "the theme control reports the settings");
+    /* Rows from the top: layout 60, theme 108, colour 156, grid 204,
+     * startup tab 252. */
+    tap_setting(425, 108, "the theme control reports the settings");
     check(Ui_Settings()->theme == UI_THEME_LIGHT, "\"Light\" sets the light theme");
-    tap_setting(307, 108, "the colour swatches report the settings");
+    tap_setting(307, 156, "the colour swatches report the settings");
     check(Ui_Settings()->accent == UI_ACCENT_BLUE, "the second swatch sets the blue accent");
     snapshot("41-settings-light-blue");
     report_memory("41-settings-light-blue");
-    tap_setting(312, 156, "the grid control reports the settings");
+    tap_setting(312, 204, "the grid control reports the settings");
     check(Ui_Settings()->grid == UI_GRID_3X2, "\"3x2\" sets the 3x2 grid");
-    tap_setting(422, 204, "the startup tab control reports the settings");
+    tap_setting(422, 252, "the startup tab control reports the settings");
     check(Ui_Settings()->startup_tab == UI_STARTUP_FAVORITES, "\"Favorites\" sets the startup tab");
-    tap_setting(363, 252, "the screen timeout control reports the settings");
+
+    /* Scroll to the end of the list; a drag that starts on a control
+     * scrolls and changes nothing. Rows from the bottom then: startup tab
+     * 47, screen timeout 95, volume limit 143, flip 191, language 239. */
+    calls = s_settings.calls;
+    drag_v(240, 250, 40);
+    check((s_settings.calls == calls) && (Ui_Settings()->startup_tab == UI_STARTUP_FAVORITES),
+          "scrolling over a control does not change it");
+    drag_v(240, 250, 40);
+    snapshot("42-settings-bottom");
+    tap_setting(363, 95, "the screen timeout control reports the settings");
     check(Ui_Settings()->screen_timeout == 5U, "\"5 min\" sets a 5 minute screen timeout");
 
     /* Tapping the option that is already chosen reports nothing. */
     calls = s_settings.calls;
-    tap(363, 252);
+    tap(363, 95);
     check(s_settings.calls == calls, "the chosen option again reports nothing");
 
-    /* Scroll to the end of the list: volume limit, flip, language. */
-    /* Scroll to the end of the list; a drag that starts on a control
-     * scrolls and changes nothing. */
-    calls = s_settings.calls;
-    drag_v(240, 250, 40);
-    check((s_settings.calls == calls) && (Ui_Settings()->screen_timeout == 5U),
-          "scrolling over a control does not change it");
-    drag_v(240, 250, 40);
-    snapshot("42-settings-bottom");
     tap_setting(444, 144, "the volume limit switch reports the settings");
     check(Ui_Settings()->volume_limit_on == 1U, "the volume limit switch turns the limit on");
     run_ms(50U);
@@ -487,6 +581,268 @@ static void run_settings_page_script(const UiDevice *devices, size_t count)
     run_ms(50U);
     check(Ui_CurrentScreen() == UI_SCREEN_WAITING, "the waiting screen replaces the settings page");
     report_memory("end");
+}
+
+/* Screen timeout (#60): dark after settings.screen_timeout minutes without
+ * a touch; the first touch only wakes the screen. */
+static void run_screen_timeout_script(const UiDevice *devices, size_t count)
+{
+    UiSettings s = *Ui_Settings();
+    int selects;
+
+    Ui_SetDevices(devices, count);
+    Ui_SetActive(1U);
+    s.screen_timeout = 0U;
+    s.grid = UI_GRID_2X2;
+    s.language = UI_LANGUAGE_TURKISH;
+    Ui_ApplySettings(&s);
+    run_ms(120000U);
+    check(Ui_ScreenOn() && (s_backlight.calls == 0), "with the timeout off the screen stays lit");
+
+    s.screen_timeout = 1U;
+    Ui_ApplySettings(&s);
+    run_ms(58000U);
+    check(Ui_ScreenOn(), "the screen is lit before the timeout");
+    run_ms(3000U);
+    check(!Ui_ScreenOn() && (s_backlight.calls == 1) && !s_backlight.on,
+          "after 1 minute without a touch the screen goes dark once");
+    snapshot("50-screen-off");
+
+    /* The waking touch does not select the device under it. */
+    selects = s_select.calls;
+    tap(120, 85);
+    check(Ui_ScreenOn() && (s_backlight.calls == 2) && s_backlight.on, "a touch wakes the screen");
+    check(s_select.calls == selects, "the waking touch does not reach the controls");
+    tap(120, 85);
+    check(s_select.calls == selects + 1, "the next touch works normally");
+    snapshot("51-screen-woken");
+
+    /* A touch restarts the count. */
+    run_ms(40000U);
+    tap(240, 160);
+    run_ms(40000U);
+    check(Ui_ScreenOn(), "a touch restarts the timeout");
+    run_ms(25000U);
+    check(!Ui_ScreenOn(), "dark again a minute after the last touch");
+
+    /* "Never" from the host lights a dark screen and keeps it lit. */
+    s.screen_timeout = 0U;
+    Ui_ApplySettings(&s);
+    check(Ui_ScreenOn() && s_backlight.on, "switching the timeout off wakes the screen");
+    run_ms(70000U);
+    check(Ui_ScreenOn(), "and it stays lit");
+}
+
+/* Keyboard keys (Turkish Q layout, 480 x 220 under a 52 px bar): rows
+ * 50 px high; row 1 has 12 equal keys, row 3 starts with a mode key. */
+#define KB_ROW1_Y  81
+#define KB_ROW3_Y  189
+#define KB_ROW4_Y  243
+static int32_t kb_row1_x(int32_t index) { return 4 + (index * 40) + 18; }
+static int32_t kb_row3_x(int32_t letter) { return 62 + (letter * 40) + 18; } /* 0 = z */
+#define KB_MODE_X  31   /* "ABC" / "abc" */
+#define KB_OK_X    442
+#define KB_CLOSE_X 28
+#define KB_CLOSE_Y 26
+
+/* Edit mode (#60): favorite, order and alias through UiEditHandlers. Cards
+ * 2 x 2; a card's buttons (left, right, star, pencil) on its bottom row. */
+static void run_edit_script(const UiDevice *devices, size_t count)
+{
+    static const UiEditHandlers handlers = { host_set_favorite, host_set_alias, host_move };
+    uint32_t base;
+    uint32_t used;
+    int calls;
+
+    memcpy(s_host.list, devices, count * sizeof(UiDevice));
+    s_host.count = count;
+    Ui_SetDevices(s_host.list, s_host.count);
+    Ui_SetActive(1U);
+    Ui_SetEditHandlers(&handlers, NULL);
+    run_ms(50U);
+    snapshot("60-main-pencil");
+    Ui_MemoryUse(&base, NULL);
+
+    tap(370, 18); /* pencil */
+    check(Ui_CurrentScreen() == UI_SCREEN_EDIT, "the pencil button opens the edit mode");
+    run_ms(50U);
+    snapshot("61-edit");
+    report_memory("61-edit");
+
+    tap(128, 106); /* first card: star */
+    check((s_host.favorite_calls == 1) && (s_host.last_id == 0U) && (s_host.list[0].favorite == 1U),
+          "the star marks the first device as favorite");
+    check(Ui_CurrentScreen() == UI_SCREEN_EDIT, "the edit mode stays open when the new list arrives");
+
+    calls = s_host.move_calls;
+    tap(36, 106); /* first card: left, disabled */
+    check(s_host.move_calls == calls, "the first device cannot move further left");
+    tap(82, 106); /* first card: right */
+    check((s_host.move_calls == calls + 1) && (s_host.last_id == 0U) && (s_host.last_position == 1U) &&
+              (s_host.list[1].id == 0U),
+          "the right arrow moves the device one place on");
+    run_ms(50U);
+    snapshot("62-edit-moved");
+
+    /* Alias: pencil of the first card (now device 1), type "Oyun", OK. */
+    tap(174, 106);
+    check(Ui_CurrentScreen() == UI_SCREEN_KEYBOARD, "the pencil on a card opens the keyboard");
+    run_ms(50U);
+    snapshot("63-keyboard");
+    report_memory("63-keyboard");
+    tap(KB_MODE_X, KB_ROW3_Y);   /* ABC */
+    tap(kb_row1_x(8), KB_ROW1_Y); /* O */
+    tap(KB_MODE_X, KB_ROW3_Y);   /* abc */
+    tap(kb_row1_x(5), KB_ROW1_Y); /* y */
+    tap(kb_row1_x(6), KB_ROW1_Y); /* u */
+    tap(kb_row3_x(5), KB_ROW3_Y); /* n */
+    tap(kb_row1_x(7), KB_ROW1_Y); /* ı */
+    run_ms(50U);
+    snapshot("64-keyboard-typed");
+    tap(KB_OK_X, KB_ROW4_Y);
+    run_ms(50U);
+    check((s_host.alias_calls == 1) && (s_host.last_id == 1U) &&
+              (strcmp(s_host.last_alias, "Oyun\xC4\xB1") == 0),
+          "OK on the keyboard sets the typed alias");
+    check(Ui_CurrentScreen() == UI_SCREEN_EDIT, "saving the alias returns to the edit mode");
+
+    /* The alias is limited to UI_MAX_ALIAS_BYTES of UTF-8 ("\xC4\x9F" is 2 bytes). */
+    tap(174 + 236, 106); /* second card's pencil */
+    for (uint32_t i = 0U; i < 20U; i++)
+    {
+        tap(kb_row1_x(10), KB_ROW1_Y); /* ğ */
+    }
+    tap(KB_OK_X, KB_ROW4_Y);
+    run_ms(50U);
+    check((s_host.alias_calls == 2) && (strlen(s_host.last_alias) == UI_MAX_ALIAS_BYTES),
+          "the alias stops at 32 bytes");
+
+    /* Close without saving. */
+    tap(174 + 236, 106);
+    tap(kb_row1_x(0), KB_ROW1_Y);
+    Ui_SetDevices(s_host.list, s_host.count);
+    check(Ui_CurrentScreen() == UI_SCREEN_KEYBOARD, "a new list leaves the keyboard open");
+    tap(KB_CLOSE_X, KB_CLOSE_Y);
+    run_ms(50U);
+    check((s_host.alias_calls == 2) && (Ui_CurrentScreen() == UI_SCREEN_EDIT), "x closes the keyboard without saving");
+
+    /* Pages: 6 devices, 4 per page. */
+    tap(452, 252);
+    run_ms(50U);
+    snapshot("65-edit-page2");
+
+    tap(440, 18); /* Done */
+    run_ms(50U);
+    check(Ui_CurrentScreen() == UI_SCREEN_MAIN, "Done returns to the main screen");
+    snapshot("66-main-after-edit");
+
+    /* Opening and closing does not leak. */
+    for (uint32_t i = 0U; i < 5U; i++)
+    {
+        tap(370, 18);
+        tap(174, 106);
+        tap(KB_CLOSE_X, KB_CLOSE_Y);
+        tap(440, 18);
+    }
+    run_ms(50U);
+    Ui_MemoryUse(&used, NULL);
+    printf("memory after 5 edit sessions: before=%lu after=%lu\n", (unsigned long)base, (unsigned long)used);
+    check(used <= base + 512U, "the edit mode and keyboard do not leak memory");
+    check(Ui_CurrentScreen() == UI_SCREEN_MAIN, "back on the main screen");
+    report_memory("edit-end");
+}
+
+/* Layouts B (list) and C (large tile), #60. */
+static void run_layouts_script(void)
+{
+    UiSettings s = *Ui_Settings();
+    int selects;
+    int volumes;
+    uint32_t before;
+    uint32_t after;
+
+    Ui_SetActive(1U);
+    Ui_SetVolume(45U);
+    Ui_SetMuted(0U);
+    s.theme = UI_THEME_DARK;
+    s.accent = UI_ACCENT_ORANGE;
+    s.language = UI_LANGUAGE_TURKISH;
+    s.layout = UI_LAYOUT_LIST;
+    apply_and_snapshot(&s, "70-list");
+    check(Ui_CurrentScreen() == UI_SCREEN_MAIN, "the list layout shows the main screen");
+
+    /* B: rows from y 32, 42 px apart; rail buttons at x 30. */
+    selects = s_select.calls;
+    tap(200, 51 + 42); /* second row */
+    check(s_select.calls == selects + 1, "a tap on a row selects its device");
+    tap(30, 82); /* favorites */
+    check(Ui_CurrentTab() == UI_TAB_FAVORITES, "the rail's star shows the favorites");
+    run_ms(50U);
+    snapshot("71-list-favorites");
+    tap(30, 30);
+    check(Ui_CurrentTab() == UI_TAB_ALL, "the rail's list button shows all devices");
+
+    /* Vertical volume on the right. */
+    volumes = s_audio.calls;
+    drag_v(448, 150, 70);
+    check((s_audio.calls > volumes) && (s_audio.last > 45U), "dragging the vertical slider up raises the volume");
+    Ui_SetVolume(s_audio.last);
+    s.theme = UI_THEME_LIGHT;
+    apply_and_snapshot(&s, "72-list-light");
+
+    /* C: the active device in the panel, the others as tiles. */
+    s.layout = UI_LAYOUT_TILES;
+    s.theme = UI_THEME_DARK;
+    apply_and_snapshot(&s, "73-tiles");
+    selects = s_select.calls;
+    tap(275, 80); /* first tile */
+    check((s_select.calls == selects + 1) && (s_select.last_id != 1U),
+          "the first tile is not the active device and selects its own");
+    Ui_SetActive(s_select.last_id);
+    run_ms(50U);
+    snapshot("74-tiles-switched");
+    s.theme = UI_THEME_LIGHT;
+    s.accent = UI_ACCENT_PURPLE;
+    apply_and_snapshot(&s, "75-tiles-light");
+
+    /* The layout row on the settings page: back to cards. */
+    tap(455, 25); /* cog */
+    check(Ui_CurrentScreen() == UI_SCREEN_SETTINGS, "the cog of layout C opens the settings page");
+    tap_setting(277, 60, "the layout control reports the settings");
+    check(Ui_Settings()->layout == UI_LAYOUT_CARDS, "\"Kart\" sets the cards layout");
+    tap_setting(351, 60, "the layout control reports the settings again");
+    check(Ui_Settings()->layout == UI_LAYOUT_LIST, "\"Liste\" sets the list layout");
+    snapshot("76-settings-layout-list");
+    {
+        const int before = s_settings.calls;
+
+        tap(312, 204); /* "3x2", greyed out outside the cards layout */
+        check((s_settings.calls == before) && (Ui_Settings()->grid == UI_GRID_2X2),
+              "the grid row does nothing outside the cards layout");
+    }
+    tap(60, 18);
+    run_ms(50U);
+    check(Ui_CurrentScreen() == UI_SCREEN_MAIN, "back on the main screen in the list layout");
+
+    /* Switching layouts again and again does not leak. */
+    s = *Ui_Settings();
+    Ui_MemoryUse(&before, NULL);
+    for (uint32_t i = 0U; i < 12U; i++)
+    {
+        s.layout = (uint8_t)(i % UI_LAYOUT_COUNT);
+        s.theme = (uint8_t)((i / 3U) % 2U);
+        Ui_ApplySettings(&s);
+        run_ms(20U);
+    }
+    s.layout = UI_LAYOUT_CARDS;
+    s.theme = UI_THEME_DARK;
+    s.accent = UI_ACCENT_ORANGE;
+    s.grid = UI_GRID_2X2;
+    Ui_ApplySettings(&s);
+    run_ms(20U);
+    Ui_MemoryUse(&after, NULL);
+    printf("memory after 13 layout changes: before=%lu after=%lu\n", (unsigned long)before, (unsigned long)after);
+    report_memory("layouts-end");
 }
 
 static void run_script(void)
@@ -596,6 +952,9 @@ static void run_script(void)
 
     run_settings_script(devices, sizeof(devices) / sizeof(devices[0]));
     run_settings_page_script(devices, sizeof(devices) / sizeof(devices[0]));
+    run_screen_timeout_script(devices, sizeof(devices) / sizeof(devices[0]));
+    run_edit_script(devices, sizeof(devices) / sizeof(devices[0]));
+    run_layouts_script();
 }
 
 int main(int argc, char **argv)
@@ -627,6 +986,7 @@ int main(int argc, char **argv)
     Ui_SetAudioHandlers(on_volume, on_mute, NULL);
     Ui_SetFlipHandler(on_flip, NULL);
     Ui_SetSettingsHandler(on_settings, NULL);
+    Ui_SetBacklightHandler(on_backlight, NULL);
     run_ms(50U);
     run_script();
 

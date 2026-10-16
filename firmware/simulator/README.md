@@ -55,6 +55,16 @@ argument):
 | `43-settings-limit.png`, `44-settings-limit-moved.png` | Volume limit on; its slider moved to 75 % |
 | `45-settings-english.png` | Flip on, language English |
 | `46-main-after-settings.png` | Back on the main screen with the chosen settings |
+| `60-main-pencil.png` | Main screen with the pencil button (edit handlers set) |
+| `61-edit.png`, `62-edit-moved.png` | Edit mode; after the star and the right arrow on the first card |
+| `63-keyboard.png`, `64-keyboard-typed.png` | Alias keyboard, empty and after typing "Oyunı" |
+| `65-edit-page2.png` | Second page of the edit mode |
+| `66-main-after-edit.png` | Main screen with the new order, alias and favorite |
+| `70-list.png`, `71-list-favorites.png`, `72-list-light.png` | Layout B: all devices, favorites tab, light theme after raising the vertical volume |
+| `73-tiles.png`, `74-tiles-switched.png`, `75-tiles-light.png` | Layout C; after tapping the first tile; light theme with the purple accent |
+| `76-settings-layout-list.png` | Settings page with "Liste" chosen: the grid row greyed out |
+| `50-screen-off.png` | Screen timeout of 1 minute run out: black, backlight off |
+| `51-screen-woken.png` | After the waking touch and one more tap |
 
 The script prints the LVGL memory in use after each rebuild and fails if
 the peak passes 90 % of `LV_MEM_SIZE` or repeated rebuilds leak. LVGL
@@ -71,7 +81,18 @@ control reports the whole record once with the right value, the page
 stays open across the rebuild a change causes, scrolling over a control
 changes nothing, the volume limit slider reports once on release in 5 %
 steps, a new list or host settings leave the page open, and opening and
-closing it leaks no memory. The simulator exits non-zero if a check fails.
+closing it leaks no memory. The screen timeout goes dark once after the
+set minutes without a touch (and never with "never"), the waking touch
+does not reach the control under it, a touch restarts the count, and
+switching the timeout off from the host wakes the screen. In the edit
+mode the star, the arrows (disabled at the ends) and the keyboard call the
+edit handlers with the right device, position and UTF-8 text, the alias
+stops at 32 bytes, × saves nothing, a new list keeps the screens open,
+and repeated sessions leak no memory. In layouts B and C a tap on a row or
+tile selects its device, C keeps the active device out of the tiles, the
+rail and pills switch tabs, the vertical slider reports the volume, the
+layout row switches layouts, and the grid row does nothing outside A. The
+simulator exits non-zero if a check fails.
 
 ## How it works
 
