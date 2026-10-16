@@ -373,6 +373,14 @@ void ui_on_slider_event(lv_event_t *e)
         return;
     }
     lv_label_set_text_fmt(g_ui.volume_label, "%u%%", (unsigned)value);
+    /* The slider's value is the volume now. The caller may not report it
+     * back (the host confirms the value already shown), and render_audio,
+     * e.g. on a mute change, must not move the knob back to the volume from
+     * before the drag. */
+    if (g_ui.volume != UI_VOLUME_UNKNOWN)
+    {
+        g_ui.volume = value;
+    }
     /* Moving the slider while muted unmutes, once until the host answers. */
     if ((code == LV_EVENT_VALUE_CHANGED) && (g_ui.muted == 1U) && !g_ui.unmute_asked && (g_ui.on_mute != NULL))
     {
@@ -1236,6 +1244,11 @@ void Ui_SetSettingsHandler(UiSettingsCallback on_settings, void *user)
 uint32_t Ui_CurrentPage(void)
 {
     return g_ui.page;
+}
+
+uint8_t Ui_ShownVolume(void)
+{
+    return (g_ui.volume == UI_VOLUME_UNKNOWN) ? UI_VOLUME_UNKNOWN : (uint8_t)lv_slider_get_value(g_ui.slider);
 }
 
 uint32_t Ui_CurrentTab(void)

@@ -250,6 +250,9 @@ bool Ui_ScreenOn(void);
 /** Currently shown page, 0-based (for tests). */
 uint32_t Ui_CurrentPage(void);
 
+/** Volume the slider shows, 0-100, or UI_VOLUME_UNKNOWN (for tests). */
+uint8_t Ui_ShownVolume(void);
+
 /** Currently shown tab, UI_TAB_* (for tests). */
 uint32_t Ui_CurrentTab(void);
 

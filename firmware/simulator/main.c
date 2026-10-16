@@ -931,6 +931,25 @@ static void run_script(void)
     drag(200, 180, 252);
     check(s_audio.mute_calls == 3, "moving the slider while not muted leaves mute");
 
+    /* The host confirms a dragged volume without reporting it again (the
+     * link shows nothing when the value is already shown): a mute change
+     * keeps the slider where it was dragged, not at the volume from before
+     * the drag. */
+    Ui_SetVolume(30U);
+    run_ms(50U);
+    drag(150, 260, 252);
+    {
+        const uint8_t dragged = Ui_ShownVolume();
+
+        check(dragged > 30U, "the slider shows the dragged volume");
+        Ui_SetMuted(1U);
+        run_ms(50U);
+        check(Ui_ShownVolume() == dragged, "muting keeps the dragged volume");
+        Ui_SetMuted(0U);
+        run_ms(50U);
+        check(Ui_ShownVolume() == dragged, "unmuting keeps the dragged volume");
+    }
+
     /* No default device: volume and mute unknown, controls disabled. */
     Ui_SetActive(UI_NO_DEVICE);
     Ui_SetVolume(UI_VOLUME_UNKNOWN);
